@@ -894,7 +894,32 @@ class ESPWindow(QtWidgets.QWidget):
         self.setAttribute(QtCore.Qt.WA_NoSystemBackground)
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         hwnd = self.winId()
-        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, win32con.WS_EX_LAYERED | win32con.WS_EX_TRANSPARENT)
+        try:
+            # preserve existing extended styles, add layered/transparent/toolwindow and remove appwindow
+            curr_exstyle = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+            new_exstyle = curr_exstyle | win32con.WS_EX_LAYERED | win32con.WS_EX_TRANSPARENT
+            # ensure toolwindow flag is set so it doesn't appear on the taskbar
+            new_exstyle |= getattr(win32con, 'WS_EX_TOOLWINDOW', 0)
+            # remove appwindow flag if present
+            new_exstyle &= ~getattr(win32con, 'WS_EX_APPWINDOW', 0)
+            win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, new_exstyle)
+            # ensure the window stays topmost so it appears above fullscreen game windows
+            try:
+                win32gui.SetWindowPos(int(hwnd), win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_SHOWWINDOW)
+            except Exception:
+                try:
+                    # fallback: try with explicit constants if win32con lacks SWP flags
+                    SWP_FLAGS = 0x0010 | 0x0001 | 0x0002 | 0x0040
+                    win32gui.SetWindowPos(int(hwnd), -1, 0, 0, 0, 0, SWP_FLAGS)
+                except Exception:
+                    pass
+        except Exception:
+            # fallback: try to set basic layered + transparent (best-effort)
+            try:
+                win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, win32con.WS_EX_LAYERED | win32con.WS_EX_TRANSPARENT)
+            except Exception:
+                pass
 
         self.file_watcher = QFileSystemWatcher([CONFIG_FILE])
         self.file_watcher.fileChanged.connect(self.reload_settings)
@@ -1627,6 +1652,11 @@ def aim():
     main_program()
 
 if __name__ == "__main__":
+    # support multiprocessing in frozen executables (PyInstaller)
+    try:
+        multiprocessing.freeze_support()
+    except Exception:
+        pass
 
     # wait for the game to start
     ctypes.windll.user32.MessageBoxW(0, "Waiting For CS2.exe", "", 0)
