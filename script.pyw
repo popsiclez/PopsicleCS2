@@ -33,7 +33,14 @@ from pynput.mouse import Controller, Button
 from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtCore import QFileSystemWatcher, QCoreApplication, QTimer
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
-from qt_material import apply_stylesheet
+
+# Import qt_material after PySide6 to avoid warnings
+try:
+    from qt_material import apply_stylesheet
+except ImportError:
+    # Fallback if qt_material is not available
+    def apply_stylesheet(app, theme=None):
+        pass
 
 # Windows API imports
 import win32api
@@ -235,10 +242,6 @@ DEFAULT_SETTINGS = {
     "aim_smoothness": 0,
     "aim_lock_target": 0,
     "aim_visibility_check": 0,
-    "aim_dynamic_smoothness": 0,
-    "aim_dynamic_min": 50,
-    "aim_dynamic_max": 500,
-    "aim_distance_smoothness": 0,
     "aim_disable_when_crosshair_on_enemy": 0,
     "radius": 50,
     "AimKey": "C",
@@ -253,6 +256,7 @@ DEFAULT_SETTINGS = {
     
     # Bhop Settings
     "bhop_enabled": 0,
+    "BhopKey": "SPACE",
     
     # UI Settings
     "topmost": 1,
@@ -1113,44 +1117,6 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-        # Dynamic Smoothness based on target movement
-        self.dynamic_smoothness_cb = QtWidgets.QCheckBox("Dynamic Smoothness (Based on Target Movement)")
-        self.dynamic_smoothness_cb.setChecked(self.settings.get("aim_dynamic_smoothness", 0) == 1)
-        self.dynamic_smoothness_cb.stateChanged.connect(self.save_settings)
-        self.dynamic_smoothness_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        aim_layout.addWidget(self.dynamic_smoothness_cb)
-
-        self.dynamic_min_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.dynamic_min_slider.setMinimum(1)
-        self.dynamic_min_slider.setMaximum(20000)
-        self.dynamic_min_slider.setValue(self.settings.get('aim_dynamic_min', 50))
-        self.dynamic_min_slider.valueChanged.connect(self.update_dynamic_min_label)
-        self.lbl_dynamic_min = QtWidgets.QLabel(f"Dynamic Min (Fast Targets): ({self.settings.get('aim_dynamic_min', 50)})")
-        self.lbl_dynamic_min.setMinimumHeight(16)
-        aim_layout.addWidget(self.lbl_dynamic_min)
-        self.dynamic_min_slider.setMinimumHeight(18)
-        self.dynamic_min_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        aim_layout.addWidget(self.dynamic_min_slider)
-
-        self.dynamic_max_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.dynamic_max_slider.setMinimum(1)
-        self.dynamic_max_slider.setMaximum(20000)
-        self.dynamic_max_slider.setValue(self.settings.get('aim_dynamic_max', 500))
-        self.dynamic_max_slider.valueChanged.connect(self.update_dynamic_max_label)
-        self.lbl_dynamic_max = QtWidgets.QLabel(f"Dynamic Max (Stationary Targets): ({self.settings.get('aim_dynamic_max', 500)})")
-        self.lbl_dynamic_max.setMinimumHeight(16)
-        aim_layout.addWidget(self.lbl_dynamic_max)
-        self.dynamic_max_slider.setMinimumHeight(18)
-        self.dynamic_max_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        aim_layout.addWidget(self.dynamic_max_slider)
-
-        # Distance-based smoothness
-        self.distance_smoothness_cb = QtWidgets.QCheckBox("Distance-Based Smoothness (Further = Smoother)")
-        self.distance_smoothness_cb.setChecked(self.settings.get("aim_distance_smoothness", 0) == 1)
-        self.distance_smoothness_cb.stateChanged.connect(self.save_settings)
-        self.distance_smoothness_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        aim_layout.addWidget(self.distance_smoothness_cb)
-
         
         self.aim_visibility_cb = QtWidgets.QCheckBox("Spotted Check")
         self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
@@ -1303,11 +1269,19 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.fps_limit_slider)
 
         # Bhop toggle checkbox
-        self.bhop_cb = QtWidgets.QCheckBox("Bhop (Hold Space)")
+        self.bhop_cb = QtWidgets.QCheckBox("Bhop")
         self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
         self.bhop_cb.stateChanged.connect(self.on_bhop_changed)
         self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.bhop_cb)
+
+        # Bhop key button
+        self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+        self.bhop_key_btn.clicked.connect(lambda: self.record_key('BhopKey', self.bhop_key_btn))
+        self.bhop_key_btn.setMinimumHeight(22)
+        self.bhop_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.bhop_key_btn)
+        self.bhop_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'BhopKey', self.bhop_key_btn)
 
         self.terminate_btn = QtWidgets.QPushButton("Exit Script (Hold ESC or click here)")
         self.terminate_btn.setToolTip("Close Script")
@@ -1448,8 +1422,7 @@ class ConfigWindow(QtWidgets.QWidget):
             'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'weapon_cb', 'bomb_esp_cb',
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
-            'dynamic_smoothness_cb', 'dynamic_min_slider', 'dynamic_max_slider',
-            'aim_visibility_cb', 'lock_target_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'theme_combo',
+            'aim_visibility_cb', 'lock_target_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
             'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb'
             , 'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
@@ -1570,6 +1543,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
                 if getattr(self, 'menu_key_btn', None) is not None:
                     self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
+                if getattr(self, 'bhop_key_btn', None) is not None:
+                    self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
 
                 if getattr(self, 'esp_toggle_key_btn', None) is not None:
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
@@ -1774,26 +1749,6 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
         
         try:
-            self.settings["aim_dynamic_smoothness"] = 1 if getattr(self, 'dynamic_smoothness_cb', None) and self.dynamic_smoothness_cb.isChecked() else 0
-        except Exception:
-            pass
-        
-        try:
-            self.settings["aim_distance_smoothness"] = 1 if getattr(self, 'distance_smoothness_cb', None) and self.distance_smoothness_cb.isChecked() else 0
-        except Exception:
-            pass
-        
-        try:
-            self.settings["aim_dynamic_min"] = int(self.dynamic_min_slider.value())
-        except Exception:
-            pass
-        
-        try:
-            self.settings["aim_dynamic_max"] = int(self.dynamic_max_slider.value())
-        except Exception:
-            pass
-        
-        try:
             self.settings["aim_visibility_check"] = 1 if self.aim_visibility_cb.isChecked() else 0
         except Exception:
             pass
@@ -1808,6 +1763,17 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
         
+        # Save bhop key setting
+        try:
+            if getattr(self, 'bhop_key_btn', None) is not None:
+                text = self.bhop_key_btn.text()
+                if ':' in text:
+                    val = text.split(':', 1)[1].strip()
+                    if val:
+                        self.settings["BhopKey"] = val
+        except Exception:
+            pass
+        
         try:
             pass
         except Exception:
@@ -1817,7 +1783,8 @@ class ConfigWindow(QtWidgets.QWidget):
     def record_key(self, settings_key: str, btn: QtWidgets.QPushButton):
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle('Press a key or mouse button')
-        dialog.setModal(True)
+        dialog.setModal(False)  # Changed to non-modal to keep overlay visible
+        dialog.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Dialog)  # Stay on top
         lbl = QtWidgets.QLabel('Press desired key or mouse button now...')
         v = QtWidgets.QVBoxLayout(dialog)
         v.addWidget(lbl)
@@ -2034,7 +2001,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         timer.timeout.connect(check)
         timer.start(20)
-        dialog.exec()
+        dialog.show()  # Changed from dialog.exec() to dialog.show() for non-modal
 
     def pick_color(self, settings_key: str, btn: QtWidgets.QPushButton):
         init = QtGui.QColor(self.settings.get(settings_key, '#FFFFFF'))
@@ -2247,22 +2214,6 @@ class ConfigWindow(QtWidgets.QWidget):
         val = self.center_dot_size_slider.value()
         self.lbl_center_dot_size.setText(f"Center Dot Size: ({val})")
         self.save_settings()
-
-    def update_dynamic_min_label(self):
-        try:
-            val = self.dynamic_min_slider.value()
-            self.lbl_dynamic_min.setText(f"Dynamic Min (Fast Targets): ({val})")
-            self.save_settings()
-        except Exception:
-            pass
-
-    def update_dynamic_max_label(self):
-        try:
-            val = self.dynamic_max_slider.value()
-            self.lbl_dynamic_max.setText(f"Dynamic Max (Stationary Targets): ({val})")
-            self.save_settings()
-        except Exception:
-            pass
 
     def update_radar_size_label(self):
         try:
@@ -3012,8 +2963,8 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                     is_spotted = False
                     if entity_team != local_player_team:
                         try:
-                            m_entitySpottedState = 0x2710
-                            m_bSpotted = 0x8
+                            m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
+                            m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             is_spotted = spotted_flag != 0
                         except Exception:
@@ -3386,8 +3337,8 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 # Render spotted status if enabled (independent of nickname)
                 if settings.get('show_visibility', 0) == 1:
                     try:
-                        m_entitySpottedState = 0x2710
-                        m_bSpotted = 0x8
+                        m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
+                        m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                         try:
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             is_spotted = spotted_flag != 0
@@ -3830,25 +3781,107 @@ def triggerbot():
     main_program()
 
 def bhop():
-    """Bunny hop function based on keyboard detection - always uses SPACE key"""
+    """Bunny hop function with configurable keybind"""
     import time
     import keyboard
     
-    # Timing constants (adjusted for less sensitivity)
-    TICK_64_MS = 0.025  # Increased from 0.0156 to make it less sensitive
+    # Timing constants
+    TICK_64_MS = 0.0156
     exit_key = "end"
     toggle_key = "+"
     
     toggle = True
     
+    def convert_key_to_keyboard_format(key_str):
+        """Convert key string to keyboard library format"""
+        if not key_str:
+            return "space"
+        
+        key = str(key_str).strip().upper()
+        
+        # Handle special cases for keyboard library
+        key_mapping = {
+            'SPACE': 'space',
+            'ENTER': 'enter',
+            'RETURN': 'enter',
+            'SHIFT': 'shift',
+            'CTRL': 'ctrl',
+            'CONTROL': 'ctrl',
+            'ALT': 'alt',
+            'TAB': 'tab',
+            'ESC': 'esc',
+            'ESCAPE': 'esc',
+            'UP': 'up',
+            'DOWN': 'down',
+            'LEFT': 'left',
+            'RIGHT': 'right',
+            'BACKSPACE': 'backspace',
+            'DELETE': 'delete',
+            'INSERT': 'insert',
+            'HOME': 'home',
+            'END': 'end',
+            'PAGEUP': 'page up',
+            'PAGEDOWN': 'page down',
+            # Mouse buttons fallback to space
+            'LMB': 'space',
+            'RMB': 'space',
+            'MMB': 'space',
+            'MOUSE4': 'space',
+            'MOUSE5': 'space',
+        }
+        
+        if key in key_mapping:
+            return key_mapping[key]
+        
+        # Handle F-keys
+        if key.startswith('F') and key[1:].isdigit():
+            try:
+                num = int(key[1:])
+                if 1 <= num <= 24:
+                    return f"f{num}"
+            except:
+                pass
+        
+        # Handle single characters - be very specific about format
+        if len(key) == 1:
+            if key.isalpha():
+                return key.lower()
+            elif key.isdigit():
+                return key
+        
+        # If nothing matches, test if the key is valid by trying to use it
+        try:
+            # Test if keyboard library recognizes this key
+            keyboard.is_pressed(key.lower())
+            return key.lower()
+        except:
+            pass
+        
+        try:
+            # Test uppercase
+            keyboard.is_pressed(key)
+            return key
+        except:
+            pass
+        
+        # Fallback to space if nothing works
+        return "space"
+
     def send_space(duration):
-        keyboard.send("space")  # Do not adjust
-        time.sleep(duration)
+        try:
+            keyboard.send("space")
+            time.sleep(duration)
+        except Exception:
+            time.sleep(duration)
     
-    keyboard.add_hotkey(exit_key, lambda: exit())
+    try:
+        keyboard.add_hotkey(exit_key, lambda: exit())
+    except Exception:
+        pass
     
     default_settings = {
-        "bhop_enabled": 1
+        "bhop_enabled": 1,
+        "BhopKey": "SPACE"
     }
 
     def load_settings():
@@ -3856,11 +3889,10 @@ def bhop():
             try:
                 with open(CONFIG_FILE, 'r') as f:
                     loaded = json.load(f)
-                    # Merge with defaults
                     settings = default_settings.copy()
                     settings.update(loaded)
                     return settings
-            except json.JSONDecodeError:
+            except:
                 pass
         return default_settings
 
@@ -3878,29 +3910,33 @@ def bhop():
     def main(settings):
         nonlocal toggle
         
-        # Always use space key for bhop
-        activation_key = "space"
-        
         while True:
             try:
                 bhop_enabled = settings.get("bhop_enabled", 0)
                 
-                # Only work when CS2 is the active window
                 if bhop_enabled == 1 and is_cs2_window_active():
-                    # Always use space key, no cooldown check needed
+                    # Get the current keybind from settings each time (this allows live updates)
+                    bhop_key_setting = settings.get("BhopKey", "SPACE")
+                    activation_key = convert_key_to_keyboard_format(bhop_key_setting)
+                    
+                    # Test if the key is valid, fallback to space if not
+                    try:
+                        keyboard.is_pressed(activation_key)
+                    except:
+                        activation_key = "space"
+                    
                     if keyboard.is_pressed(activation_key):
                         if toggle:
-                            send_space(TICK_64_MS * 1.5)  # Increased from 1 to 1.5
+                            send_space(TICK_64_MS * 1.5)
                             
                             while keyboard.is_pressed(activation_key) and is_cs2_window_active():
-                                send_space(TICK_64_MS * 3)  # Increased from 2 to 3
+                                send_space(TICK_64_MS * 3)
                     elif keyboard.is_pressed(toggle_key):
                         toggle = not toggle
-                        time.sleep(0.2)  # debounce
+                        time.sleep(0.2)
                     else:
                         time.sleep(0.001)
                 else:
-                    # Sleep longer when disabled or CS2 not active
                     time.sleep(0.1)
                     
             except KeyboardInterrupt:
@@ -3910,7 +3946,10 @@ def bhop():
 
     def start_main_thread(settings):
         while True:
-            main(settings)
+            try:
+                main(settings)
+            except Exception:
+                time.sleep(5)
 
     def setup_watcher(app, settings):
         watcher = QFileSystemWatcher()
@@ -4016,8 +4055,8 @@ def aim():
                     continue
                 
                 if settings.get('aim_active', 0) == 1 and settings.get('aim_visibility_check', 0) == 1:
-                    m_entitySpottedState = 0x2710
-                    m_bSpotted = 0x8
+                    m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
+                    m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                     is_visible = pm.read_bool(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                     if not is_visible:
                         continue
@@ -4183,92 +4222,12 @@ def aim():
         dx = target_x - center_x
         dy = target_y - center_y
 
-        # Dynamic smoothness calculation based on target movement
-        try:
-            dynamic_enabled = int(settings.get('aim_dynamic_smoothness', 0)) == 1
-        except Exception:
-            dynamic_enabled = False
-
-        if dynamic_enabled:
-            global TARGET_POSITIONS, TARGET_POSITION_TIMESTAMPS
-            import time
-            
-            current_time = time.time()
-            current_pos = (target_x, target_y)
-            
-            # Get previous position for this entity
-            prev_data = TARGET_POSITIONS.get(ent_addr)
-            velocity = 0.0
-            
-            if prev_data and ent_addr in TARGET_POSITION_TIMESTAMPS:
-                prev_pos, prev_time = prev_data, TARGET_POSITION_TIMESTAMPS[ent_addr]
-                time_diff = current_time - prev_time
-                
-                if time_diff > 0.01:  # Minimum time difference to avoid division by zero
-                    # Calculate pixel distance moved
-                    pixel_distance = ((current_pos[0] - prev_pos[0]) ** 2 + (current_pos[1] - prev_pos[1]) ** 2) ** 0.5
-                    # Calculate velocity in pixels per second
-                    velocity = pixel_distance / time_diff
-            
-            # Update position tracking
-            TARGET_POSITIONS[ent_addr] = current_pos
-            TARGET_POSITION_TIMESTAMPS[ent_addr] = current_time
-            
-            # Clean up old entries (older than 5 seconds)
-            entities_to_remove = []
-            for entity_id, timestamp in TARGET_POSITION_TIMESTAMPS.items():
-                if current_time - timestamp > 5.0:
-                    entities_to_remove.append(entity_id)
-            
-            for entity_id in entities_to_remove:
-                TARGET_POSITIONS.pop(entity_id, None)
-                TARGET_POSITION_TIMESTAMPS.pop(entity_id, None)
-            
-            # Calculate dynamic smoothness based on velocity
-            try:
-                DYNAMIC_MIN = int(settings.get('aim_dynamic_min', 50))
-                DYNAMIC_MAX = int(settings.get('aim_dynamic_max', 500))
-            except Exception:
-                DYNAMIC_MIN = 50
-                DYNAMIC_MAX = 500
-            
-            # Velocity threshold: 0 = stationary, 200+ = fast moving
-            # Normalize velocity to 0-1 range, with 200 pixels/sec as max
-            velocity_normalized = min(1.0, velocity / 200.0)
-            
-            # Invert: fast moving targets get low smoothness, stationary get high
-            smoothness = int(DYNAMIC_MIN + (1.0 - velocity_normalized) * (DYNAMIC_MAX - DYNAMIC_MIN))
-            
-        elif not dynamic_enabled:
-            # Default smoothness when dynamic mode is not enabled
-            if smoothness is None:
-                smoothness = 0
+        # Use regular smoothness value
+        if smoothness is None:
+            smoothness = 0
 
         # Distance-based smoothness modification (applies to both regular and dynamic)
-        try:
-            distance_enabled = int(settings.get('aim_distance_smoothness', 0)) == 1
-        except Exception:
-            distance_enabled = False
-            
-        if distance_enabled:
-            # Calculate distance from crosshair to target
-            distance = ((dx) ** 2 + (dy) ** 2) ** 0.5
-            
-            # Distance thresholds (in pixels)
-            min_distance = 50.0   # Close targets
-            max_distance = 500.0  # Far targets
-            
-            # Normalize distance to 0-1 range
-            distance_normalized = min(1.0, max(0.0, (distance - min_distance) / (max_distance - min_distance)))
-            
-            # Distance multiplier: close targets = 1x smoothness, far targets = up to 3x smoothness
-            distance_multiplier = 1.0 + (distance_normalized * 2.0)  # 1x to 3x multiplier
-            
-            # Apply distance multiplier to smoothness
-            smoothness = int(smoothness * distance_multiplier)
-            
-            # Cap at maximum smoothness
-            smoothness = min(smoothness, 50000)
+        # Feature removed
 
         if smoothness <= 0:
             move_x = int(dx)
@@ -4537,3 +4496,5 @@ if __name__ == "__main__":
         except Exception:
             pass
         sys.exit(0)
+
+
