@@ -4429,7 +4429,7 @@ if __name__ == "__main__":
             pass
     else:
         # CS2 is not running, show message and wait
-        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", "Popsicle CS2", MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
+        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe...", "Popsicle CS2", MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
         if result != IDOK:
             # User clicked Cancel or closed the dialog, exit the script
             remove_lock_file()
