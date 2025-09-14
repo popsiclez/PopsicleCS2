@@ -1064,7 +1064,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Aim Smoothness slider moved here
         self.smooth_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.smooth_slider.setMinimum(0)
-        self.smooth_slider.setMaximum(50000)
+        self.smooth_slider.setMaximum(200000)
         self.smooth_slider.setValue(self.settings.get("aim_smoothness", 50))
         self.smooth_slider.valueChanged.connect(self.update_smooth_label)
         self.lbl_smooth = QtWidgets.QLabel(f"Aim Smoothness: ({self.settings.get('aim_smoothness', 50)})")
@@ -4233,10 +4233,10 @@ def aim():
             move_x = int(dx)
             move_y = int(dy)
         else:
-            # Improved smoothness formula for full 0-50000 range
+            # Improved smoothness formula for full 0-200000 range
             # smoothness 0 = instant (alpha = 1.0)
-            # smoothness 50000 = maximum smooth (alpha = 0.0005)
-            max_smoothness = 50000.0
+            # smoothness 200000 = maximum smooth (alpha = 0.0005)
+            max_smoothness = 200000.0
             min_alpha = 0.0005  # Minimum movement multiplier (0.05%)
             max_alpha = 1.0     # Maximum movement multiplier (100%)
             
@@ -4429,7 +4429,7 @@ if __name__ == "__main__":
             pass
     else:
         # CS2 is not running, show message and wait
-        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe...", "Popsicle CS2", MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
+        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", "Popsicle CS2", MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
         if result != IDOK:
             # User clicked Cancel or closed the dialog, exit the script
             remove_lock_file()
