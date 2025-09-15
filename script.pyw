@@ -1,35 +1,5 @@
 import threading
 import keyboard
-def tap_fire_thread(settings):
-    from pynput.mouse import Controller, Button
-    import time
-    import win32api
-    mouse = Controller()
-    
-    while True:
-        try:
-            enabled = settings.get("tap_fire_enabled", 0) == 1
-            interval = settings.get("tap_fire_interval", 80) / 1000.0
-            tap_fire_key = settings.get("TapFireKey", "V")
-            
-            if enabled and tap_fire_key and tap_fire_key != "NONE":
-                # Convert key string to virtual key code
-                try:
-                    vk = key_str_to_vk(tap_fire_key)
-                    if vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0:
-                        # Tap fire key is pressed, simulate rapid left clicks
-                        mouse.press(Button.left)
-                        time.sleep(0.01)
-                        mouse.release(Button.left)
-                        time.sleep(interval)
-                    else:
-                        time.sleep(0.01)
-                except Exception:
-                    time.sleep(0.01)
-            else:
-                time.sleep(0.1)
-        except Exception:
-            time.sleep(0.1)
 #!/usr/bin/env python3
 """
 Popsicle CS2 External Overlay Application
@@ -296,11 +266,6 @@ DEFAULT_SETTINGS = {
     # Bhop Settings
     "bhop_enabled": 0,
     "BhopKey": "SPACE",
-    
-    # Tap Fire Settings
-    "tap_fire_enabled": 0,
-    "tap_fire_interval": 80,
-    "TapFireKey": "V",
     
     # UI Settings
     "topmost": 1,
@@ -1284,36 +1249,6 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
 
-        # Tap Fire toggle
-        self.tap_fire_cb = QtWidgets.QCheckBox("Enable Tap Fire (convert hold to rapid tap)")
-        self.tap_fire_cb.setChecked(self.settings.get("tap_fire_enabled", 0) == 1)
-        self.tap_fire_cb.stateChanged.connect(self.on_tap_fire_changed)
-        self.tap_fire_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.tap_fire_cb)
-
-        # Tap Fire interval slider
-        self.lbl_tap_fire_interval = QtWidgets.QLabel(f"Tap Fire Interval: {self.settings.get('tap_fire_interval', 80)} ms")
-        self.lbl_tap_fire_interval.setMinimumHeight(16)
-        misc_layout.addWidget(self.lbl_tap_fire_interval)
-        self.tap_fire_interval_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.tap_fire_interval_slider.setMinimum(30)
-        self.tap_fire_interval_slider.setMaximum(300)
-        self.tap_fire_interval_slider.setValue(self.settings.get("tap_fire_interval", 80))
-        self.tap_fire_interval_slider.setTickInterval(10)
-        self.tap_fire_interval_slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.tap_fire_interval_slider.valueChanged.connect(self.update_tap_fire_interval_label)
-        self.tap_fire_interval_slider.setMinimumHeight(18)
-        self.tap_fire_interval_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.tap_fire_interval_slider)
-
-        # Tap Fire key button
-        self.tap_fire_key_btn = QtWidgets.QPushButton(f"TapFireKey: {self.settings.get('TapFireKey', 'V')}")
-        self.tap_fire_key_btn.clicked.connect(lambda: self.record_key('TapFireKey', self.tap_fire_key_btn))
-        self.tap_fire_key_btn.setMinimumHeight(22)
-        self.tap_fire_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.tap_fire_key_btn)
-        self.tap_fire_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'TapFireKey', self.tap_fire_key_btn)
-
         # Menu toggle key button
         self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
         self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
@@ -1375,16 +1310,6 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
         return misc_container
-
-    def on_tap_fire_changed(self):
-        self.settings["tap_fire_enabled"] = 1 if self.tap_fire_cb.isChecked() else 0
-        save_settings(self.settings)
-
-    def update_tap_fire_interval_label(self):
-        val = self.tap_fire_interval_slider.value()
-        self.lbl_tap_fire_interval.setText(f"Tap Fire Interval: {val} ms")
-        self.settings["tap_fire_interval"] = val
-        save_settings(self.settings)
 
     def on_bhop_changed(self):
         """Handle bhop toggle change"""
@@ -1506,9 +1431,9 @@ class ConfigWindow(QtWidgets.QWidget):
             'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'weapon_cb', 'bomb_esp_cb',
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
-            'aim_visibility_cb', 'lock_target_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'tap_fire_key_btn', 'theme_combo',
+            'aim_visibility_cb', 'lock_target_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
             'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
-            'tap_fire_cb', 'tap_fire_interval_slider', 'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
+            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
 
@@ -1549,8 +1474,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     'trigger_bot_active_cb': 'trigger_bot_active',
                     'aim_active_cb': 'aim_active',
                     'aim_circle_visible_cb': 'aim_circle_visible',
-                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu',
-                    'tap_fire_cb': 'tap_fire_enabled'
+                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu'
                 }
                 for cb_name, key in mapping.items():
                     cb = getattr(self, cb_name, None)
@@ -1583,8 +1507,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
                 if getattr(self, 'center_dot_size_slider', None) is not None:
                     self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
-                if getattr(self, 'tap_fire_interval_slider', None) is not None:
-                    self.tap_fire_interval_slider.setValue(self.settings.get('tap_fire_interval', 80))
 
                 # Update all slider labels after setting values
                 try:
@@ -1622,11 +1544,6 @@ class ConfigWindow(QtWidgets.QWidget):
                         self.update_center_dot_size_label()
                 except Exception:
                     pass
-                try:
-                    if hasattr(self, 'update_tap_fire_interval_label'):
-                        self.update_tap_fire_interval_label()
-                except Exception:
-                    pass
 
                 
                 if getattr(self, 'aim_key_btn', None) is not None:
@@ -1637,8 +1554,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
                 if getattr(self, 'bhop_key_btn', None) is not None:
                     self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
-                if getattr(self, 'tap_fire_key_btn', None) is not None:
-                    self.tap_fire_key_btn.setText(f"TapFireKey: {self.settings.get('TapFireKey', 'V')}")
 
                 if getattr(self, 'esp_toggle_key_btn', None) is not None:
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
@@ -1865,19 +1780,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     val = text.split(':', 1)[1].strip()
                     if val:
                         self.settings["BhopKey"] = val
-        except Exception:
-            pass
-        
-        # Save tap fire key setting
-        try:
-            if getattr(self, 'tap_fire_key_btn', None) is not None:
-                text = self.tap_fire_key_btn.text()
-                if ':' in text:
-                    val = text.split(':', 1)[1].strip()
-                    if val:
-                        self.settings["TapFireKey"] = val
-        except Exception:
-            pass
         except Exception:
             pass
         
@@ -4563,10 +4465,6 @@ if __name__ == "__main__":
             except Exception:
                 time.sleep(1)
 
-
-    # Start tap fire thread (runs in main process, not a subprocess)
-    settings = load_settings()
-    threading.Thread(target=tap_fire_thread, args=(settings,), daemon=True).start()
 
     procs = [
         multiprocessing.Process(target=configurator),
