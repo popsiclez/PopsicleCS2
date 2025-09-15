@@ -1064,7 +1064,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Aim Smoothness slider moved here
         self.smooth_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.smooth_slider.setMinimum(0)
-        self.smooth_slider.setMaximum(200000)
+        self.smooth_slider.setMaximum(500000)
         self.smooth_slider.setValue(self.settings.get("aim_smoothness", 50))
         self.smooth_slider.valueChanged.connect(self.update_smooth_label)
         self.lbl_smooth = QtWidgets.QLabel(f"Aim Smoothness: ({self.settings.get('aim_smoothness', 50)})")
@@ -4233,10 +4233,10 @@ def aim():
             move_x = int(dx)
             move_y = int(dy)
         else:
-            # Improved smoothness formula for full 0-200000 range
+            # Improved smoothness formula - uses slider's maximum value automatically
             # smoothness 0 = instant (alpha = 1.0)
-            # smoothness 200000 = maximum smooth (alpha = 0.0005)
-            max_smoothness = 200000.0
+            # smoothness max = maximum smooth (alpha = 0.0005)
+            max_smoothness = float(globals().get('smooth_slider_max', 500000))
             min_alpha = 0.0005  # Minimum movement multiplier (0.05%)
             max_alpha = 1.0     # Maximum movement multiplier (100%)
             
