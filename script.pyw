@@ -590,7 +590,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
 
         
-        header_label = QtWidgets.QLabel("Bert cs2")
+        header_label = QtWidgets.QLabel("Popsicle - CS2")
         header_label.setAlignment(QtCore.Qt.AlignCenter)
         header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('DejaVu Sans Mono', 17, QtGui.QFont.Bold)
@@ -1306,6 +1306,32 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.reset_btn)
 
         misc_layout.addWidget(self.terminate_btn)
+
+        # Add image from GitHub at the bottom
+        def load_image_from_url(url):
+            try:
+                response = requests.get(url, timeout=5)
+                if response.status_code == 200:
+                    pixmap = QtGui.QPixmap()
+                    pixmap.loadFromData(QtCore.QByteArray(response.content))
+                    return pixmap
+            except Exception:
+                pass
+            return None
+
+        try:
+            image_label = QtWidgets.QLabel()
+            github_image_url = "https://github.com/popsiclez/PopsicleCS2/blob/main/sert.png?raw=true"
+            pixmap = load_image_from_url(github_image_url)
+            if pixmap:
+                # Scale the image to a slightly bigger size while maintaining aspect ratio
+                scaled_pixmap = pixmap.scaled(250, 200, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                image_label.setPixmap(scaled_pixmap)
+                image_label.setAlignment(QtCore.Qt.AlignCenter)
+                misc_layout.addWidget(image_label)
+        except Exception:
+            # If image loading fails, just continue without it
+            pass
 
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
