@@ -590,7 +590,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
 
         
-        header_label = QtWidgets.QLabel("Popsicle - CS2")
+        header_label = QtWidgets.QLabel("Bert cs2")
         header_label.setAlignment(QtCore.Qt.AlignCenter)
         header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('DejaVu Sans Mono', 17, QtGui.QFont.Bold)
