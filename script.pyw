@@ -203,7 +203,7 @@ def handle_instance_check():
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "Failed to terminate existing instance. Please close it manually and try again.",
-                "Popsicle CS2 - Error",
+                " CS2 - Error",
                 0x00000010 | MB_SETFOREGROUND | MB_TOPMOST  # MB_ICONERROR
             )
             return False
@@ -485,10 +485,10 @@ def get_offsets_and_client_dll():
     """
     try:
         offsets = requests.get(
-            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json'
+            'https://raw.githubusercontent.com/z/offsets/refs/heads/main/output/offsets.json'
         ).json()
         client_dll = requests.get(
-            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json'
+            'https://raw.githubusercontent.com/z/offsets/refs/heads/main/output/client_dll.json'
         ).json()
         return offsets, client_dll
     except Exception:
@@ -590,7 +590,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
 
         
-        header_label = QtWidgets.QLabel("Popsicle - CS2")
+        header_label = QtWidgets.QLabel("RAPE ISRAEL")
         header_label.setAlignment(QtCore.Qt.AlignCenter)
         header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('DejaVu Sans Mono', 17, QtGui.QFont.Bold)
