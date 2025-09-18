@@ -203,7 +203,7 @@ def handle_instance_check():
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "Failed to terminate existing instance. Please close it manually and try again.",
-                " CS2 - Error",
+                "Popsicle CS2 - Error",
                 0x00000010 | MB_SETFOREGROUND | MB_TOPMOST  # MB_ICONERROR
             )
             return False
@@ -485,10 +485,10 @@ def get_offsets_and_client_dll():
     """
     try:
         offsets = requests.get(
-            'https://raw.githubusercontent.com/z/offsets/refs/heads/main/output/offsets.json'
+            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json'
         ).json()
         client_dll = requests.get(
-            'https://raw.githubusercontent.com/z/offsets/refs/heads/main/output/client_dll.json'
+            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json'
         ).json()
         return offsets, client_dll
     except Exception:
