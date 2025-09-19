@@ -24,7 +24,7 @@ import time
 # ============================================================================
 
 # Startup configuration - set to False to disable startup delays and graphics restart
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
 import random
 import threading
 import multiprocessing
