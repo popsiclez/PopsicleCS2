@@ -37,6 +37,9 @@ import requests
 import pymem
 import pymem.process
 from pynput.mouse import Controller, Button
+import numpy as np
+from PIL import ImageGrab
+import pyautogui
 
 # PySide6 imports
 from PySide6 import QtWidgets, QtGui, QtCore
@@ -406,6 +409,9 @@ DEFAULT_SETTINGS = {
     # Bhop Settings
     "bhop_enabled": 0,
     "BhopKey": "SPACE",
+    
+    # Auto Accept Settings
+    "auto_accept_enabled": 0,
     
     # UI Settings
     "topmost": 1,
@@ -1449,6 +1455,13 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
+        # Auto Accept Match checkbox
+        self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
+        self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
+        self.auto_accept_cb.stateChanged.connect(self.on_auto_accept_changed)
+        self.auto_accept_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.auto_accept_cb)
+
         self.low_cpu_cb = QtWidgets.QCheckBox("Low CPU Mode (Performance Mode)")
         self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
         self.low_cpu_cb.stateChanged.connect(self.on_low_cpu_changed)
@@ -1502,6 +1515,13 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
         return misc_container
+
+    def on_auto_accept_changed(self):
+        try:
+            self.settings["auto_accept_enabled"] = 1 if self.auto_accept_cb.isChecked() else 0
+            save_settings(self.settings)
+        except Exception:
+            pass
 
     def on_bhop_changed(self):
         """Handle bhop toggle change"""
@@ -3587,71 +3607,6 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         except:
             return
 
-def get_weapon_name_by_index(index):
-    weapon_names = {
-    32: "P2000",
-    61: "USP-S",
-    4: "Glock",
-    2: "Dual Berettas",
-    36: "P250",
-    30: "Tec-9",
-    63: "CZ75-Auto",
-    1: "Desert Eagle",
-    3: "Five-SeveN",
-    64: "R8",
-    35: "Nova",
-    25: "XM1014",
-    27: "MAG-7",
-    29: "Sawed-Off",
-    14: "M249",
-    28: "Negev",
-    17: "MAC-10",
-    23: "MP5-SD",
-    24: "UMP-45",
-    19: "P90",
-    26: "Bizon",
-    34: "MP9",
-    33: "MP7",
-    10: "FAMAS",
-    16: "M4A4",
-    60: "M4A1-S",
-    8: "AUG",
-    43: "Galil",
-    7: "AK-47",
-    39: "SG 553",
-    40: "SSG 08",
-    9: "AWP",
-    38: "SCAR-20",
-    11: "G3SG1",
-    43: "Flashbang",
-    44: "Hegrenade",
-    45: "Smoke",
-    46: "Molotov",
-    47: "Decoy",
-    48: "Incgrenage",
-    49: "C4",
-    31: "Taser",
-    42: "Knife",
-    41: "Knife Gold",
-    59: "Knife",
-    80: "Knife Ghost",
-    500: "Knife Bayonet",
-    505: "Knife Flip",
-    506: "Knife Gut",
-    507: "Knife Karambit",
-    508: "Knife M9",
-    509: "Knife Tactica",
-    512: "Knife Falchion",
-    514: "Knife Survival Bowie",
-    515: "Knife Butterfly",
-    516: "Knife Rush",
-    519: "Knife Ursus",
-    520: "Knife Gypsy Jackknife",
-    522: "Knife Stiletto",
-    523: "Knife Widowmaker"
-}
-    return weapon_names.get(index, 'Unknown')
-
 def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height):
     bone_ids = {
         "head": 6,
@@ -4716,6 +4671,57 @@ def wait_for_cs2_startup():
         
         pass
 
+
+def find_accept_button():
+    """Find the green accept button on screen"""
+    try:
+        screenshot = ImageGrab.grab()
+        img = np.array(screenshot)
+        # Green color for accept button (may need adjustment)
+        color = (54, 183, 82)
+        color_match = np.all(img == color, axis=-1).astype(int)
+        kernel = np.ones((10, 10))
+        from scipy.signal import convolve2d
+        convolution = convolve2d(color_match, kernel, mode='valid')
+        y_coords, x_coords = np.where(convolution == 100)
+        if len(y_coords) > 0:
+            x = x_coords[0] + 5
+            y = y_coords[0] + 5
+            return (x, y)
+    except Exception:
+        pass
+    return None
+
+
+def auto_accept_main():
+    """Main auto accept loop"""
+    while True:
+        try:
+            # Load config each loop in case user toggles
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            
+            if not settings.get("auto_accept_enabled", 0):
+                time.sleep(1)
+                continue
+                
+            pos = find_accept_button()
+            if pos:
+                x, y = pos
+                pyautogui.moveTo(x, y)
+                pyautogui.click()
+                # Move mouse back to center
+                screen_width, screen_height = pyautogui.size()
+                pyautogui.moveTo(screen_width // 2, screen_height // 2)
+                time.sleep(3)
+            else:
+                time.sleep(0.5)
+        except Exception:
+            time.sleep(1)
+
 if __name__ == "__main__":
     
     try:
@@ -4795,6 +4801,7 @@ if __name__ == "__main__":
         multiprocessing.Process(target=aim),
         multiprocessing.Process(target=rcs),
         multiprocessing.Process(target=bhop),
+        multiprocessing.Process(target=auto_accept_main),
     ]
     for p in procs:
         p.start()
