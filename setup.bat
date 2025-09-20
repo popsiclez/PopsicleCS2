@@ -10,10 +10,10 @@ pause >nul
 :: -----------------------------
 :: Python settings
 :: -----------------------------
-set "PYTHON_VERSION=3.13.7"
+set "PYTHON_VERSION=3.11.9"
 set "PYTHON_URL=https://www.python.org/ftp/python/%PYTHON_VERSION%/python-%PYTHON_VERSION%-amd64.exe"
 set "TEMP_INSTALLER=%TEMP%\python-installer.exe"
-set "PYTHON_EXE=%LocalAppData%\Programs\Python\Python313\python.exe"
+set "PYTHON_EXE=%LocalAppData%\Programs\Python\Python311\python.exe"
 
 :: -----------------------------
 :: Check installed Python version
@@ -66,6 +66,11 @@ echo Installing required libraries...
 "%PYTHON_EXE%" -m pip install --upgrade PySide6
 "%PYTHON_EXE%" -m pip install --upgrade qt-material
 "%PYTHON_EXE%" -m pip install --upgrade pywin32
+"%PYTHON_EXE%" -m pip install --upgrade numpy
+"%PYTHON_EXE%" -m pip install --upgrade pillow
+"%PYTHON_EXE%" -m pip install --upgrade pyautogui
+"%PYTHON_EXE%" -m pip install --upgrade keyboard
+"%PYTHON_EXE%" -m pip install --upgrade scipy
 
 :: Clear console after packages installation
 cls
