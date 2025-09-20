@@ -58,6 +58,134 @@ import win32gui
 
 
 # ============================================================================
+# GAME OFFSETS AND MEMORY ADDRESSES
+# ============================================================================
+
+# Fetch offsets from cs2-dumper repository
+offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
+client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
+
+# Core offsets
+dwEntityList = offsets['client.dll']['dwEntityList']
+dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
+dwLocalPlayerController = offsets['client.dll']['dwLocalPlayerController']
+dwViewMatrix = offsets['client.dll']['dwViewMatrix']
+dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
+dwViewAngles = offsets['client.dll']['dwViewAngles']
+dwSensitivity = offsets['client.dll']['dwSensitivity']
+dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']
+
+# Entity and base class fields
+m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
+m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
+m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
+m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
+m_fFlags = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_fFlags']
+m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']
+
+# Player controller fields
+m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
+m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']
+
+# Player pawn fields
+m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
+m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
+m_pClippingWeapon = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_pClippingWeapon']
+m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
+m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
+m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
+m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']
+
+# Player pawn base fields
+m_pCameraServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pCameraServices']
+m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']
+
+# Scene node fields
+m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
+m_vecOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecOrigin']
+m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
+
+# Weapon fields
+m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
+m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
+m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
+
+# Bomb fields
+m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
+m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
+m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
+m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']
+
+# Spotted state fields
+m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
+m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
+
+
+# ============================================================================
+# BONE SYSTEM DEFINITIONS
+# ============================================================================
+
+# Bone IDs for skeletal targeting
+bone_ids = {
+    "head": 6,
+    "neck": 5,
+    "spine": 4,
+    "pelvis": 0,
+    "left_shoulder": 13,
+    "left_elbow": 14,
+    "left_wrist": 15,
+    "right_shoulder": 9,
+    "right_elbow": 10,
+    "right_wrist": 11,
+    "left_hip": 25,
+    "left_knee": 26,
+    "left_ankle": 27,
+    "right_hip": 22,
+    "right_knee": 23,
+    "right_ankle": 24,
+}
+
+# Bone connections for skeletal rendering
+bone_connections = [
+    ("head", "neck"),
+    ("neck", "spine"),
+    ("spine", "pelvis"),
+    ("pelvis", "left_hip"),
+    ("left_hip", "left_knee"),
+    ("left_knee", "left_ankle"),
+    ("pelvis", "right_hip"),
+    ("right_hip", "right_knee"),
+    ("right_knee", "right_ankle"),
+    ("neck", "left_shoulder"),
+    ("left_shoulder", "left_elbow"),
+    ("left_elbow", "left_wrist"),
+    ("neck", "right_shoulder"),
+    ("right_shoulder", "right_elbow"),
+    ("right_elbow", "right_wrist"),
+]
+
+# Bone targeting modes for aimbot
+BONE_TARGET_MODES = {
+    0: {"name": "Body (Spine)", "bone": "spine"},
+    1: {"name": "Head", "bone": "head"},
+    2: {"name": "Neck", "bone": "neck"},
+    3: {"name": "Pelvis", "bone": "pelvis"},
+    4: {"name": "Left Shoulder", "bone": "left_shoulder"},
+    5: {"name": "Right Shoulder", "bone": "right_shoulder"},
+    6: {"name": "Left Elbow", "bone": "left_elbow"},
+    7: {"name": "Right Elbow", "bone": "right_elbow"},
+    8: {"name": "Left Wrist", "bone": "left_wrist"},
+    9: {"name": "Right Wrist", "bone": "right_wrist"},
+    10: {"name": "Left Hip", "bone": "left_hip"},
+    11: {"name": "Right Hip", "bone": "right_hip"},
+    12: {"name": "Left Knee", "bone": "left_knee"},
+    13: {"name": "Right Knee", "bone": "right_knee"},
+    14: {"name": "Left Ankle", "bone": "left_ankle"},
+    15: {"name": "Right Ankle", "bone": "right_ankle"},
+}
+
+
+# ============================================================================
 # GLOBAL UTILITY FUNCTIONS
 # ============================================================================
 
@@ -116,6 +244,12 @@ BombDefusedTime = 0
 aim_lock_state = {
     'locked_entity': None,
     'aim_was_pressed': False,
+}
+
+# RCS (Recoil Control System) state
+rcs_state = {
+    'old_punch_x': 0.0,
+    'old_punch_y': 0.0,
 }
 
 # Available themes
@@ -246,7 +380,8 @@ DEFAULT_SETTINGS = {
     # Aim Settings
     "aim_active": 0,
     "aim_circle_visible": 1,
-    "aim_mode": 2,
+    "aim_mode": 1,  # Default to head targeting
+    "aim_bone_target": 1,  # Default to head bone
     "aim_mode_distance": 0,
     "aim_smoothness": 0,
     "aim_lock_target": 0,
@@ -256,6 +391,11 @@ DEFAULT_SETTINGS = {
     "AimKey": "C",
     "circle_opacity": 127,
     "circle_thickness": 2,
+    
+    # RCS (Recoil Control System) Settings
+    "rcs_active": 0,
+    "rcs_x": 1.0,
+    "rcs_y": 1.0,
     
     # Trigger Bot Settings
     "trigger_bot_active": 0,
@@ -590,7 +730,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
 
         
-        header_label = QtWidgets.QLabel("Rert is a nigger")
+        header_label = QtWidgets.QLabel("Popsicle - CS2")
         header_label.setAlignment(QtCore.Qt.AlignCenter)
         header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('DejaVu Sans Mono', 17, QtGui.QFont.Bold)
@@ -601,6 +741,7 @@ class ConfigWindow(QtWidgets.QWidget):
         esp_container = self.create_esp_container()
         aim_container = self.create_aim_container()
         trigger_container = self.create_trigger_container()
+        rcs_container = self.create_rcs_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
 
@@ -609,6 +750,7 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(esp_container, "ESP")
         tabs.addTab(aim_container, "Aim")
         tabs.addTab(trigger_container, "Trigger")
+        tabs.addTab(rcs_container, "RCS")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Config")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
@@ -660,7 +802,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 pass
 
         # Set fixed width - no horizontal scaling (do this AFTER layout is set)
-        self.setFixedWidth(400)
+        self.setFixedWidth(450)
 
         # Initialize keybind cooldown tracking
         self.keybind_cooldowns = {}  # Track when each keybind was last set
@@ -1013,6 +1155,54 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
         return trigger_container
 
+    def create_rcs_container(self):
+        """Create RCS (Recoil Control System) configuration container"""
+        rcs_container = QtWidgets.QWidget()
+        rcs_layout = QtWidgets.QVBoxLayout()
+        rcs_layout.setContentsMargins(10, 10, 10, 10)
+        rcs_layout.setSpacing(5)
+        rcs_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        # RCS Active checkbox
+        self.rcs_active_cb = QtWidgets.QCheckBox("Enable RCS")
+        self.rcs_active_cb.setChecked(self.settings.get("rcs_active", 0) == 1)
+        self.rcs_active_cb.stateChanged.connect(self.save_settings)
+        self.rcs_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        rcs_layout.addWidget(self.rcs_active_cb)
+
+        # RCS X multiplier slider
+        self.lbl_rcs_x = QtWidgets.QLabel(f"RCS X Multiplier: ({self.settings.get('rcs_x', 1.0):.2f})")
+        self.lbl_rcs_x.setMinimumHeight(16)
+        rcs_layout.addWidget(self.lbl_rcs_x)
+
+        self.rcs_x_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.rcs_x_slider.setMinimum(0)
+        self.rcs_x_slider.setMaximum(200)  # 0.0 to 2.0
+        self.rcs_x_slider.setValue(int(self.settings.get("rcs_x", 1.0) * 100))
+        self.rcs_x_slider.valueChanged.connect(self.update_rcs_x_label)
+        self.rcs_x_slider.setMinimumHeight(22)
+        self.rcs_x_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        rcs_layout.addWidget(self.rcs_x_slider)
+
+        # RCS Y multiplier slider
+        self.lbl_rcs_y = QtWidgets.QLabel(f"RCS Y Multiplier: ({self.settings.get('rcs_y', 1.0):.2f})")
+        self.lbl_rcs_y.setMinimumHeight(16)
+        rcs_layout.addWidget(self.lbl_rcs_y)
+
+        self.rcs_y_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.rcs_y_slider.setMinimum(0)
+        self.rcs_y_slider.setMaximum(200)  # 0.0 to 2.0
+        self.rcs_y_slider.setValue(int(self.settings.get("rcs_y", 1.0) * 100))
+        self.rcs_y_slider.valueChanged.connect(self.update_rcs_y_label)
+        self.rcs_y_slider.setMinimumHeight(22)
+        self.rcs_y_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        rcs_layout.addWidget(self.rcs_y_slider)
+
+
+        rcs_container.setLayout(rcs_layout)
+        rcs_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        return rcs_container
+
     def create_aim_container(self):
         aim_container = QtWidgets.QWidget()
         aim_layout = QtWidgets.QVBoxLayout()
@@ -1073,7 +1263,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Aim Smoothness slider moved here
         self.smooth_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.smooth_slider.setMinimum(0)
-        self.smooth_slider.setMaximum(500000)
+        self.smooth_slider.setMaximum(1000000)
         self.smooth_slider.setValue(self.settings.get("aim_smoothness", 50))
         self.smooth_slider.valueChanged.connect(self.update_smooth_label)
         self.lbl_smooth = QtWidgets.QLabel(f"Aim Smoothness: ({self.settings.get('aim_smoothness', 50)})")
@@ -1098,11 +1288,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.aim_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'AimKey', self.aim_key_btn)
 
         self.aim_mode_cb = QtWidgets.QComboBox()
-        self.aim_mode_cb.addItems(["Body", "Neck", "Head"])
-        self.aim_mode_cb.setCurrentIndex(self.settings.get("aim_mode", 2))
+        # Populate with bone targeting options
+        bone_options = [BONE_TARGET_MODES[i]["name"] for i in sorted(BONE_TARGET_MODES.keys())]
+        self.aim_mode_cb.addItems(bone_options)
+        self.aim_mode_cb.setCurrentIndex(self.settings.get("aim_bone_target", 1))  # Default to head
         self.aim_mode_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
         self.aim_mode_cb.currentIndexChanged.connect(self.save_settings)
-        lbl_aimmode = QtWidgets.QLabel("Aim Mode:")
+        lbl_aimmode = QtWidgets.QLabel("Target Bone:")
         lbl_aimmode.setMinimumHeight(16)
         aim_layout.addWidget(lbl_aimmode)
         self.aim_mode_cb.setMinimumHeight(22)
@@ -1431,9 +1623,9 @@ class ConfigWindow(QtWidgets.QWidget):
             'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'weapon_cb', 'bomb_esp_cb',
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
-            'aim_visibility_cb', 'lock_target_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
+            'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
             'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
-            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
+            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo', 'rcs_active_cb', 'rcs_x_slider', 'rcs_y_slider'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
 
@@ -1474,7 +1666,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     'trigger_bot_active_cb': 'trigger_bot_active',
                     'aim_active_cb': 'aim_active',
                     'aim_circle_visible_cb': 'aim_circle_visible',
-                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu'
+                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu',
+                    'rcs_active_cb': 'rcs_active'
                 }
                 for cb_name, key in mapping.items():
                     cb = getattr(self, cb_name, None)
@@ -1507,6 +1700,10 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
                 if getattr(self, 'center_dot_size_slider', None) is not None:
                     self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
+                if getattr(self, 'rcs_x_slider', None) is not None:
+                    self.rcs_x_slider.setValue(int(self.settings.get('rcs_x', 1.0) * 100))
+                if getattr(self, 'rcs_y_slider', None) is not None:
+                    self.rcs_y_slider.setValue(int(self.settings.get('rcs_y', 1.0) * 100))
 
                 # Update all slider labels after setting values
                 try:
@@ -1544,6 +1741,16 @@ class ConfigWindow(QtWidgets.QWidget):
                         self.update_center_dot_size_label()
                 except Exception:
                     pass
+                try:
+                    if hasattr(self, 'update_rcs_x_label'):
+                        self.update_rcs_x_label()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(self, 'update_rcs_y_label'):
+                        self.update_rcs_y_label()
+                except Exception:
+                    pass
 
                 
                 if getattr(self, 'aim_key_btn', None) is not None:
@@ -1565,6 +1772,10 @@ class ConfigWindow(QtWidgets.QWidget):
                         if str(self.theme_combo.itemData(i)) == str(theme):
                             self.theme_combo.setCurrentIndex(i)
                             break
+
+                # Reset aim mode dropdown to default bone target
+                if getattr(self, 'aim_mode_cb', None) is not None:
+                    self.aim_mode_cb.setCurrentIndex(self.settings.get('aim_bone_target', DEFAULT_SETTINGS.get('aim_bone_target', 1)))
 
                 
                 try:
@@ -1705,7 +1916,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-        self.settings["aim_mode"] = self.aim_mode_cb.currentIndex()
+        self.settings["aim_bone_target"] = self.aim_mode_cb.currentIndex()
         self.settings["aim_mode_distance"] = self.aim_mode_distance_cb.currentIndex()
 
         
@@ -1722,6 +1933,11 @@ class ConfigWindow(QtWidgets.QWidget):
                         self.settings["TriggerKey"] = val
         except Exception:
             pass
+
+        # RCS Settings
+        self.settings["rcs_active"] = 1 if self.rcs_active_cb.isChecked() else 0
+        self.settings["rcs_x"] = self.rcs_x_slider.value() / 100.0
+        self.settings["rcs_y"] = self.rcs_y_slider.value() / 100.0
 
         
         self.settings["circle_opacity"] = self.opacity_slider.value()
@@ -2262,6 +2478,16 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
+    def update_rcs_x_label(self):
+        val = self.rcs_x_slider.value() / 100.0
+        self.lbl_rcs_x.setText(f"RCS X Multiplier: ({val:.2f})")
+        self.save_settings()
+
+    def update_rcs_y_label(self):
+        val = self.rcs_y_slider.value() / 100.0
+        self.lbl_rcs_y.setText(f"RCS Y Multiplier: ({val:.2f})")
+        self.save_settings()
+
 def configurator():
     app = QtWidgets.QApplication(sys.argv)
     
@@ -2351,7 +2577,9 @@ class ESPWindow(QtWidgets.QWidget):
         self.file_watcher = QFileSystemWatcher([CONFIG_FILE])
         self.file_watcher.fileChanged.connect(self.reload_settings)
 
-        self.offsets, self.client_dll = get_offsets_and_client_dll()
+        # Use global offsets and client_dll
+        self.offsets = offsets
+        self.client_dll = client_dll
         
         import pymem
         import time
@@ -2646,7 +2874,7 @@ class ESPWindow(QtWidgets.QWidget):
             
             # Always render FPS text (not just when updating counter)
             try:
-                fps_item = self.scene.addText(f"Popsicle CS2 | FPS: {self.fps}", QtGui.QFont('DejaVu Sans', 15, QtGui.QFont.Bold))
+                fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", QtGui.QFont('DejaVu Sans', 15, QtGui.QFont.Bold))
                 fps_item.setDefaultTextColor(QtGui.QColor(255, 255, 255))
                 fps_item.setPos(5, 5)
             except Exception:
@@ -2819,14 +3047,6 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         )
         
         # Get local player position and team
-        dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-        dwViewMatrix = offsets['client.dll']['dwViewMatrix']
-        m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
-        m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
-        m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-        m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
-        m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
-        m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
         
         local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
         if not local_player_pawn_addr:
@@ -2856,7 +3076,6 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
             local_yaw = 0.0
         
         # Get entity list
-        dwEntityList = offsets['client.dll']['dwEntityList']
         entity_list = pm.read_longlong(client + dwEntityList)
         entity_ptr = pm.read_longlong(entity_list + 0x10)
         
@@ -2972,8 +3191,6 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                     is_spotted = False
                     if entity_team != local_player_team:
                         try:
-                            m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
-                            m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             is_spotted = spotted_flag != 0
                         except Exception:
@@ -3068,15 +3285,7 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
             return
             
         # Cache offsets for bomb ESP
-        dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
-        m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
-        m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
-        m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
-        m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
-        m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
-
         # Get view matrix for world to screen conversion
-        dwViewMatrix = offsets['client.dll']['dwViewMatrix']
         view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
 
         def bombisplant():
@@ -3174,27 +3383,6 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         enemy_color = QtGui.QColor(196, 30, 58)
 
     # Cache offsets for better performance
-    dwEntityList = offsets['client.dll']['dwEntityList']
-    dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-    dwViewMatrix = offsets['client.dll']['dwViewMatrix']
-    dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
-    m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-    m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
-    m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
-    m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
-    m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
-    m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
-    m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']
-    m_pClippingWeapon = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_pClippingWeapon']
-    m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
-    m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
-    m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
-    m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
-    m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
-    m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
-    m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
-    m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
-
     view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
 
     local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -3346,8 +3534,6 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 # Render spotted status if enabled (independent of nickname)
                 if settings.get('show_visibility', 0) == 1:
                     try:
-                        m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
-                        m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                         try:
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             is_spotted = spotted_flag != 0
@@ -3559,7 +3745,9 @@ def esp_main():
     window = ESPWindow(settings, window_width=window_width, window_height=window_height)
     
     try:
-        window.offsets, window.client_dll = get_offsets_and_client_dll()
+        # Use global offsets and client_dll
+        window.offsets = offsets
+        window.client_dll = client_dll
         window.pm = pm
         window.client = client
     except Exception:
@@ -3570,14 +3758,6 @@ def esp_main():
 
 
 def triggerbot():
-    offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
-    client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
-    dwEntityList = offsets['client.dll']['dwEntityList']
-    dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-    m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-
-    m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
-    m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
     from pynput.mouse import Controller, Button
     mouse = Controller()
     default_settings = {
@@ -3977,6 +4157,126 @@ def bhop():
 
     main_program()
 
+def rcs():
+    """Recoil Control System - Compensates for weapon recoil by countering aim punch"""
+    default_settings = {
+        'rcs_active': 0,
+        'rcs_x': 1.0,
+        'rcs_y': 1.0
+    }
+    
+    def load_settings():
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                pass
+        return default_settings
+
+    def no_recoil(pm, client, local_player_addr, settings):
+        """Calculate recoil compensation movement based on aim punch"""
+        try:
+            # Read current aim punch values
+            aim_punch_x = pm.read_float(local_player_addr + m_aimPunchAngle)
+            aim_punch_y = pm.read_float(local_player_addr + m_aimPunchAngle + 0x4)
+            shots_fired = pm.read_int(local_player_addr + m_iShotsFired)
+
+            # Only apply RCS when shots are being fired
+            if shots_fired > 1:
+                # Calculate delta from previous aim punch
+                delta_x = (aim_punch_x - rcs_state['old_punch_x']) * -1.0
+                delta_y = (aim_punch_y - rcs_state['old_punch_y']) * -1.0
+                
+                # Read player sensitivity for accurate compensation
+                sens_ptr = pm.read_longlong(client + dwSensitivity)
+                sensitivity = pm.read_float(sens_ptr + dwSensitivity_sensitivity)
+                
+                # Convert aim punch delta to mouse movement
+                mouse_x = int((delta_y * 2.0 / sensitivity) / -0.022)
+                mouse_y = int((delta_x * 2.0 / sensitivity) / 0.022)
+
+                # Apply user-defined multipliers
+                mouse_x = int(mouse_x * settings.get('rcs_x', 1.0))
+                mouse_y = int(mouse_y * settings.get('rcs_y', 1.0))
+
+                # Update stored punch values for next iteration
+                rcs_state['old_punch_x'] = aim_punch_x
+                rcs_state['old_punch_y'] = aim_punch_y
+
+                return mouse_x, mouse_y
+            else:
+                # Reset stored values when not firing
+                rcs_state['old_punch_x'] = aim_punch_x
+                rcs_state['old_punch_y'] = aim_punch_y
+                return 0, 0
+                
+        except Exception:
+            return 0, 0
+
+    def main(settings):
+        import time
+        pm = None
+        client = None
+        
+        # Initialize process connection
+        while pm is None or client is None:
+            if is_cs2_running():
+                try:
+                    pm = pymem.Pymem("cs2.exe")
+                    client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                except Exception:
+                    pm = None
+                    client = None
+                    time.sleep(1)
+            else:
+                pm = None
+                client = None
+                time.sleep(1)
+
+        # Main RCS loop
+        while True:
+            try:
+                # Check if RCS is enabled
+                if not settings.get('rcs_active', 0):
+                    time.sleep(0.1)
+                    continue
+                
+                # Get local player
+                local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
+                if local_player_pawn_addr:
+                    # Calculate and apply recoil compensation
+                    move_x, move_y = no_recoil(pm, client, local_player_pawn_addr, settings)
+                    if move_x != 0 or move_y != 0:
+                        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
+                        
+            except Exception:
+                pass
+            
+            time.sleep(0.001)  # Small delay to prevent excessive CPU usage
+
+    def start_main_thread(settings):
+        thread = threading.Thread(target=main, args=(settings,), daemon=True)
+        thread.start()
+
+    def setup_watcher(app, settings):
+        if os.path.exists(CONFIG_FILE):
+            watcher = QFileSystemWatcher([CONFIG_FILE])
+            def reload_config():
+                new_settings = load_settings()
+                settings.clear()
+                settings.update(new_settings)
+            watcher.fileChanged.connect(reload_config)
+
+    def main_program():
+        app = QCoreApplication([])
+        settings = load_settings()
+        setup_watcher(app, settings)
+        start_main_thread(settings)
+        app.exec()
+
+    main_program()
+
 def aim():
     default_settings = {
          'esp_rendering': 1,
@@ -4006,24 +4306,10 @@ def aim():
                 pass
         return default_settings
 
-    def get_offsets_and_client_dll():
-        offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
-        client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
-        return offsets, client_dll
-
-    def esp(pm, client, offsets, client_dll, settings, target_list, window_size):
+    def esp(pm, client, settings, target_list, window_size):
         width, height = window_size
         if settings['aim_active'] == 0:
             return
-        dwEntityList = offsets['client.dll']['dwEntityList']
-        dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-        dwViewMatrix = offsets['client.dll']['dwViewMatrix']
-        m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-        m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
-        m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
-        m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
-        m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
-        
         view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
 
         local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -4064,28 +4350,47 @@ def aim():
                     continue
                 
                 if settings.get('aim_active', 0) == 1 and settings.get('aim_visibility_check', 0) == 1:
-                    m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
-                    m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
                     is_visible = pm.read_bool(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                     if not is_visible:
                         continue
                 game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                 bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                 try:
+                    # Get the bone target index from settings
+                    aim_bone_target_idx = int(settings.get('aim_bone_target', 1))  # Default to head
                     
+                    # Map the index to actual bone ID using our bone system
+                    bone_target_modes = [
+                        "Head", "Neck", "Upper Chest", "Lower Chest", "Stomach", "Pelvis",
+                        "Left Upper Arm", "Left Forearm", "Left Hand", "Right Upper Arm", 
+                        "Right Forearm", "Right Hand", "Left Thigh", "Left Calf", "Left Foot",
+                        "Right Thigh", "Right Calf", "Right Foot"
+                    ]
                     
-                    aim_mode_idx = int(settings.get('aim_mode', 1))
-                    bone_map = {
-                        0: 4,  # Body (spine)
-                        1: 6,  # Head
+                    # Bone IDs mapping (matching px.py structure)
+                    bone_ids = {
+                        6: "Head", 5: "Neck", 4: "Upper Chest", 2: "Lower Chest", 3: "Stomach", 0: "Pelvis",
+                        8: "Left Upper Arm", 9: "Left Forearm", 11: "Left Hand", 13: "Right Upper Arm",
+                        14: "Right Forearm", 16: "Right Hand", 22: "Left Thigh", 23: "Left Calf",
+                        25: "Left Foot", 26: "Right Thigh", 27: "Right Calf", 28: "Right Foot"
                     }
                     
+                    # Get target bone name from index
+                    if 0 <= aim_bone_target_idx < len(bone_target_modes):
+                        target_bone_name = bone_target_modes[aim_bone_target_idx]
+                    else:
+                        target_bone_name = "Head"  # Default fallback
                     
-                    bone_id = bone_map.get(aim_mode_idx, 6)  # Default to head if invalid index
+                    # Find the bone ID for this target
+                    bone_id = 6  # Default to head
+                    for bid, bname in bone_ids.items():
+                        if bname == target_bone_name:
+                            bone_id = bid
+                            break
 
-                    # Calculate bone positions for head and body only
+                    # Calculate bone positions for all targetable bones
                     bone_positions = {}
-                    bone_ids_to_calc = [4, 5, 6]  # Body (spine), Neck, and Head
+                    bone_ids_to_calc = list(bone_ids.keys())  # Calculate all available bones
                     for bid in bone_ids_to_calc:
                         try:
                             bx = pm.read_float(bone_matrix + bid * 0x20)
@@ -4135,11 +4440,35 @@ def aim():
         center_x = win32api.GetSystemMetrics(0) // 2
         center_y = win32api.GetSystemMetrics(1) // 2
 
-        aim_mode_idx = int(settings.get('aim_mode', 2)) if settings.get('aim_mode') is not None else 2
-        bone_map = {0:4, 1:5, 2:6}  # 0: Body (spine), 1: Neck, 2: Head
+        aim_bone_target_idx = int(settings.get('aim_bone_target', 1)) if settings.get('aim_bone_target') is not None else 1  # Default to head
+        
+        # Bone target modes and IDs mapping (matching our bone system)
+        bone_target_modes = [
+            "Head", "Neck", "Upper Chest", "Lower Chest", "Stomach", "Pelvis",
+            "Left Upper Arm", "Left Forearm", "Left Hand", "Right Upper Arm", 
+            "Right Forearm", "Right Hand", "Left Thigh", "Left Calf", "Left Foot",
+            "Right Thigh", "Right Calf", "Right Foot"
+        ]
+        
+        bone_ids = {
+            6: "Head", 5: "Neck", 4: "Upper Chest", 2: "Lower Chest", 3: "Stomach", 0: "Pelvis",
+            8: "Left Upper Arm", 9: "Left Forearm", 11: "Left Hand", 13: "Right Upper Arm",
+            14: "Right Forearm", 16: "Right Hand", 22: "Left Thigh", 23: "Left Calf",
+            25: "Left Foot", 26: "Right Thigh", 27: "Right Calf", 28: "Right Foot"
+        }
 
         def _select_bone_for_entity(ent_addr):
-            return bone_map.get(aim_mode_idx, 6)  # Default to head
+            # Get target bone name from index
+            if 0 <= aim_bone_target_idx < len(bone_target_modes):
+                target_bone_name = bone_target_modes[aim_bone_target_idx]
+            else:
+                target_bone_name = "Head"  # Default fallback
+            
+            # Find the bone ID for this target
+            for bid, bname in bone_ids.items():
+                if bname == target_bone_name:
+                    return bid
+            return 6  # Default to head bone ID
 
         
         closest = None  
@@ -4245,7 +4574,7 @@ def aim():
             # Improved smoothness formula - uses slider's maximum value automatically
             # smoothness 0 = instant (alpha = 1.0)
             # smoothness max = maximum smooth (alpha = 0.0005)
-            max_smoothness = float(globals().get('smooth_slider_max', 500000))
+            max_smoothness = float(globals().get('smooth_slider_max', 1000000))
             min_alpha = 0.0005  # Minimum movement multiplier (0.05%)
             max_alpha = 1.0     # Maximum movement multiplier (100%)
             
@@ -4263,15 +4592,9 @@ def aim():
         # Check if we should disable aim when crosshair is on enemy
         disable_when_crosshair_on_enemy = settings.get('aim_disable_when_crosshair_on_enemy', 0) == 1
         
-        if disable_when_crosshair_on_enemy and pm and client and offsets and client_dll:
+        if disable_when_crosshair_on_enemy and pm and client:
             try:
                 # Get local player and check what's in crosshair
-                dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-                dwEntityList = offsets['client.dll']['dwEntityList']
-                m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
-                m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-                m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
-                
                 local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
                 if local_player_pawn_addr:
                     # Check what entity is in crosshair
@@ -4316,11 +4639,10 @@ def aim():
                 pm = None
                 client = None
                 time.sleep(1)
-        offsets, client_dll = get_offsets_and_client_dll()
         window_size = get_window_size()
         while True:
             target_list = []
-            target_list = esp(pm, client, offsets, client_dll, settings, target_list, window_size)
+            target_list = esp(pm, client, settings, target_list, window_size)
             
             # Check aim key
             try:
@@ -4471,6 +4793,7 @@ if __name__ == "__main__":
         multiprocessing.Process(target=esp_main),
         multiprocessing.Process(target=triggerbot),
         multiprocessing.Process(target=aim),
+        multiprocessing.Process(target=rcs),
         multiprocessing.Process(target=bhop),
     ]
     for p in procs:
