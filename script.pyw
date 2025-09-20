@@ -249,12 +249,6 @@ aim_lock_state = {
     'aim_was_pressed': False,
 }
 
-# RCS (Recoil Control System) state
-rcs_state = {
-    'old_punch_x': 0.0,
-    'old_punch_y': 0.0,
-}
-
 # Available themes
 THEMES = [
     'dark_red.xml', 'dark_amber.xml', 'dark_blue.xml', 'dark_cyan.xml',
@@ -394,11 +388,6 @@ DEFAULT_SETTINGS = {
     "AimKey": "C",
     "circle_opacity": 127,
     "circle_thickness": 2,
-    
-    # RCS (Recoil Control System) Settings
-    "rcs_active": 0,
-    "rcs_x": 1.0,
-    "rcs_y": 1.0,
     
     # Trigger Bot Settings
     "trigger_bot_active": 0,
@@ -747,7 +736,6 @@ class ConfigWindow(QtWidgets.QWidget):
         esp_container = self.create_esp_container()
         aim_container = self.create_aim_container()
         trigger_container = self.create_trigger_container()
-        rcs_container = self.create_rcs_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
 
@@ -756,7 +744,6 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(esp_container, "ESP")
         tabs.addTab(aim_container, "Aim")
         tabs.addTab(trigger_container, "Trigger")
-        tabs.addTab(rcs_container, "RCS")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Config")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
@@ -1160,54 +1147,6 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_container.setLayout(trigger_layout)
         trigger_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
         return trigger_container
-
-    def create_rcs_container(self):
-        """Create RCS (Recoil Control System) configuration container"""
-        rcs_container = QtWidgets.QWidget()
-        rcs_layout = QtWidgets.QVBoxLayout()
-        rcs_layout.setContentsMargins(10, 10, 10, 10)
-        rcs_layout.setSpacing(5)
-        rcs_layout.setAlignment(QtCore.Qt.AlignTop)
-
-        # RCS Active checkbox
-        self.rcs_active_cb = QtWidgets.QCheckBox("Enable RCS")
-        self.rcs_active_cb.setChecked(self.settings.get("rcs_active", 0) == 1)
-        self.rcs_active_cb.stateChanged.connect(self.save_settings)
-        self.rcs_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        rcs_layout.addWidget(self.rcs_active_cb)
-
-        # RCS X multiplier slider
-        self.lbl_rcs_x = QtWidgets.QLabel(f"RCS X Multiplier: ({self.settings.get('rcs_x', 1.0):.2f})")
-        self.lbl_rcs_x.setMinimumHeight(16)
-        rcs_layout.addWidget(self.lbl_rcs_x)
-
-        self.rcs_x_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.rcs_x_slider.setMinimum(0)
-        self.rcs_x_slider.setMaximum(200)  # 0.0 to 2.0
-        self.rcs_x_slider.setValue(int(self.settings.get("rcs_x", 1.0) * 100))
-        self.rcs_x_slider.valueChanged.connect(self.update_rcs_x_label)
-        self.rcs_x_slider.setMinimumHeight(22)
-        self.rcs_x_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        rcs_layout.addWidget(self.rcs_x_slider)
-
-        # RCS Y multiplier slider
-        self.lbl_rcs_y = QtWidgets.QLabel(f"RCS Y Multiplier: ({self.settings.get('rcs_y', 1.0):.2f})")
-        self.lbl_rcs_y.setMinimumHeight(16)
-        rcs_layout.addWidget(self.lbl_rcs_y)
-
-        self.rcs_y_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.rcs_y_slider.setMinimum(0)
-        self.rcs_y_slider.setMaximum(200)  # 0.0 to 2.0
-        self.rcs_y_slider.setValue(int(self.settings.get("rcs_y", 1.0) * 100))
-        self.rcs_y_slider.valueChanged.connect(self.update_rcs_y_label)
-        self.rcs_y_slider.setMinimumHeight(22)
-        self.rcs_y_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        rcs_layout.addWidget(self.rcs_y_slider)
-
-
-        rcs_container.setLayout(rcs_layout)
-        rcs_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
-        return rcs_container
 
     def create_aim_container(self):
         aim_container = QtWidgets.QWidget()
@@ -1645,7 +1584,7 @@ class ConfigWindow(QtWidgets.QWidget):
             'smooth_slider', 'center_dot_size_slider',
             'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
             'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
-            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo', 'rcs_active_cb', 'rcs_x_slider', 'rcs_y_slider'
+            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
 
@@ -1686,8 +1625,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     'trigger_bot_active_cb': 'trigger_bot_active',
                     'aim_active_cb': 'aim_active',
                     'aim_circle_visible_cb': 'aim_circle_visible',
-                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu',
-                    'rcs_active_cb': 'rcs_active'
+                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu'
                 }
                 for cb_name, key in mapping.items():
                     cb = getattr(self, cb_name, None)
@@ -1720,10 +1658,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
                 if getattr(self, 'center_dot_size_slider', None) is not None:
                     self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
-                if getattr(self, 'rcs_x_slider', None) is not None:
-                    self.rcs_x_slider.setValue(int(self.settings.get('rcs_x', 1.0) * 100))
-                if getattr(self, 'rcs_y_slider', None) is not None:
-                    self.rcs_y_slider.setValue(int(self.settings.get('rcs_y', 1.0) * 100))
 
                 # Update all slider labels after setting values
                 try:
@@ -1759,16 +1693,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 try:
                     if hasattr(self, 'update_center_dot_size_label'):
                         self.update_center_dot_size_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_rcs_x_label'):
-                        self.update_rcs_x_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_rcs_y_label'):
-                        self.update_rcs_y_label()
                 except Exception:
                     pass
 
@@ -1953,11 +1877,6 @@ class ConfigWindow(QtWidgets.QWidget):
                         self.settings["TriggerKey"] = val
         except Exception:
             pass
-
-        # RCS Settings
-        self.settings["rcs_active"] = 1 if self.rcs_active_cb.isChecked() else 0
-        self.settings["rcs_x"] = self.rcs_x_slider.value() / 100.0
-        self.settings["rcs_y"] = self.rcs_y_slider.value() / 100.0
 
         
         self.settings["circle_opacity"] = self.opacity_slider.value()
@@ -2497,16 +2416,6 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
         except Exception:
             pass
-
-    def update_rcs_x_label(self):
-        val = self.rcs_x_slider.value() / 100.0
-        self.lbl_rcs_x.setText(f"RCS X Multiplier: ({val:.2f})")
-        self.save_settings()
-
-    def update_rcs_y_label(self):
-        val = self.rcs_y_slider.value() / 100.0
-        self.lbl_rcs_y.setText(f"RCS Y Multiplier: ({val:.2f})")
-        self.save_settings()
 
 def configurator():
     app = QtWidgets.QApplication(sys.argv)
@@ -4112,126 +4021,6 @@ def bhop():
 
     main_program()
 
-def rcs():
-    """Recoil Control System - Compensates for weapon recoil by countering aim punch"""
-    default_settings = {
-        'rcs_active': 0,
-        'rcs_x': 1.0,
-        'rcs_y': 1.0
-    }
-    
-    def load_settings():
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, 'r') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                pass
-        return default_settings
-
-    def no_recoil(pm, client, local_player_addr, settings):
-        """Calculate recoil compensation movement based on aim punch"""
-        try:
-            # Read current aim punch values
-            aim_punch_x = pm.read_float(local_player_addr + m_aimPunchAngle)
-            aim_punch_y = pm.read_float(local_player_addr + m_aimPunchAngle + 0x4)
-            shots_fired = pm.read_int(local_player_addr + m_iShotsFired)
-
-            # Only apply RCS when shots are being fired
-            if shots_fired > 1:
-                # Calculate delta from previous aim punch
-                delta_x = (aim_punch_x - rcs_state['old_punch_x']) * -1.0
-                delta_y = (aim_punch_y - rcs_state['old_punch_y']) * -1.0
-                
-                # Read player sensitivity for accurate compensation
-                sens_ptr = pm.read_longlong(client + dwSensitivity)
-                sensitivity = pm.read_float(sens_ptr + dwSensitivity_sensitivity)
-                
-                # Convert aim punch delta to mouse movement
-                mouse_x = int((delta_y * 2.0 / sensitivity) / -0.022)
-                mouse_y = int((delta_x * 2.0 / sensitivity) / 0.022)
-
-                # Apply user-defined multipliers
-                mouse_x = int(mouse_x * settings.get('rcs_x', 1.0))
-                mouse_y = int(mouse_y * settings.get('rcs_y', 1.0))
-
-                # Update stored punch values for next iteration
-                rcs_state['old_punch_x'] = aim_punch_x
-                rcs_state['old_punch_y'] = aim_punch_y
-
-                return mouse_x, mouse_y
-            else:
-                # Reset stored values when not firing
-                rcs_state['old_punch_x'] = aim_punch_x
-                rcs_state['old_punch_y'] = aim_punch_y
-                return 0, 0
-                
-        except Exception:
-            return 0, 0
-
-    def main(settings):
-        import time
-        pm = None
-        client = None
-        
-        # Initialize process connection
-        while pm is None or client is None:
-            if is_cs2_running():
-                try:
-                    pm = pymem.Pymem("cs2.exe")
-                    client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
-                except Exception:
-                    pm = None
-                    client = None
-                    time.sleep(1)
-            else:
-                pm = None
-                client = None
-                time.sleep(1)
-
-        # Main RCS loop
-        while True:
-            try:
-                # Check if RCS is enabled
-                if not settings.get('rcs_active', 0):
-                    time.sleep(0.1)
-                    continue
-                
-                # Get local player
-                local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
-                if local_player_pawn_addr:
-                    # Calculate and apply recoil compensation
-                    move_x, move_y = no_recoil(pm, client, local_player_pawn_addr, settings)
-                    if move_x != 0 or move_y != 0:
-                        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
-                        
-            except Exception:
-                pass
-            
-            time.sleep(0.001)  # Small delay to prevent excessive CPU usage
-
-    def start_main_thread(settings):
-        thread = threading.Thread(target=main, args=(settings,), daemon=True)
-        thread.start()
-
-    def setup_watcher(app, settings):
-        if os.path.exists(CONFIG_FILE):
-            watcher = QFileSystemWatcher([CONFIG_FILE])
-            def reload_config():
-                new_settings = load_settings()
-                settings.clear()
-                settings.update(new_settings)
-            watcher.fileChanged.connect(reload_config)
-
-    def main_program():
-        app = QCoreApplication([])
-        settings = load_settings()
-        setup_watcher(app, settings)
-        start_main_thread(settings)
-        app.exec()
-
-    main_program()
-
 def aim():
     default_settings = {
          'esp_rendering': 1,
@@ -4799,7 +4588,6 @@ if __name__ == "__main__":
         multiprocessing.Process(target=esp_main),
         multiprocessing.Process(target=triggerbot),
         multiprocessing.Process(target=aim),
-        multiprocessing.Process(target=rcs),
         multiprocessing.Process(target=bhop),
         multiprocessing.Process(target=auto_accept_main),
     ]
