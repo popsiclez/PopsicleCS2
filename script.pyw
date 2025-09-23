@@ -1,5 +1,3 @@
-import threading
-import keyboard
 #!/usr/bin/env python3
 """
 Popsicle CS2 External Overlay Application
@@ -13,7 +11,16 @@ A comprehensive external overlay for Counter-Strike 2 featuring:
 This is a cleaned up and reorganized version with proper structure.
 """
 
+# ============================================================================
+# VERSION AND CONFIGURATION
+# ============================================================================
+
+VERSION = "1"
+DEBUG_MODE = False
+
 # Standard library imports
+import threading
+import keyboard
 import os
 import sys
 import json
@@ -25,6 +32,7 @@ import time
 
 # Startup configuration - set to False to disable startup delays and graphics restart
 STARTUP_ENABLED = True
+
 import random
 import threading
 import multiprocessing
@@ -47,17 +55,102 @@ from PySide6.QtCore import QFileSystemWatcher, QCoreApplication, QTimer
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
 
 # Import qt_material after PySide6 to avoid warnings
-try:
-    from qt_material import apply_stylesheet
-except ImportError:
-    # Fallback if qt_material is not available
-    def apply_stylesheet(app, theme=None):
-        pass
+# Theme support removed - application will use default Qt styling
 
 # Windows API imports
 import win32api
 import win32con
 import win32gui
+
+
+# ============================================================================
+# DEBUG AND UTILITY FUNCTIONS
+# ============================================================================
+
+def setup_debug_console():
+    """Create a console window for debug output if DEBUG_MODE is True"""
+    if DEBUG_MODE:
+        try:
+            # Allocate a console for this GUI application
+            ctypes.windll.kernel32.AllocConsole()
+            
+            # Redirect stdout and stderr to console
+            import sys
+            sys.stdout = open('CONOUT$', 'w')
+            sys.stderr = open('CONOUT$', 'w')
+            sys.stdin = open('CONIN$', 'r')
+            
+            # Set console title
+            ctypes.windll.kernel32.SetConsoleTitleW("Debug Console - Popsicle CS2")
+            
+            print("Debug mode enabled - Console output active")
+        except Exception as e:
+            pass
+
+def debug_print(*args, **kwargs):
+    """Print debug information only if DEBUG_MODE is True"""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
+
+def get_app_title():
+    """Fetch application title from GitHub"""
+    try:
+        response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt', timeout=5)
+        if response.status_code == 200:
+            title = response.text.strip()
+            debug_print(f"Fetched title from GitHub: {title}")
+            return title
+    except Exception as e:
+        debug_print(f"Failed to fetch title from GitHub: {e}")
+    
+    # Fallback title
+    return "Popsicle - CS2"
+
+def check_version():
+    """Check if current version matches GitHub version"""
+    try:
+        response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/version.txt', timeout=5)
+        if response.status_code == 200:
+            remote_version = response.text.strip()
+            debug_print(f"Local version: {VERSION}, Remote version: {remote_version}")
+            return VERSION == remote_version
+    except Exception as e:
+        debug_print(f"Failed to check version: {e}")
+    
+    # If we can't check, assume version is OK
+    return True
+
+def version_check_worker():
+    """Background worker to check version periodically"""
+    while True:
+        try:
+            if not check_version():
+                debug_print("Version mismatch detected - showing update notification")
+                # Show message box that stays on top using Windows API
+                app_title = get_app_title()
+                ctypes.windll.user32.MessageBoxW(
+                    0, 
+                    "New version available!", 
+                    app_title,
+                    0x00000000 | 0x00010000 | 0x00040000  # MB_OK | MB_SETFOREGROUND | MB_TOPMOST
+                )
+                
+                debug_print("User dismissed update notification - creating terminate signal to exit all processes")
+                # Create terminate signal file to shut down all processes properly
+                try:
+                    with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                        f.write('version_mismatch')
+                except Exception:
+                    pass
+                # Give a moment for the main process to detect the signal file
+                time.sleep(1)
+                os._exit(0)
+                
+            # Check every 30 seconds
+            time.sleep(30)
+        except Exception as e:
+            debug_print(f"Version check error: {e}")
+            time.sleep(30)
 
 
 # ============================================================================
@@ -249,15 +342,6 @@ aim_lock_state = {
     'aim_was_pressed': False,
 }
 
-# Available themes
-THEMES = [
-    'dark_red.xml', 'dark_amber.xml', 'dark_blue.xml', 'dark_cyan.xml',
-    'dark_lightgreen.xml', 'dark_pink.xml', 'dark_purple.xml', 'dark_teal.xml',
-    'dark_yellow.xml', 'light_amber.xml', 'light_blue.xml', 'light_cyan.xml',
-    'light_cyan_500.xml', 'light_lightgreen.xml', 'light_pink.xml',
-    'light_purple.xml', 'light_red.xml', 'light_teal.xml', 'light_yellow.xml'
-]
-
 
 # ============================================================================
 # INSTANCE MANAGEMENT
@@ -317,11 +401,13 @@ def handle_instance_check():
     MB_ICONQUESTION = 0x00000020
     IDOK = 1
     
+    app_title = get_app_title()
+    
     # Show override dialog
     result = ctypes.windll.user32.MessageBoxW(
         0, 
         "Script already running. Press OK to override and close the existing instance, or Cancel to exit.",
-        "Popsicle CS2 - Already Running", 
+        f"{app_title} - Already Running", 
         MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_ICONQUESTION
     )
     
@@ -334,7 +420,7 @@ def handle_instance_check():
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "Failed to terminate existing instance. Please close it manually and try again.",
-                "Popsicle CS2 - Error",
+                f"{app_title} - Error",
                 0x00000010 | MB_SETFOREGROUND | MB_TOPMOST  # MB_ICONERROR
             )
             return False
@@ -405,11 +491,11 @@ DEFAULT_SETTINGS = {
     # UI Settings
     "topmost": 1,
     "MenuToggleKey": "F8",
-    "theme": "dark_red.xml",
     "team_color": "#47A76A",
     "enemy_color": "#C41E3A",
     "aim_circle_color": "#FF0000",
     "center_dot_color": "#FFFFFF",
+    "menu_theme_color": "#FF0000",
     "rainbow_fov": 0,
     "rainbow_center_dot": 0,
     "low_cpu": 0,
@@ -717,20 +803,27 @@ class ConfigWindow(QtWidgets.QWidget):
         self.menu_toggle_pressed = False
         self.esp_toggle_pressed = False
         self._manually_hidden = False  # Track if user manually hid the window
-        self.setStyleSheet("background-color: #020203;")
+        
+        # Apply initial styling with theme color from settings
+        initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
+        self.update_menu_theme_styling(initial_theme_color)
         self.initUI()
 
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
 
+        # Get title from GitHub
+        app_title = get_app_title()
         
-        header_label = QtWidgets.QLabel("Popsicle - CS2")
-        header_label.setAlignment(QtCore.Qt.AlignCenter)
-        header_label.setMinimumHeight(28)
-        header_font = QtGui.QFont('DejaVu Sans Mono', 17, QtGui.QFont.Bold)
-        header_label.setFont(header_font)
-        header_label.setStyleSheet("color: white;")
+        self.header_label = QtWidgets.QLabel(app_title)
+        self.header_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.header_label.setMinimumHeight(28)
+        header_font = QtGui.QFont('MS PGothic', 14, QtGui.QFont.Bold)
+        self.header_label.setFont(header_font)
+        # Apply theme color to header
+        theme_color = self.settings.get('menu_theme_color', '#FF0000')
+        self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 16px;")
 
         
         esp_container = self.create_esp_container()
@@ -748,12 +841,36 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(misc_container, "Config")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
         tabs.setMovable(False)
+        
+        # Center the tab bar
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background-color: #020203;
+            }
+            QTabWidget::tab-bar {
+                alignment: center;
+            }
+            QTabBar::tab {
+                background-color: #3c3c3c;
+                color: white;
+                padding: 8px 16px;
+                margin: 2px;
+                border-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: #555;
+            }
+            QTabBar::tab:hover {
+                background-color: #4a4a4a;
+            }
+        """)
 
         
         main_layout = QtWidgets.QVBoxLayout()
         main_layout.setSpacing(8)
         main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.addWidget(header_label)
+        main_layout.addWidget(self.header_label)
         main_layout.addWidget(tabs)
 
         self.setLayout(main_layout)
@@ -796,6 +913,9 @@ class ConfigWindow(QtWidgets.QWidget):
 
         # Set fixed width - no horizontal scaling (do this AFTER layout is set)
         self.setFixedWidth(450)
+        
+        # Apply rounded corners to the window
+        self.apply_rounded_corners()
 
         # Initialize keybind cooldown tracking
         self.keybind_cooldowns = {}  # Track when each keybind was last set
@@ -1088,7 +1208,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_toggle_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'ESPToggleKey', self.esp_toggle_key_btn)
 
         esp_container.setLayout(esp_layout)
-        esp_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        esp_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return esp_container
 
     def create_trigger_container(self):
@@ -1145,7 +1265,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'TriggerKey', self.trigger_key_btn)
 
         trigger_container.setLayout(trigger_layout)
-        trigger_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        trigger_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return trigger_container
 
     def create_aim_container(self):
@@ -1285,7 +1405,7 @@ class ConfigWindow(QtWidgets.QWidget):
         aim_layout.addWidget(self.disable_crosshair_cb)
 
         aim_container.setLayout(aim_layout)
-        aim_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        aim_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return aim_container
 
     def create_colors_container(self):
@@ -1336,6 +1456,15 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.center_dot_color_btn)
 
+        # Menu Theme Color button
+        self.menu_theme_color_btn = QtWidgets.QPushButton('Menu Theme Color')
+        menu_theme_hex = self.settings.get('menu_theme_color', '#FF0000')
+        self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: white;')
+        self.menu_theme_color_btn.clicked.connect(lambda: self.pick_color('menu_theme_color', self.menu_theme_color_btn))
+        self.menu_theme_color_btn.setMinimumHeight(28)
+        self.menu_theme_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        colors_layout.addWidget(self.menu_theme_color_btn)
+
         # Rainbow FOV Circle toggle
         self.rainbow_fov_cb = QtWidgets.QCheckBox("Rainbow FOV Circle")
         self.rainbow_fov_cb.setChecked(self.settings.get('rainbow_fov', 0) == 1)
@@ -1350,28 +1479,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.rainbow_center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.rainbow_center_dot_cb)
 
-        # Theme dropdown
-        self.theme_combo = QtWidgets.QComboBox()
-        for theme in THEMES:
-            self.theme_combo.addItem(theme, theme)
-        current_theme = self.settings.get("theme", "dark_red.xml")
-        theme_idx = 0
-        for i in range(self.theme_combo.count()):
-            if str(self.theme_combo.itemData(i)) == str(current_theme):
-                theme_idx = i
-                break
-        self.theme_combo.setCurrentIndex(theme_idx)
-        self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
-
-        lbl_theme = QtWidgets.QLabel("Theme:")
-        lbl_theme.setMinimumHeight(16)
-        colors_layout.addWidget(lbl_theme)
-        self.theme_combo.setMinimumHeight(22)
-        self.theme_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        colors_layout.addWidget(self.theme_combo)
-
         colors_container.setLayout(colors_layout)
-        colors_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        colors_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return colors_container
 
     def create_misc_container(self):
@@ -1413,7 +1522,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.lbl_fps_limit)
         
         self.fps_limit_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.fps_limit_slider.setMinimum(10)
+        self.fps_limit_slider.setMinimum(20)  # Minimum 20 FPS (except when low CPU mode forces 10)
         self.fps_limit_slider.setMaximum(100)
         self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
         self.fps_limit_slider.valueChanged.connect(self.update_fps_limit_label)
@@ -1452,7 +1561,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.terminate_btn)
 
         misc_container.setLayout(misc_layout)
-        misc_container.setStyleSheet("background-color: #080809; border-radius: 10px;")
+        misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return misc_container
 
     def on_auto_accept_changed(self):
@@ -1488,14 +1597,19 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if low_cpu_enabled:
                 # Lock FPS slider at 10 FPS when low CPU mode is enabled
+                self.fps_limit_slider.setMinimum(10)  # Allow 10 FPS minimum in low CPU mode
                 self.fps_limit_slider.setValue(10)
                 self.fps_limit_slider.setEnabled(False)
                 self.settings["fps_limit"] = 10
                 self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
             else:
                 # Unlock FPS slider when low CPU mode is disabled
+                self.fps_limit_slider.setMinimum(20)  # Reset to 20 FPS minimum
+                # Ensure current value meets new minimum
+                current_fps = max(20, self.settings.get('fps_limit', 60))
+                self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
-                current_fps = self.settings.get('fps_limit', 60)
+                self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
             
             save_settings(self.settings)
@@ -1509,6 +1623,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if low_cpu_enabled:
                 # Lock FPS slider at 10 FPS if low CPU mode is already enabled
+                self.fps_limit_slider.setMinimum(10)  # Allow 10 FPS minimum in low CPU mode
                 self.fps_limit_slider.setValue(10)
                 self.fps_limit_slider.setEnabled(False)
                 self.settings["fps_limit"] = 10
@@ -1516,11 +1631,56 @@ class ConfigWindow(QtWidgets.QWidget):
                 save_settings(self.settings)
             else:
                 # Ensure FPS slider is enabled if low CPU mode is disabled
+                self.fps_limit_slider.setMinimum(20)  # Set 20 FPS minimum for normal mode
+                current_fps = max(20, self.settings.get('fps_limit', 60))  # Ensure meets minimum
+                self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
-                current_fps = self.settings.get('fps_limit', 60)
+                self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
         except Exception:
             pass
+
+    def apply_rounded_corners(self):
+        """Apply smooth rounded corners to the window using antialiased masking"""
+        try:
+            # Get the current window size
+            rect = self.rect()
+            
+            # Create a high-resolution pixmap for smoother edges
+            scale_factor = 2  # Use 2x scale for antialiasing
+            scaled_size = rect.size() * scale_factor
+            pixmap = QtGui.QPixmap(scaled_size)
+            pixmap.fill(QtCore.Qt.transparent)
+            
+            # Create painter with antialiasing enabled
+            painter = QtGui.QPainter(pixmap)
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
+            
+            # Draw rounded rectangle with smooth edges
+            painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+            painter.setPen(QtCore.Qt.NoPen)
+            scaled_rect = QtCore.QRectF(0, 0, scaled_size.width(), scaled_size.height())
+            painter.drawRoundedRect(scaled_rect, 15 * scale_factor, 15 * scale_factor)
+            painter.end()
+            
+            # Scale down the pixmap for smooth edges
+            smooth_pixmap = pixmap.scaled(rect.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            
+            # Create mask from the smooth pixmap
+            mask = smooth_pixmap.createMaskFromColor(QtCore.Qt.transparent)
+            self.setMask(QtGui.QBitmap(mask))
+            
+        except Exception:
+            # If advanced masking fails, try simple path-based approach
+            try:
+                path = QtGui.QPainterPath()
+                path.addRoundedRect(QtCore.QRectF(self.rect()), 15, 15)
+                region = QtGui.QRegion(path.toFillPolygon().toPolygon())
+                self.setMask(region)
+            except Exception:
+                # If all masking fails, fall back to just the CSS styling
+                pass
 
     def apply_topmost(self):
         """Always apply topmost flag to keep window on top"""
@@ -1529,23 +1689,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowFlags(flags)
         self.show()
 
-    def on_theme_changed(self):
-        
-        try:
-            sel = self.theme_combo.itemData(self.theme_combo.currentIndex())
-            if sel:
-                self.settings["theme"] = sel
-                save_settings(self.settings)
-                app = QtWidgets.QApplication.instance()
-                if app is not None:
-                    try:
-                        apply_stylesheet(app, theme=sel)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-    
     def on_terminate_clicked(self):
         try:
             
@@ -1573,7 +1716,7 @@ class ConfigWindow(QtWidgets.QWidget):
         """Restore DEFAULT_SETTINGS and update every configurable UI element in one atomic operation.
 
         This blocks widget signals while values are applied to avoid incremental saves
-        or partial state, persists the new config once, applies the theme and topmost
+        or partial state, persists the new config once, applies the topmost
         setting, then unblocks signals and persists again as a final confirmation.
         """
         
@@ -1582,8 +1725,8 @@ class ConfigWindow(QtWidgets.QWidget):
             'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'weapon_cb', 'bomb_esp_cb',
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
-            'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn', 'theme_combo',
-            'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
+            'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn',
+            'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
             'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
@@ -1709,14 +1852,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 if getattr(self, 'esp_toggle_key_btn', None) is not None:
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
 
-                
-                if getattr(self, 'theme_combo', None) is not None:
-                    theme = self.settings.get('theme', DEFAULT_SETTINGS.get('theme'))
-                    for i in range(self.theme_combo.count()):
-                        if str(self.theme_combo.itemData(i)) == str(theme):
-                            self.theme_combo.setCurrentIndex(i)
-                            break
-
                 # Reset aim mode dropdown to default bone target
                 if getattr(self, 'aim_mode_cb', None) is not None:
                     self.aim_mode_cb.setCurrentIndex(self.settings.get('aim_bone_target', DEFAULT_SETTINGS.get('aim_bone_target', 1)))
@@ -1732,17 +1867,10 @@ class ConfigWindow(QtWidgets.QWidget):
                     if getattr(self, 'aim_circle_color_btn', None) is not None:
                         aim_hex = self.settings.get('aim_circle_color', DEFAULT_SETTINGS.get('aim_circle_color'))
                         self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: white;')
-                except Exception:
-                    pass
-
-                
-                try:
-                    app = QtWidgets.QApplication.instance()
-                    if app is not None:
-                        try:
-                            apply_stylesheet(app, theme=self.settings.get('theme', DEFAULT_SETTINGS.get('theme')))
-                        except Exception:
-                            pass
+                    if getattr(self, 'menu_theme_color_btn', None) is not None:
+                        menu_theme_hex = self.settings.get('menu_theme_color', DEFAULT_SETTINGS.get('menu_theme_color'))
+                        self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: white;')
+                        self.update_menu_theme_styling(menu_theme_hex)
                 except Exception:
                     pass
 
@@ -1898,15 +2026,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-        
-        try:
-            val = getattr(self, "theme_combo", None)
-            if val is not None:
-                self.settings["theme"] = val.itemData(val.currentIndex())
-        except Exception:
-            pass
-
-        
+        # Aim smoothness setting
         try:
             self.settings["aim_smoothness"] = self.smooth_slider.value()
         except Exception:
@@ -2175,6 +2295,169 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings[settings_key] = hexc
             save_settings(self.settings)
             btn.setStyleSheet(f'background-color: {hexc}; color: white;')
+            
+            # If menu theme color was changed, update the entire UI styling
+            if settings_key == 'menu_theme_color':
+                self.update_menu_theme_styling(hexc)
+
+    def update_menu_theme_styling(self, theme_color):
+        """Update the UI styling with the new menu theme color"""
+        # Calculate darker shade for hover effects
+        color = QtGui.QColor(theme_color)
+        darker_color = color.darker(110).name()
+        
+        # Update the main window stylesheet with the new theme color
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: #020203;
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                border-radius: 15px;
+            }}
+            
+            QCheckBox {{
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                font-size: 12px;
+                spacing: 8px;
+            }}
+            
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid #555;
+                border-radius: 3px;
+                background-color: #2a2a2a;
+            }}
+            
+            QCheckBox::indicator:hover {{
+                border: 2px solid #777;
+                background-color: #3a3a3a;
+            }}
+            
+            QCheckBox::indicator:checked {{
+                background-color: {theme_color};
+                border: 2px solid {darker_color};
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEzLjM1IDQuNjVMMTQuNjUgNS45NUw2IDEzLjM1TDEuMzUgOC43TDIuNjUgNy40TDYgMTAuNjVMMTMuMzUgNC42NVoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=);
+            }}
+            
+            QCheckBox::indicator:checked:hover {{
+                background-color: {darker_color};
+                border: 2px solid {color.darker(120).name()};
+            }}
+            
+            QCheckBox::indicator:unchecked {{
+                background-color: #2a2a2a;
+                border: 2px solid #555;
+            }}
+            
+            QCheckBox::indicator:unchecked:hover {{
+                background-color: #3a3a3a;
+                border: 2px solid #777;
+            }}
+            
+            QSlider::groove:horizontal {{
+                background-color: #3a3a3a;
+                height: 6px;
+                border-radius: 3px;
+            }}
+            
+            QSlider::handle:horizontal {{
+                background-color: {theme_color};
+                border: 2px solid {darker_color};
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                margin: -5px 0;
+            }}
+            
+            QSlider::handle:horizontal:hover {{
+                background-color: {darker_color};
+            }}
+            
+            QSlider::sub-page:horizontal {{
+                background-color: {theme_color};
+                border-radius: 3px;
+            }}
+            
+            QComboBox {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                font-size: 12px;
+                min-height: 20px;
+            }}
+            
+            QComboBox:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QComboBox:on {{
+                background-color: #4a4a4a;
+                border: 1px solid {theme_color};
+            }}
+            
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            
+            QComboBox::down-arrow {{
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik02IDhMMCAwSDEyTDYgOFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=);
+                width: 12px;
+                height: 8px;
+            }}
+            
+            QComboBox QAbstractItemView {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                selection-background-color: {theme_color};
+                selection-color: white;
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+            }}
+            
+            QPushButton {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                font-size: 12px;
+                min-height: 20px;
+            }}
+            
+            QPushButton:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QPushButton:pressed {{
+                background-color: #2a2a2a;
+                border: 1px solid {theme_color};
+            }}
+            
+            QPushButton:focus {{
+                border: 1px solid {theme_color};
+            }}
+        """)
+        
+        # Update the header label with MS PGothic font and theme color
+        try:
+            if hasattr(self, 'header_label') and self.header_label:
+                self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 14px;")
+        except Exception:
+            pass
 
     def check_menu_toggle(self):
         
@@ -2311,13 +2594,16 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
     def resizeEvent(self, event):
-        """Ensure window stays within CS2 bounds when resized"""
+        """Ensure window stays within CS2 bounds when resized and reapply rounded corners"""
         super().resizeEvent(event)
         try:
             current_pos = self.pos()
             constrained_pos = self.constrain_to_cs2_window(current_pos)
             if constrained_pos != current_pos:
                 self.move(constrained_pos)
+            
+            # Reapply rounded corners after resize
+            self.apply_rounded_corners()
         except Exception:
             pass
 
@@ -2418,21 +2704,26 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
 def configurator():
+    # Set DPI awareness before creating QApplication to avoid Windows errors
+    import os
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+    os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+    os.environ["QT_SCALE_FACTOR"] = "1"
+    
+    # Suppress Qt DPI warnings
+    os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
+    
     app = QtWidgets.QApplication(sys.argv)
     
+    # Set DPI awareness policy (suppress errors)
     try:
-        settings = load_settings()
-        theme = settings.get("theme", "dark_red.xml")
+        app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+        app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
     except Exception:
-        theme = "dark_red.xml"
-    try:
-        apply_stylesheet(app, theme=theme)
-    except Exception:
-        
-        try:
-            apply_stylesheet(app, theme='dark_red.xml')
-        except Exception:
-            pass
+        pass
+    
+    debug_print("Using default Qt styling - no themes applied")
+    
     window = ConfigWindow()
     
     # Only show the window initially if CS2 is the active window
@@ -2527,7 +2818,22 @@ class ESPWindow(QtWidgets.QWidget):
         self.scene = QGraphicsScene(self)
         self.view = QGraphicsView(self.scene, self)
         self.view.setGeometry(0, 0, self.window_width, self.window_height)
-        self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)  # Disable for performance
+        
+        # Set initial rendering quality based on low CPU mode setting
+        low_cpu_mode = self.settings.get('low_cpu', 0) == 1
+        if not low_cpu_mode:
+            # Enable high-quality rendering for modern/pixelated look (only if not in low CPU mode)
+            self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
+            self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
+            self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, True)
+        else:
+            # Use basic rendering for low CPU mode
+            self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)
+            self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, False)
+            self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
+            self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
+        
         self.view.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.view.setStyleSheet("background: transparent;")
@@ -2624,14 +2930,21 @@ class ESPWindow(QtWidgets.QWidget):
         """Adjust internal timers/intervals for low CPU mode and FPS limit.
 
         This uses either low CPU mode (10 FPS) or the custom FPS limit setting.
-        Low CPU mode overrides the FPS limit when enabled.
+        Low CPU mode overrides the FPS limit when enabled and disables high-quality rendering.
         """
         try:
             low = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
             fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
             
-            # Store target FPS for precise limiting
+            # Configure rendering quality based on low CPU mode
             if low:
+                # Low CPU mode: Disable high-quality rendering features
+                self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)
+                self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, False)
+                self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
+                self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
+                
+                # Store target FPS for precise limiting
                 self.target_fps = 10
                 self.target_frame_time = 1.0 / 10.0  # 100ms per frame
                 # Low CPU mode: 10 FPS with optimized processing
@@ -2642,6 +2955,12 @@ class ESPWindow(QtWidgets.QWidget):
                                               QtWidgets.QGraphicsView.DontSavePainterState)
                 self.setUpdatesEnabled(True)
             else:
+                # Normal mode: Enable high-quality rendering features
+                self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
+                self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
+                self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, True)
+                
                 self.target_fps = fps_limit
                 self.target_frame_time = 1.0 / max(fps_limit, 1)
                 # For lower FPS (under 80), use more accurate timer intervals
@@ -2801,10 +3120,16 @@ class ESPWindow(QtWidgets.QWidget):
                 self.frame_count = 0
                 self.last_time = current_time
             
-            # Always render FPS text (not just when updating counter)
+            # Always render FPS text with enhanced quality using menu theme color
             try:
-                fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", QtGui.QFont('DejaVu Sans', 15, QtGui.QFont.Bold))
-                fps_item.setDefaultTextColor(QtGui.QColor(255, 255, 255))
+                fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
+                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+                fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", fps_font)
+                
+                # Get menu theme color and apply it to FPS text
+                theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                theme_color = QtGui.QColor(theme_color_hex)
+                fps_item.setDefaultTextColor(theme_color)
                 fps_item.setPos(5, 5)
             except Exception:
                 pass
@@ -2865,9 +3190,21 @@ def render_center_dot(scene, window_width, window_height, settings):
                 dot_hex = settings.get('center_dot_color', '#FFFFFF')
                 dot_qcolor = QtGui.QColor(dot_hex)
             
-            # Render center dot
+            # Render modern center dot with enhanced quality
             dot_rect = QtCore.QRectF(center_x - dot_size/2, center_y - dot_size/2, dot_size, dot_size)
-            scene.addEllipse(dot_rect, QtGui.QPen(dot_qcolor, 0), QtGui.QBrush(dot_qcolor))
+            
+            # Create high-quality pen for center dot
+            dot_pen = QtGui.QPen(dot_qcolor, 1)
+            dot_pen.setCapStyle(QtCore.Qt.RoundCap)
+            
+            # Add subtle outline for better visibility
+            outline_color = QtGui.QColor(0, 0, 0, 128)  # Semi-transparent black outline
+            outline_pen = QtGui.QPen(outline_color, 1)
+            outline_rect = QtCore.QRectF(center_x - (dot_size+2)/2, center_y - (dot_size+2)/2, dot_size+2, dot_size+2)
+            scene.addEllipse(outline_rect, outline_pen, QtGui.QBrush(outline_color))
+            
+            # Add main center dot
+            scene.addEllipse(dot_rect, dot_pen, QtGui.QBrush(dot_qcolor))
     except Exception:
         pass
 
@@ -2903,10 +3240,15 @@ def render_aim_circle(scene, window_width, window_height, settings):
             # Get circle thickness from settings
             circle_thickness = settings.get('circle_thickness', 2)
             
-            # Render aim circle
+            # Create modern aim circle with enhanced styling
+            circle_pen = QtGui.QPen(aim_qcolor, circle_thickness)
+            circle_pen.setCapStyle(QtCore.Qt.RoundCap)  # Rounded caps for smooth look
+            circle_pen.setJoinStyle(QtCore.Qt.RoundJoin)  # Smooth joins
+            
+            # Render aim circle with improved quality
             scene.addEllipse(
                 QtCore.QRectF(center_x - screen_radius, center_y - screen_radius, screen_radius * 2, screen_radius * 2),
-                QtGui.QPen(aim_qcolor, circle_thickness),
+                circle_pen,
                 QtCore.Qt.NoBrush
             )
     except Exception:
@@ -2952,14 +3294,18 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
             radar_x = window_width - radar_size - margin
             radar_y = margin
         
-        # Draw radar background
+        # Draw modern radar background with enhanced styling
         radar_bg = QtGui.QColor(0, 0, 0, radar_opacity)
         radar_border = QtGui.QColor(255, 255, 255, 200)
+        
+        # Enhanced radar circle background with better border
+        radar_pen = QtGui.QPen(radar_border, 3)  # Thicker border
+        radar_pen.setCapStyle(QtCore.Qt.RoundCap)
         
         # Radar circle background
         scene.addEllipse(
             QtCore.QRectF(radar_x, radar_y, radar_size, radar_size),
-            QtGui.QPen(radar_border, 2),
+            radar_pen,
             QtGui.QBrush(radar_bg)
         )
         
@@ -2967,8 +3313,16 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         center_x = radar_x + radar_size / 2
         center_y = radar_y + radar_size / 2
         
-        # Draw center dot (local player)
+        # Draw enhanced center dot (local player)
         player_color = QtGui.QColor(255, 255, 255, 255)  # White for local player
+        player_outline = QtGui.QColor(0, 0, 0, 180)  # Black outline
+        
+        # Player dot with outline for better visibility
+        scene.addEllipse(
+            QtCore.QRectF(center_x - 4, center_y - 4, 8, 8),
+            QtGui.QPen(player_outline, 1),
+            QtGui.QBrush(player_outline)
+        )
         scene.addEllipse(
             QtCore.QRectF(center_x - 3, center_y - 3, 6, 6),
             QtGui.QPen(player_color, 1),
@@ -3135,68 +3489,78 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                         is_height_different = False
                         is_above = False
                     
-                    # If enemy is spotted, draw white outline (adjust shape based on height)
+                    # If enemy is spotted, draw enhanced white outline
                     if is_spotted and entity_team != local_player_team:
                         if is_height_different:
-                            # Draw white outline for arrow shape
+                            # Draw enhanced white outline for arrow shape
                             if is_above:
                                 # Upward arrow outline
                                 outline_points = [
-                                    QtCore.QPointF(radar_entity_x, radar_entity_y - 3),      # Top point
-                                    QtCore.QPointF(radar_entity_x - 3, radar_entity_y + 2),  # Bottom left
-                                    QtCore.QPointF(radar_entity_x + 3, radar_entity_y + 2)   # Bottom right
+                                    QtCore.QPointF(radar_entity_x, radar_entity_y - 4),      # Top point
+                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y + 2),  # Bottom left
+                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y + 2)   # Bottom right
                                 ]
                             else:
                                 # Downward arrow outline
                                 outline_points = [
-                                    QtCore.QPointF(radar_entity_x, radar_entity_y + 3),      # Bottom point
-                                    QtCore.QPointF(radar_entity_x - 3, radar_entity_y - 2),  # Top left
-                                    QtCore.QPointF(radar_entity_x + 3, radar_entity_y - 2)   # Top right
+                                    QtCore.QPointF(radar_entity_x, radar_entity_y + 4),      # Bottom point
+                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y - 2),  # Top left
+                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y - 2)   # Top right
                                 ]
                             outline_polygon = QtGui.QPolygonF(outline_points)
+                            outline_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 2)
+                            outline_pen.setCapStyle(QtCore.Qt.RoundCap)
+                            outline_pen.setJoinStyle(QtCore.Qt.RoundJoin)
                             scene.addPolygon(
                                 outline_polygon,
-                                QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 1),
+                                outline_pen,
                                 QtCore.Qt.NoBrush
                             )
                         else:
-                            # Draw white outline (larger circle) for same height
-                            outline_rect = QtCore.QRectF(radar_entity_x - 3, radar_entity_y - 3, 6, 6)
+                            # Draw enhanced white outline (larger circle) for same height
+                            outline_rect = QtCore.QRectF(radar_entity_x - 4, radar_entity_y - 4, 8, 8)
+                            outline_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 2)
+                            outline_pen.setCapStyle(QtCore.Qt.RoundCap)
                             scene.addEllipse(
                                 outline_rect,
-                                QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 1),
+                                outline_pen,
                                 QtCore.Qt.NoBrush
                             )
                     
-                    # Draw the main dot - change shape based on height difference
+                    # Draw enhanced main dot - change shape based on height difference
                     if is_height_different:
-                        # Draw arrow shape instead of circle
+                        # Draw enhanced arrow shape instead of circle
                         if is_above:
                             # Upward arrow (entity is above)
                             arrow_points = [
-                                QtCore.QPointF(radar_entity_x, radar_entity_y - 2),      # Top point
-                                QtCore.QPointF(radar_entity_x - 2, radar_entity_y + 1),  # Bottom left
-                                QtCore.QPointF(radar_entity_x + 2, radar_entity_y + 1)   # Bottom right
+                                QtCore.QPointF(radar_entity_x, radar_entity_y - 3),      # Top point
+                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y + 1),  # Bottom left
+                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y + 1)   # Bottom right
                             ]
                         else:
                             # Downward arrow (entity is below)
                             arrow_points = [
-                                QtCore.QPointF(radar_entity_x, radar_entity_y + 2),      # Bottom point
-                                QtCore.QPointF(radar_entity_x - 2, radar_entity_y - 1),  # Top left
-                                QtCore.QPointF(radar_entity_x + 2, radar_entity_y - 1)   # Top right
+                                QtCore.QPointF(radar_entity_x, radar_entity_y + 3),      # Bottom point
+                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y - 1),  # Top left
+                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y - 1)   # Top right
                             ]
                         arrow_polygon = QtGui.QPolygonF(arrow_points)
+                        arrow_pen = QtGui.QPen(entity_color, 1)
+                        arrow_pen.setCapStyle(QtCore.Qt.RoundCap)
+                        arrow_pen.setJoinStyle(QtCore.Qt.RoundJoin)
                         scene.addPolygon(
                             arrow_polygon,
-                            QtGui.QPen(entity_color, 1),
+                            arrow_pen,
                             QtGui.QBrush(entity_color)
                         )
                     else:
-                        # Draw regular circular dot for same height
-                        dot_rect = QtCore.QRectF(radar_entity_x - 2, radar_entity_y - 2, 4, 4)
+                        # Draw enhanced circular dot for same height
+                        dot_rect = QtCore.QRectF(radar_entity_x - 3, radar_entity_y - 3, 6, 6)
+                        dot_pen = QtGui.QPen(entity_color, 1)
+                        dot_pen.setCapStyle(QtCore.Qt.RoundCap)
                         scene.addEllipse(
                             dot_rect,
-                            QtGui.QPen(entity_color, 1),
+                            dot_pen,
                             QtGui.QBrush(entity_color)
                         )
                     
@@ -3258,7 +3622,8 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
             DefuseTime = pm.read_float(getC4BaseClass() + m_flDefuseLength) - (time.time() - BombDefusedTime)
             return DefuseTime if (isBeingDefused() and DefuseTime >= 0) else 0
 
-        bfont = QtGui.QFont('DejaVu Sans', 10, QtGui.QFont.Bold)
+        bfont = QtGui.QFont('MS PGothic', 10, QtGui.QFont.Bold)
+        bfont.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
 
         # Bomb ESP rendering
         if bombisplant():
@@ -3401,40 +3766,64 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 if line_rendering:
                     bottom_left_x = head_pos[0] - (head_pos[0] - leg_pos[0]) // 2
                     bottom_y = leg_pos[1]
-                    line = scene.addLine(bottom_left_x, bottom_y, no_center_x, no_center_y, QtGui.QPen(color, 1))
+                    # Create modern line with enhanced styling
+                    line_pen = QtGui.QPen(color, 2)  # Increased thickness
+                    line_pen.setCapStyle(QtCore.Qt.RoundCap)  # Rounded caps for smoother look
+                    line = scene.addLine(bottom_left_x, bottom_y, no_center_x, no_center_y, line_pen)
                 
                 # Render box if enabled
                 if box_rendering:
-                    rect = scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), QtGui.QPen(color, 1), QtCore.Qt.NoBrush)
+                    # Create modern looking box with enhanced styling
+                    box_pen = QtGui.QPen(color, 2)  # Increased thickness for better visibility
+                    box_pen.setCapStyle(QtCore.Qt.SquareCap)  # Square caps for pixelated look
+                    box_pen.setJoinStyle(QtCore.Qt.MiterJoin)  # Sharp corners
+                    rect = scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
 
                 # Render HP bar if enabled
                 if hp_bar_rendering:
                     max_hp = 100
                     hp_percentage = min(1.0, max(0.0, entity_hp / max_hp))
-                    hp_bar_width = 2
+                    hp_bar_width = 3  # Increased width for better visibility
                     hp_bar_height = deltaZ
-                    hp_bar_x_left = leftX - hp_bar_width - 2
+                    hp_bar_x_left = leftX - hp_bar_width - 3
                     hp_bar_y_top = head_pos[1]
                     
-                    # Create HP bar background and current HP in one operation
-                    hp_bar = scene.addRect(QtCore.QRectF(hp_bar_x_left, hp_bar_y_top, hp_bar_width, hp_bar_height), QtGui.QPen(QtCore.Qt.NoPen), QtGui.QColor(0, 0, 0))
+                    # Create modern HP bar with enhanced styling
+                    # Background with border
+                    bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
+                    hp_bar_bg = scene.addRect(QtCore.QRectF(hp_bar_x_left-1, hp_bar_y_top-1, hp_bar_width+2, hp_bar_height+2), bg_pen, QtGui.QColor(0, 0, 0, 120))
+                    
+                    # HP gradient from red to green based on percentage
+                    hp_color = QtGui.QColor()
+                    if hp_percentage > 0.6:
+                        hp_color.setRgb(int(255*(1-hp_percentage)), 255, 0)  # Green to yellow
+                    elif hp_percentage > 0.3:
+                        hp_color.setRgb(255, int(255*hp_percentage/0.6), 0)  # Yellow to red
+                    else:
+                        hp_color.setRgb(255, 0, 0)  # Red
+                    
                     current_hp_height = hp_bar_height * hp_percentage
                     hp_bar_y_bottom = hp_bar_y_top + hp_bar_height - current_hp_height
-                    hp_bar_current = scene.addRect(QtCore.QRectF(hp_bar_x_left, hp_bar_y_bottom, hp_bar_width, current_hp_height), QtGui.QPen(QtCore.Qt.NoPen), QtGui.QColor(255, 0, 0))
+                    hp_bar_current = scene.addRect(QtCore.QRectF(hp_bar_x_left, hp_bar_y_bottom, hp_bar_width, current_hp_height), QtGui.QPen(QtCore.Qt.NoPen), hp_color)
                     
-                    # Render armor bar if there's armor
+                    # Render modern armor bar if there's armor
                     if armor_hp > 0:
                         max_armor_hp = 100
                         armor_hp_percentage = min(1.0, max(0.0, armor_hp / max_armor_hp))
-                        armor_bar_width = 2
+                        armor_bar_width = 3  # Increased width to match HP bar
                         armor_bar_height = deltaZ
-                        armor_bar_x_left = hp_bar_x_left - armor_bar_width - 2
+                        armor_bar_x_left = hp_bar_x_left - armor_bar_width - 3
                         armor_bar_y_top = head_pos[1]
-                    
-                        armor_bar = scene.addRect(QtCore.QRectF(armor_bar_x_left, armor_bar_y_top, armor_bar_width, armor_bar_height), QtGui.QPen(QtCore.Qt.NoPen), QtGui.QColor(0, 0, 0))
+                        
+                        # Background with border for armor bar
+                        armor_bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
+                        armor_bar_bg = scene.addRect(QtCore.QRectF(armor_bar_x_left-1, armor_bar_y_top-1, armor_bar_width+2, armor_bar_height+2), armor_bg_pen, QtGui.QColor(0, 0, 0, 120))
+                        
                         current_armor_height = armor_bar_height * armor_hp_percentage
                         armor_bar_y_bottom = armor_bar_y_top + armor_bar_height - current_armor_height
-                        armor_bar_current = scene.addRect(QtCore.QRectF(armor_bar_x_left, armor_bar_y_bottom, armor_bar_width, current_armor_height), QtGui.QPen(QtCore.Qt.NoPen), QtGui.QColor(62, 95, 138))
+                        # Blue armor color with better visibility
+                        armor_color = QtGui.QColor(100, 149, 237)  # Cornflower blue
+                        armor_bar_current = scene.addRect(QtCore.QRectF(armor_bar_x_left, armor_bar_y_bottom, armor_bar_width, current_armor_height), QtGui.QPen(QtCore.Qt.NoPen), armor_color)
 
                 # Render head hitbox if enabled
                 if head_hitbox_rendering:
@@ -3442,23 +3831,37 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     head_hitbox_radius = head_hitbox_size * 2 ** 0.5 / 2
                     head_hitbox_x = leftX + 2.5 * head_hitbox_size
                     head_hitbox_y = head_pos[1] + deltaZ / 9
-                    ellipse = scene.addEllipse(QtCore.QRectF(head_hitbox_x - head_hitbox_radius, head_hitbox_y - head_hitbox_radius, head_hitbox_radius * 2, head_hitbox_radius * 2), QtGui.QPen(QtCore.Qt.NoPen), QtGui.QColor(255, 0, 0, 128))
+                    
+                    # Modern head hitbox with border
+                    hitbox_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 200), 2)
+                    hitbox_pen.setCapStyle(QtCore.Qt.RoundCap)
+                    hitbox_color = QtGui.QColor(255, 0, 0, 100)  # Semi-transparent red
+                    ellipse = scene.addEllipse(QtCore.QRectF(head_hitbox_x - head_hitbox_radius, head_hitbox_y - head_hitbox_radius, head_hitbox_radius * 2, head_hitbox_radius * 2), hitbox_pen, hitbox_color)
 
                 # Render bones if enabled
                 if bones_rendering:
                     draw_Bones(scene, pm, bone_matrix, view_matrix, window_width, window_height)
 
-                # Render nickname if enabled
+                # Render enhanced nickname if enabled
                 if nickname_rendering:
                     player_name = pm.read_string(entity_controller + m_iszPlayerName, 32)
                     font_size = max(6, min(18, deltaZ / 25))
-                    font = QtGui.QFont('DejaVu Sans', font_size, QtGui.QFont.Bold)
+                    font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
+                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
                     name_text = scene.addText(player_name, font)
                     text_rect = name_text.boundingRect()
                     name_x = head_pos[0] - text_rect.width() / 2
                     name_y = head_pos[1] - text_rect.height()
                     name_text.setPos(name_x, name_y)
+                    
+                    # Add text outline for better visibility
                     name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
+                    
+                    # Create text shadow effect
+                    shadow_text = scene.addText(player_name, font)
+                    shadow_text.setPos(name_x + 1, name_y + 1)
+                    shadow_text.setDefaultTextColor(QtGui.QColor(0, 0, 0, 150))
+                    shadow_text.setZValue(-1)  # Put shadow behind main text
                 
                 # Render spotted status if enabled (independent of nickname)
                 if settings.get('show_visibility', 0) == 1:
@@ -3475,8 +3878,9 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                         vis_text = "(Spotted)" if is_spotted else "(Not Spotted)"
                         
                         font_size = max(6, min(18, deltaZ / 25))
-                        vis_font = QtGui.QFont('DejaVu Sans', max(5, min(14, font_size)))
+                        vis_font = QtGui.QFont('MS PGothic', max(5, min(14, font_size)))
                         vis_font.setBold(True)
+                        vis_font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
                         vis_item = scene.addText(vis_text, vis_font)
                         vrect = vis_item.boundingRect()
                         vis_x = head_pos[0] - vrect.width() / 2
@@ -3499,16 +3903,23 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     except Exception:
                         pass
                 
-                # Render weapon if enabled
+                # Render enhanced weapon if enabled
                 if weapon_rendering and weapon_name:
                     font_size = max(6, min(18, deltaZ / 25))
-                    font = QtGui.QFont('DejaVu Sans', font_size, QtGui.QFont.Bold)
+                    font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
+                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
                     weapon_name_text = scene.addText(weapon_name, font)
                     text_rect = weapon_name_text.boundingRect()
                     weapon_name_x = head_pos[0] - text_rect.width() / 2
                     weapon_name_y = head_pos[1] + deltaZ
                     weapon_name_text.setPos(weapon_name_x, weapon_name_y)
                     weapon_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
+                    
+                    # Add weapon text shadow effect
+                    weapon_shadow_text = scene.addText(weapon_name, font)
+                    weapon_shadow_text.setPos(weapon_name_x + 1, weapon_name_y + 1)
+                    weapon_shadow_text.setDefaultTextColor(QtGui.QColor(0, 0, 0, 150))
+                    weapon_shadow_text.setZValue(-1)  # Put shadow behind main text
 
 
             except:
@@ -4513,10 +4924,19 @@ def auto_accept_main():
 
 if __name__ == "__main__":
     
+    # Setup debug console if DEBUG_MODE is enabled
+    setup_debug_console()
+    debug_print("Starting Popsicle CS2 application...")
+    
     try:
         multiprocessing.freeze_support()
     except Exception:
         pass
+
+    # Start version check worker in background
+    version_thread = threading.Thread(target=version_check_worker, daemon=True)
+    version_thread.start()
+    debug_print("Version check worker started")
 
     # Check for existing instance and handle user choice
     if not handle_instance_check():
@@ -4524,10 +4944,11 @@ if __name__ == "__main__":
     
     # Create lock file to indicate this instance is running
     if not create_lock_file():
+        app_title = get_app_title()
         ctypes.windll.user32.MessageBoxW(
             0,
             "Failed to create lock file. Another instance may be starting.",
-            "Popsicle CS2 - Error",
+            f"{app_title} - Error",
             0x00000010 | 0x00010000 | 0x00040000  # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST
         )
         sys.exit(0)
@@ -4542,24 +4963,28 @@ if __name__ == "__main__":
     
     # Check if CS2 is already running
     if is_cs2_running():
+        debug_print("CS2 is already running - proceeding with startup")
         # Check if startup delays are enabled
         if STARTUP_ENABLED:
-            pass
+            debug_print("Startup delays enabled - waiting 4 seconds")
             time.sleep(4)
             
             # Restart graphics driver
+            debug_print("Triggering graphics restart")
             trigger_graphics_restart()
             
-            pass
         # CS2 is already running, start everything after delay
         pm = None
         try:
             pm = pymem.Pymem("cs2.exe")
+            debug_print("Successfully connected to CS2 process")
         except Exception:
-            pass
+            debug_print("Failed to connect to CS2 process initially")
     else:
+        debug_print("CS2 is not running - showing wait dialog")
         # CS2 is not running, show message and wait
-        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", "Popsicle CS2", MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
+        app_title = get_app_title()
+        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
         if result != IDOK:
             # User clicked Cancel or closed the dialog, exit the script
             remove_lock_file()
@@ -4591,7 +5016,11 @@ if __name__ == "__main__":
         multiprocessing.Process(target=bhop),
         multiprocessing.Process(target=auto_accept_main),
     ]
-    for p in procs:
+    
+    debug_print("Starting all processes...")
+    for i, p in enumerate(procs):
+        process_names = ["configurator", "esp_main", "triggerbot", "aim", "bhop", "auto_accept_main"]
+        debug_print(f"Starting process: {process_names[i]}")
         p.start()
 
     try:
