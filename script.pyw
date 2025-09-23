@@ -31,7 +31,7 @@ import time
 # ============================================================================
 
 # Startup configuration - set to False to disable startup delays and graphics restart
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
 
 import random
 import threading
@@ -843,28 +843,7 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.setMovable(False)
         
         # Center the tab bar
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background-color: #020203;
-            }
-            QTabWidget::tab-bar {
-                alignment: center;
-            }
-            QTabBar::tab {
-                background-color: #3c3c3c;
-                color: white;
-                padding: 8px 16px;
-                margin: 2px;
-                border-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background-color: #555;
-            }
-            QTabBar::tab:hover {
-                background-color: #4a4a4a;
-            }
-        """)
+        tabs.setStyleSheet("")  # Tab styling is handled in update_menu_theme_styling
 
         
         main_layout = QtWidgets.QVBoxLayout()
@@ -2450,6 +2429,35 @@ class ConfigWindow(QtWidgets.QWidget):
             QPushButton:focus {{
                 border: 1px solid {theme_color};
             }}
+            
+            QTabWidget::pane {{
+                border: none;
+                background-color: #020203;
+            }}
+            
+            QTabWidget::tab-bar {{
+                alignment: center;
+            }}
+            
+            QTabBar::tab {{
+                background-color: #3c3c3c;
+                color: {theme_color};
+                padding: 8px 20px;
+                margin: 2px;
+                border-radius: 4px;
+                font-family: "MS PGothic";
+                font-weight: bold;
+            }}
+            
+            QTabBar::tab:selected {{
+                background-color: #555;
+                color: {theme_color};
+            }}
+            
+            QTabBar::tab:hover {{
+                background-color: #4a4a4a;
+                color: {theme_color};
+            }}
         """)
         
         # Update the header label with MS PGothic font and theme color
@@ -3296,7 +3304,12 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         
         # Draw modern radar background with enhanced styling
         radar_bg = QtGui.QColor(0, 0, 0, radar_opacity)
-        radar_border = QtGui.QColor(255, 255, 255, 200)
+        
+        # Get theme color for radar border
+        theme_color_hex = settings.get('menu_theme_color', '#FF0000')
+        theme_color = QtGui.QColor(theme_color_hex)
+        theme_color.setAlpha(200)  # Set transparency for the border
+        radar_border = theme_color
         
         # Enhanced radar circle background with better border
         radar_pen = QtGui.QPen(radar_border, 3)  # Thicker border
@@ -3632,12 +3645,24 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
             DefuseTime = getDefuseTime()
         
             if (BombPosition[0] > 0 and BombPosition[1] > 0):
+                # Determine bomb text based on defuse status
                 if DefuseTime > 0:
-                    c4_name_text = scene.addText(f'BOMB {round(BombTime, 2)} | DIF {round(DefuseTime, 2)}', bfont)
+                    bomb_text = f'BOMB: {round(BombTime, 2)} | DIF {round(DefuseTime, 2)}'
                 else:
-                    c4_name_text = scene.addText(f'BOMB {round(BombTime, 2)}', bfont)
+                    bomb_text = f'BOMB: {round(BombTime, 2)}'
+                
                 c4_name_x = BombPosition[0]
                 c4_name_y = BombPosition[1]
+                
+                # Create black text stroke by adding multiple offset text items
+                stroke_offsets = [(-1, -1), (1, -1), (-1, 1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)]
+                for offset_x, offset_y in stroke_offsets:
+                    stroke_text = scene.addText(bomb_text, bfont)
+                    stroke_text.setPos(c4_name_x + offset_x, c4_name_y + offset_y)
+                    stroke_text.setDefaultTextColor(QtGui.QColor(0, 0, 0))  # Black stroke
+                
+                # Add main white text on top
+                c4_name_text = scene.addText(bomb_text, bfont)
                 c4_name_text.setPos(c4_name_x, c4_name_y)
                 c4_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
                 
