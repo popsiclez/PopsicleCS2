@@ -31,7 +31,7 @@ import time
 # ============================================================================
 
 # Startup configuration - set to False to disable startup delays and graphics restart
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
 
 import random
 import threading
@@ -136,6 +136,14 @@ def version_check_worker():
                 )
                 
                 debug_print("User dismissed update notification - creating terminate signal to exit all processes")
+                # Clean up lock file before exit
+                remove_lock_file()
+                # Also clean up keybind cooldowns file if it exists
+                try:
+                    if os.path.exists(KEYBIND_COOLDOWNS_FILE):
+                        os.remove(KEYBIND_COOLDOWNS_FILE)
+                except Exception:
+                    pass
                 # Create terminate signal file to shut down all processes properly
                 try:
                     with open(TERMINATE_SIGNAL_FILE, 'w') as f:
