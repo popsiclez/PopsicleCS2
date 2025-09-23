@@ -8,7 +8,7 @@ import sys
 import json
 import time
                                                                                   
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
 
 import random
 import threading
