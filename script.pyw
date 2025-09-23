@@ -746,7 +746,7 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(aim_container, "Aim")
         tabs.addTab(trigger_container, "Trigger")
         tabs.addTab(colors_container, "Colors")
-        tabs.addTab(misc_container, "Config")
+        tabs.addTab(misc_container, "Misc")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
         tabs.setMovable(False)
         
