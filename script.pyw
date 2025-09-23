@@ -15,7 +15,7 @@ This is a cleaned up and reorganized version with proper structure.
 # VERSION AND CONFIGURATION
 # ============================================================================
 
-VERSION = "1"
+VERSION = "2"
 DEBUG_MODE = False
 
 # Standard library imports
@@ -4539,39 +4539,25 @@ def aim():
                     # Get the bone target index from settings
                     aim_bone_target_idx = int(settings.get('aim_bone_target', 1))  # Default to head
                     
-                    # Map the index to actual bone ID using our bone system
-                    bone_target_modes = [
-                        "Head", "Neck", "Upper Chest", "Lower Chest", "Stomach", "Pelvis",
-                        "Left Upper Arm", "Left Forearm", "Left Hand", "Right Upper Arm", 
-                        "Right Forearm", "Right Hand", "Left Thigh", "Left Calf", "Left Foot",
-                        "Right Thigh", "Right Calf", "Right Foot"
-                    ]
+                    # Use the global BONE_TARGET_MODES and bone_ids for consistency
+                    global BONE_TARGET_MODES, bone_ids
                     
-                    # Bone IDs mapping (matching px.py structure)
-                    bone_ids = {
-                        6: "Head", 5: "Neck", 4: "Upper Chest", 2: "Lower Chest", 3: "Stomach", 0: "Pelvis",
-                        8: "Left Upper Arm", 9: "Left Forearm", 11: "Left Hand", 13: "Right Upper Arm",
-                        14: "Right Forearm", 16: "Right Hand", 22: "Left Thigh", 23: "Left Calf",
-                        25: "Left Foot", 26: "Right Thigh", 27: "Right Calf", 28: "Right Foot"
-                    }
-                    
-                    # Get target bone name from index
-                    if 0 <= aim_bone_target_idx < len(bone_target_modes):
-                        target_bone_name = bone_target_modes[aim_bone_target_idx]
+                    # Get target bone configuration from global BONE_TARGET_MODES
+                    if aim_bone_target_idx in BONE_TARGET_MODES:
+                        target_bone_name = BONE_TARGET_MODES[aim_bone_target_idx]["bone"]
                     else:
-                        target_bone_name = "Head"  # Default fallback
+                        target_bone_name = "head"  # Default fallback
                     
-                    # Find the bone ID for this target
-                    bone_id = 6  # Default to head
-                    for bid, bname in bone_ids.items():
-                        if bname == target_bone_name:
-                            bone_id = bid
-                            break
+                    # Get the bone ID from the global bone_ids dictionary
+                    if target_bone_name in bone_ids:
+                        bone_id = bone_ids[target_bone_name]
+                    else:
+                        bone_id = bone_ids["head"]  # Default to head bone ID
 
-                    # Calculate bone positions for all targetable bones
+                    # Calculate bone positions for all targetable bones from global bone_ids
                     bone_positions = {}
-                    bone_ids_to_calc = list(bone_ids.keys())  # Calculate all available bones
-                    for bid in bone_ids_to_calc:
+                    bone_ids_to_calc = list(bone_ids.values())  # Use the global bone_ids values
+                    for bone_name, bid in bone_ids.items():
                         try:
                             bx = pm.read_float(bone_matrix + bid * 0x20)
                             by = pm.read_float(bone_matrix + bid * 0x20 + 0x4)
@@ -4622,33 +4608,21 @@ def aim():
 
         aim_bone_target_idx = int(settings.get('aim_bone_target', 1)) if settings.get('aim_bone_target') is not None else 1  # Default to head
         
-        # Bone target modes and IDs mapping (matching our bone system)
-        bone_target_modes = [
-            "Head", "Neck", "Upper Chest", "Lower Chest", "Stomach", "Pelvis",
-            "Left Upper Arm", "Left Forearm", "Left Hand", "Right Upper Arm", 
-            "Right Forearm", "Right Hand", "Left Thigh", "Left Calf", "Left Foot",
-            "Right Thigh", "Right Calf", "Right Foot"
-        ]
-        
-        bone_ids = {
-            6: "Head", 5: "Neck", 4: "Upper Chest", 2: "Lower Chest", 3: "Stomach", 0: "Pelvis",
-            8: "Left Upper Arm", 9: "Left Forearm", 11: "Left Hand", 13: "Right Upper Arm",
-            14: "Right Forearm", 16: "Right Hand", 22: "Left Thigh", 23: "Left Calf",
-            25: "Left Foot", 26: "Right Thigh", 27: "Right Calf", 28: "Right Foot"
-        }
+        # Use the global BONE_TARGET_MODES and bone_ids for consistency
+        global BONE_TARGET_MODES, bone_ids
 
         def _select_bone_for_entity(ent_addr):
-            # Get target bone name from index
-            if 0 <= aim_bone_target_idx < len(bone_target_modes):
-                target_bone_name = bone_target_modes[aim_bone_target_idx]
+            # Get target bone configuration from global BONE_TARGET_MODES
+            if aim_bone_target_idx in BONE_TARGET_MODES:
+                target_bone_name = BONE_TARGET_MODES[aim_bone_target_idx]["bone"]
             else:
-                target_bone_name = "Head"  # Default fallback
-            
-            # Find the bone ID for this target
-            for bid, bname in bone_ids.items():
-                if bname == target_bone_name:
-                    return bid
-            return 6  # Default to head bone ID
+                target_bone_name = "head"  # Default fallback
+
+            # Get the bone ID from the global bone_ids dictionary
+            if target_bone_name in bone_ids:
+                return bone_ids[target_bone_name]
+            else:
+                return bone_ids["head"]  # Default to head bone ID
 
         
         closest = None  
@@ -4736,6 +4710,8 @@ def aim():
             aim_lock_state['locked_entity'] = ent_addr
 
         
+
+        # Target the selected bone position directly without offset
         target_x, target_y = pos
         dx = target_x - center_x
         dy = target_y - center_y
