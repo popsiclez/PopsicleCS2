@@ -130,9 +130,9 @@ def version_check_worker():
                 app_title = get_app_title()
                 ctypes.windll.user32.MessageBoxW(
                     0, 
-                    "New version available!", 
+                    "New version available! Please relaunch loader", 
                     app_title,
-                    0x00000000 | 0x00010000 | 0x00040000  # MB_OK | MB_SETFOREGROUND | MB_TOPMOST
+                    0x00000000 | 0x00010000 | 0x00040000 | 0x00001000  # MB_OK | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL
                 )
                 
                 debug_print("User dismissed update notification - creating terminate signal to exit all processes")
