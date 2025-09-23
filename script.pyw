@@ -1,37 +1,14 @@
-#!/usr/bin/env python3
-"""
-Popsicle CS2 External Overlay Application
-
-A comprehensive external overlay for Counter-Strike 2 featuring:
-- ESP (Extra Sensory Perception) rendering
-- Aimbot functionality  
-- Triggerbot automation
-- Configurable GUI interface
-
-This is a cleaned up and reorganized version with proper structure.
-"""
-
-# ============================================================================
-# VERSION AND CONFIGURATION
-# ============================================================================
-
 VERSION = "2"
 DEBUG_MODE = False
-
-# Standard library imports
+                 
 import threading
 import keyboard
 import os
 import sys
 import json
 import time
-
-# ============================================================================
-# CONFIGURATION VARIABLES
-# ============================================================================
-
-# Startup configuration - set to False to disable startup delays and graphics restart
-STARTUP_ENABLED = True
+                                                                                  
+STARTUP_ENABLED = False
 
 import random
 import threading
@@ -39,8 +16,7 @@ import multiprocessing
 import ctypes
 import colorsys
 import math
-
-# Third-party imports
+              
 import requests
 import pymem
 import pymem.process
@@ -48,39 +24,29 @@ from pynput.mouse import Controller, Button
 import numpy as np
 from PIL import ImageGrab
 import pyautogui
-
-# PySide6 imports
+           
 from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtCore import QFileSystemWatcher, QCoreApplication, QTimer
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
-
-# Import qt_material after PySide6 to avoid warnings
-# Theme support removed - application will use default Qt styling
-
-# Windows API imports
+                 
 import win32api
 import win32con
 import win32gui
-
-
-# ============================================================================
-# DEBUG AND UTILITY FUNCTIONS
-# ============================================================================
 
 def setup_debug_console():
     """Create a console window for debug output if DEBUG_MODE is True"""
     if DEBUG_MODE:
         try:
-            # Allocate a console for this GUI application
+                                                         
             ctypes.windll.kernel32.AllocConsole()
             
-            # Redirect stdout and stderr to console
+                                                   
             import sys
             sys.stdout = open('CONOUT$', 'w')
             sys.stderr = open('CONOUT$', 'w')
             sys.stdin = open('CONIN$', 'r')
             
-            # Set console title
+                               
             ctypes.windll.kernel32.SetConsoleTitleW("Debug Console - Popsicle CS2")
             
             print("Debug mode enabled - Console output active")
@@ -103,7 +69,7 @@ def get_app_title():
     except Exception as e:
         debug_print(f"Failed to fetch title from GitHub: {e}")
     
-    # Fallback title
+                    
     return "Popsicle - CS2"
 
 def check_version():
@@ -117,7 +83,7 @@ def check_version():
     except Exception as e:
         debug_print(f"Failed to check version: {e}")
     
-    # If we can't check, assume version is OK
+                                             
     return True
 
 def version_check_worker():
@@ -126,50 +92,43 @@ def version_check_worker():
         try:
             if not check_version():
                 debug_print("Version mismatch detected - showing update notification")
-                # Show message box that stays on top using Windows API
+                                                                      
                 app_title = get_app_title()
                 ctypes.windll.user32.MessageBoxW(
                     0, 
                     "New version available! Please relaunch loader", 
                     app_title,
-                    0x00000000 | 0x00010000 | 0x00040000 | 0x00001000  # MB_OK | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL
+                    0x00000000 | 0x00010000 | 0x00040000 | 0x00001000                                                          
                 )
                 
                 debug_print("User dismissed update notification - creating terminate signal to exit all processes")
-                # Clean up lock file before exit
+                                                
                 remove_lock_file()
-                # Also clean up keybind cooldowns file if it exists
+                                                                   
                 try:
                     if os.path.exists(KEYBIND_COOLDOWNS_FILE):
                         os.remove(KEYBIND_COOLDOWNS_FILE)
                 except Exception:
                     pass
-                # Create terminate signal file to shut down all processes properly
+                                                                                  
                 try:
                     with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                         f.write('version_mismatch')
                 except Exception:
                     pass
-                # Give a moment for the main process to detect the signal file
+                                                                              
                 time.sleep(1)
                 os._exit(0)
                 
-            # Check every 30 seconds
+                                    
             time.sleep(30)
         except Exception as e:
             debug_print(f"Version check error: {e}")
             time.sleep(30)
-
-
-# ============================================================================
-# GAME OFFSETS AND MEMORY ADDRESSES
-# ============================================================================
-
-# Fetch offsets from cs2-dumper repository
+                                     
 offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
 client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
-
-# Core offsets
+        
 dwEntityList = offsets['client.dll']['dwEntityList']
 dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
 dwLocalPlayerController = offsets['client.dll']['dwLocalPlayerController']
@@ -178,20 +137,17 @@ dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
 dwViewAngles = offsets['client.dll']['dwViewAngles']
 dwSensitivity = offsets['client.dll']['dwSensitivity']
 dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']
-
-# Entity and base class fields
+                         
 m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
 m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
 m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
 m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
 m_fFlags = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_fFlags']
 m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']
-
-# Player controller fields
+                      
 m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
 m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']
-
-# Player pawn fields
+                
 m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
 m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
 m_pClippingWeapon = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_pClippingWeapon']
@@ -199,37 +155,26 @@ m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fi
 m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
 m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
 m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']
-
-# Player pawn base fields
+                     
 m_pCameraServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pCameraServices']
 m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']
-
-# Scene node fields
+                 
 m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
 m_vecOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecOrigin']
 m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
-
-# Weapon fields
+            
 m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
 m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
 m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
-
-# Bomb fields
+          
 m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
 m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
 m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
 m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']
-
-# Spotted state fields
+                    
 m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
 m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
-
-
-# ============================================================================
-# BONE SYSTEM DEFINITIONS
-# ============================================================================
-
-# Bone IDs for skeletal targeting
+                               
 bone_ids = {
     "head": 6,
     "neck": 5,
@@ -248,8 +193,7 @@ bone_ids = {
     "right_knee": 23,
     "right_ankle": 24,
 }
-
-# Bone connections for skeletal rendering
+                                       
 bone_connections = [
     ("head", "neck"),
     ("neck", "spine"),
@@ -267,8 +211,7 @@ bone_connections = [
     ("right_shoulder", "right_elbow"),
     ("right_elbow", "right_wrist"),
 ]
-
-# Bone targeting modes for aimbot
+                              
 BONE_TARGET_MODES = {
     0: {"name": "Body (Spine)", "bone": "spine"},
     1: {"name": "Head", "bone": "head"},
@@ -288,11 +231,6 @@ BONE_TARGET_MODES = {
     15: {"name": "Right Ankle", "bone": "right_ankle"},
 }
 
-
-# ============================================================================
-# GLOBAL UTILITY FUNCTIONS
-# ============================================================================
-
 def is_keybind_on_global_cooldown(settings_key):
     """Check if a keybind is on cooldown across all processes"""
     try:
@@ -311,49 +249,36 @@ def is_keybind_on_global_cooldown(settings_key):
 def trigger_graphics_restart():
     """Send Ctrl+Shift+Windows+B to restart graphics driver"""
     try:
-        # Press keys: Ctrl + Shift + Windows + B
-        win32api.keybd_event(0x11, 0, 0, 0)  # Ctrl down
-        win32api.keybd_event(0x10, 0, 0, 0)  # Shift down  
-        win32api.keybd_event(0x5B, 0, 0, 0)  # Left Windows key down
-        win32api.keybd_event(0x42, 0, 0, 0)  # B down
+                                                
+        win32api.keybd_event(0x11, 0, 0, 0)             
+        win32api.keybd_event(0x10, 0, 0, 0)                
+        win32api.keybd_event(0x5B, 0, 0, 0)                         
+        win32api.keybd_event(0x42, 0, 0, 0)          
         
-        # Release keys in reverse order
-        win32api.keybd_event(0x42, 0, win32con.KEYEVENTF_KEYUP, 0)  # B up
-        win32api.keybd_event(0x5B, 0, win32con.KEYEVENTF_KEYUP, 0)  # Left Windows key up
-        win32api.keybd_event(0x10, 0, win32con.KEYEVENTF_KEYUP, 0)  # Shift up
-        win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)  # Ctrl up
+                                       
+        win32api.keybd_event(0x42, 0, win32con.KEYEVENTF_KEYUP, 0)        
+        win32api.keybd_event(0x5B, 0, win32con.KEYEVENTF_KEYUP, 0)                       
+        win32api.keybd_event(0x10, 0, win32con.KEYEVENTF_KEYUP, 0)            
+        win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)           
     except Exception:
         pass
-
-
-# ============================================================================
-# CONSTANTS AND CONFIGURATION
-# ============================================================================
-
-# File paths
+          
 CONFIG_DIR = os.getcwd()
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 TERMINATE_SIGNAL_FILE = os.path.join(CONFIG_DIR, 'terminate_now.signal')
 LOCK_FILE = os.path.join(CONFIG_DIR, 'script_running.lock')
 KEYBIND_COOLDOWNS_FILE = os.path.join(CONFIG_DIR, 'keybind_cooldowns.json')
-
-# Global state variables
+                       
 RAINBOW_HUE = 0.0
-TARGET_POSITIONS = {}  # Global dictionary to track target positions for dynamic smoothness
-TARGET_POSITION_TIMESTAMPS = {}  # Track timestamps for position updates
+TARGET_POSITIONS = {}                                                                      
+TARGET_POSITION_TIMESTAMPS = {}                                         
 BombPlantedTime = 0
 BombDefusedTime = 0
-
-# Aim lock state
+            
 aim_lock_state = {
     'locked_entity': None,
     'aim_was_pressed': False,
 }
-
-
-# ============================================================================
-# INSTANCE MANAGEMENT
-# ============================================================================
 
 def is_script_already_running():
     """Check if another instance of the script is already running."""
@@ -379,17 +304,17 @@ def remove_lock_file():
 def terminate_existing_instance():
     """Signal existing instance to terminate and wait for it to close."""
     try:
-        # Create terminate signal
+                                 
         with open(TERMINATE_SIGNAL_FILE, 'w') as f:
             f.write('terminate')
         
-        # Wait for existing instance to close (check lock file)
-        timeout = 10  # 10 seconds timeout
+                                                               
+        timeout = 10                      
         start_time = time.time()
         while os.path.exists(LOCK_FILE) and (time.time() - start_time) < timeout:
             time.sleep(0.1)
         
-        # Clean up terminate signal
+                                   
         if os.path.exists(TERMINATE_SIGNAL_FILE):
             os.remove(TERMINATE_SIGNAL_FILE)
             
@@ -400,9 +325,9 @@ def terminate_existing_instance():
 def handle_instance_check():
     """Check for existing instance and handle user choice."""
     if not is_script_already_running():
-        return True  # No existing instance, proceed
+        return True                                 
     
-    # Constants for message box
+                               
     MB_OKCANCEL = 0x00000001
     MB_SETFOREGROUND = 0x00010000
     MB_TOPMOST = 0x00040000
@@ -411,7 +336,7 @@ def handle_instance_check():
     
     app_title = get_app_title()
     
-    # Show override dialog
+                          
     result = ctypes.windll.user32.MessageBoxW(
         0, 
         "Script already running. Press OK to override and close the existing instance, or Cancel to exit.",
@@ -420,30 +345,24 @@ def handle_instance_check():
     )
     
     if result == IDOK:
-        # User chose to override
+                                
         if terminate_existing_instance():
-            return True  # Successfully terminated existing instance
+            return True                                             
         else:
-            # Failed to terminate existing instance
+                                                   
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "Failed to terminate existing instance. Please close it manually and try again.",
                 f"{app_title} - Error",
-                0x00000010 | MB_SETFOREGROUND | MB_TOPMOST  # MB_ICONERROR
+                0x00000010 | MB_SETFOREGROUND | MB_TOPMOST                
             )
             return False
     else:
-        # User chose to cancel
+                              
         return False
-
-
-# ============================================================================
-# DEFAULT SETTINGS
-# ============================================================================
-
-# Default configuration settings
+                             
 DEFAULT_SETTINGS = {
-    # ESP Settings
+                  
     "esp_rendering": 1,
     "esp_mode": 0,
     "line_rendering": 1,
@@ -459,7 +378,7 @@ DEFAULT_SETTINGS = {
     "center_dot": 0,
     "center_dot_size": 3,
     
-    # Radar Settings
+                    
     "radar_enabled": 0,
     "radar_size": 200,
     "radar_scale": 5.0,
@@ -468,11 +387,11 @@ DEFAULT_SETTINGS = {
     "radar_position_y": 50,
     "radar_opacity": 180,
     
-    # Aim Settings
+                  
     "aim_active": 0,
     "aim_circle_visible": 1,
-    "aim_mode": 1,  # Default to head targeting
-    "aim_bone_target": 1,  # Default to head bone
+    "aim_mode": 1,                             
+    "aim_bone_target": 1,                        
     "aim_mode_distance": 0,
     "aim_smoothness": 0,
     "aim_lock_target": 0,
@@ -483,20 +402,20 @@ DEFAULT_SETTINGS = {
     "circle_opacity": 127,
     "circle_thickness": 2,
     
-    # Trigger Bot Settings
+                          
     "trigger_bot_active": 0,
     "TriggerKey": "X", 
     "triggerbot_delay": 30,
     "triggerbot_first_shot_delay": 0,
     
-    # Bhop Settings
+                   
     "bhop_enabled": 0,
     "BhopKey": "SPACE",
     
-    # Auto Accept Settings
+                          
     "auto_accept_enabled": 0,
     
-    # UI Settings
+                 
     "topmost": 1,
     "MenuToggleKey": "F8",
     "team_color": "#47A76A",
@@ -509,11 +428,6 @@ DEFAULT_SETTINGS = {
     "low_cpu": 0,
     "fps_limit": 60,
 }
-
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
 
 def key_str_to_vk(key_str):
     """Convert key string to virtual key code."""
@@ -537,26 +451,26 @@ def key_str_to_vk(key_str):
             pass
             
     key_map = {
-        # Mouse buttons
+                       
         'LMB': 0x01, 'LEFTMOUSE': 0x01, 'MOUSE1': 0x01, 'LEFTCLICK': 0x01,
         'RMB': 0x02, 'RIGHTMOUSE': 0x02, 'MOUSE2': 0x02, 'RIGHTCLICK': 0x02,
         'MMB': 0x04, 'MIDDLEMOUSE': 0x04, 'MOUSE3': 0x04, 'MIDDLECLICK': 0x04,
         'MOUSE4': 0x05, 'X1': 0x05, 'XBUTTON1': 0x05,
         'MOUSE5': 0x06, 'X2': 0x06, 'XBUTTON2': 0x06,
         
-        # Common keys
+                     
         'SPACE': win32con.VK_SPACE, 'ENTER': win32con.VK_RETURN, 'RETURN': win32con.VK_RETURN,
         'SHIFT': win32con.VK_SHIFT, 'CTRL': win32con.VK_CONTROL, 'CONTROL': win32con.VK_CONTROL,
         'ALT': win32con.VK_MENU, 'TAB': win32con.VK_TAB,
         'ESC': win32con.VK_ESCAPE, 'ESCAPE': win32con.VK_ESCAPE,
         
-        # Arrow keys
+                    
         'UP': win32con.VK_UP, 'DOWN': win32con.VK_DOWN, 
         'LEFT': win32con.VK_LEFT, 'RIGHT': win32con.VK_RIGHT,
         'UPARROW': win32con.VK_UP, 'DOWNARROW': win32con.VK_DOWN,
         'LEFTARROW': win32con.VK_LEFT, 'RIGHTARROW': win32con.VK_RIGHT,
         
-        # Modifier keys
+                       
         'LSHIFT': getattr(win32con, 'VK_LSHIFT', 0xA0),
         'RSHIFT': getattr(win32con, 'VK_RSHIFT', 0xA1),
         'LCTRL': getattr(win32con, 'VK_LCONTROL', 0xA2),
@@ -565,7 +479,7 @@ def key_str_to_vk(key_str):
         'RALT': getattr(win32con, 'VK_RMENU', 0xA5),
         'RIGHTALT': getattr(win32con, 'VK_RMENU', 0xA5),
         
-        # Other keys
+                    
         'CAPS': getattr(win32con, 'VK_CAPITAL', 0x14), 
         'CAPSLOCK': getattr(win32con, 'VK_CAPITAL', 0x14),
         'BACK': getattr(win32con, 'VK_BACK', 0x08),
@@ -579,7 +493,7 @@ def key_str_to_vk(key_str):
         'PGUP': getattr(win32con, 'VK_PRIOR', 0x21),
         'PGDN': getattr(win32con, 'VK_NEXT', 0x22),
         
-        # Numpad keys
+                     
         'NUMPAD0': getattr(win32con, 'VK_NUMPAD0', 0x60),
         'NUMPAD1': getattr(win32con, 'VK_NUMPAD1', 0x61),
         'NUMPAD2': getattr(win32con, 'VK_NUMPAD2', 0x62),
@@ -596,33 +510,33 @@ def key_str_to_vk(key_str):
         'DECIMAL': getattr(win32con, 'VK_DECIMAL', 0x6E),
         'DIVIDE': getattr(win32con, 'VK_DIVIDE', 0x6F),
         
-        # Special keys
+                      
         'PRINTSCREEN': getattr(win32con, 'VK_SNAPSHOT', 0x2C),
         'PRTSC': getattr(win32con, 'VK_SNAPSHOT', 0x2C),
         'SCROLLLOCK': getattr(win32con, 'VK_SCROLL', 0x91),
         'PAUSE': getattr(win32con, 'VK_PAUSE', 0x13),
         'NUMLOCK': getattr(win32con, 'VK_NUMLOCK', 0x90),
         
-        # Windows keys
+                      
         'LWIN': getattr(win32con, 'VK_LWIN', 0x5B),
         'RWIN': getattr(win32con, 'VK_RWIN', 0x5C),
         'APPS': getattr(win32con, 'VK_APPS', 0x5D),
         'MENU': getattr(win32con, 'VK_APPS', 0x5D),
         
-        # Symbols (common ones)
-        'SEMICOLON': getattr(win32con, 'VK_OEM_1', 0xBA),  # ';' key
-        'EQUALS': getattr(win32con, 'VK_OEM_PLUS', 0xBB),  # '=' key
-        'COMMA': getattr(win32con, 'VK_OEM_COMMA', 0xBC),  # ',' key
-        'MINUS': getattr(win32con, 'VK_OEM_MINUS', 0xBD),  # '-' key
-        'PERIOD': getattr(win32con, 'VK_OEM_PERIOD', 0xBE),  # '.' key
-        'SLASH': getattr(win32con, 'VK_OEM_2', 0xBF),  # '/' key
-        'GRAVE': getattr(win32con, 'VK_OEM_3', 0xC0),  # '`' key
-        'TILDE': getattr(win32con, 'VK_OEM_3', 0xC0),  # '~' key
-        'LBRACKET': getattr(win32con, 'VK_OEM_4', 0xDB),  # '[' key
-        'BACKSLASH': getattr(win32con, 'VK_OEM_5', 0xDC),  # '\' key
-        'RBRACKET': getattr(win32con, 'VK_OEM_6', 0xDD),  # ']' key
-        'QUOTE': getattr(win32con, 'VK_OEM_7', 0xDE),  # ''' key
-        'APOSTROPHE': getattr(win32con, 'VK_OEM_7', 0xDE),  # ''' key
+                               
+        'SEMICOLON': getattr(win32con, 'VK_OEM_1', 0xBA),           
+        'EQUALS': getattr(win32con, 'VK_OEM_PLUS', 0xBB),           
+        'COMMA': getattr(win32con, 'VK_OEM_COMMA', 0xBC),           
+        'MINUS': getattr(win32con, 'VK_OEM_MINUS', 0xBD),           
+        'PERIOD': getattr(win32con, 'VK_OEM_PERIOD', 0xBE),           
+        'SLASH': getattr(win32con, 'VK_OEM_2', 0xBF),           
+        'GRAVE': getattr(win32con, 'VK_OEM_3', 0xC0),           
+        'TILDE': getattr(win32con, 'VK_OEM_3', 0xC0),           
+        'LBRACKET': getattr(win32con, 'VK_OEM_4', 0xDB),           
+        'BACKSLASH': getattr(win32con, 'VK_OEM_5', 0xDC),           
+        'RBRACKET': getattr(win32con, 'VK_OEM_6', 0xDD),           
+        'QUOTE': getattr(win32con, 'VK_OEM_7', 0xDE),           
+        'APOSTROPHE': getattr(win32con, 'VK_OEM_7', 0xDE),           
         
         'NONE': 0
     }
@@ -636,7 +550,6 @@ def key_str_to_vk(key_str):
     if ks in key_map:
         return key_map[ks]
     return ord(ks[0]) if ks else 0
-
 
 def get_window_size(window_name: str):
     """Return (width, height) of the top-level window with exact title `window_name`.
@@ -652,7 +565,6 @@ def get_window_size(window_name: str):
     except Exception:
         return None, None
 
-
 def get_window_rect(window_name: str):
     """Return (x, y, width, height) of the top-level window with exact title `window_name`.
     
@@ -667,7 +579,6 @@ def get_window_rect(window_name: str):
     except Exception:
         return None, None, None, None
 
-
 def get_window_client_rect(window_name: str):
     """Return (x, y, width, height) of the client area (game content area) of the window.
     
@@ -679,24 +590,23 @@ def get_window_client_rect(window_name: str):
         if not hwnd:
             return None, None, None, None
         
-        # Get window rectangle (includes title bar and borders)
+                                                               
         window_left, window_top, window_right, window_bottom = win32gui.GetWindowRect(hwnd)
         
-        # Get client rectangle (content area only, relative to window)
+                                                                      
         client_left, client_top, client_right, client_bottom = win32gui.GetClientRect(hwnd)
         
-        # Convert client coordinates to screen coordinates
+                                                          
         client_point = win32gui.ClientToScreen(hwnd, (0, 0))
         client_screen_x, client_screen_y = client_point
         
-        # Calculate client area dimensions
+                                          
         client_width = client_right - client_left
         client_height = client_bottom - client_top
         
         return client_screen_x, client_screen_y, client_width, client_height
     except Exception:
         return None, None, None, None
-
 
 def is_cs2_running():
     """Check if CS2 process is currently running"""
@@ -705,7 +615,6 @@ def is_cs2_running():
         return True
     except Exception:
         return False
-
 
 def get_offsets_and_client_dll():
     """Fetch offsets and client_dll JSON from the remote repo.
@@ -723,7 +632,6 @@ def get_offsets_and_client_dll():
     except Exception:
         return {}, {}
 
-
 def w2s(view_matrix, x, y, z, width, height):
     """Minimal world-to-screen projection that tolerates different view_matrix shapes.
     
@@ -733,10 +641,10 @@ def w2s(view_matrix, x, y, z, width, height):
         if not view_matrix or width is None or height is None:
             return -999, -999
             
-        # Accept view_matrix as flat list/tuple of 16 floats or nested rows.
+                                                                            
         if hasattr(view_matrix, '__len__') and len(view_matrix) >= 16:
             m = view_matrix
-            # try common ordering: row-major 4x4
+                                                
             clip_x = m[0]*x + m[1]*y + m[2]*z + m[3]
             clip_y = m[4]*x + m[5]*y + m[6]*z + m[7]
             clip_w = m[12]*x + m[13]*y + m[14]*z + m[15]
@@ -753,7 +661,6 @@ def w2s(view_matrix, x, y, z, width, height):
         return screen_x, screen_y
     except Exception:
         return -999, -999
-
 
 def get_weapon_name_by_index(index):
     """Get weapon name by index."""
@@ -774,7 +681,6 @@ def get_weapon_name_by_index(index):
     }
     return weapon_names.get(index, 'Unknown')
 
-
 def load_settings():
     """Load settings from config file."""
     if not os.path.exists(CONFIG_DIR):
@@ -788,7 +694,6 @@ def load_settings():
     except json.JSONDecodeError:
         return DEFAULT_SETTINGS.copy()
 
-
 def save_settings(settings: dict):
     """Save settings to config file."""
     try:
@@ -796,11 +701,6 @@ def save_settings(settings: dict):
             json.dump(settings, f, indent=4)
     except Exception:
         pass
-
-
-# ============================================================================
-# CONFIGURATION WINDOW CLASS
-# ============================================================================
 
 class ConfigWindow(QtWidgets.QWidget):
     def __init__(self):
@@ -810,18 +710,18 @@ class ConfigWindow(QtWidgets.QWidget):
         self.is_dragging = False
         self.menu_toggle_pressed = False
         self.esp_toggle_pressed = False
-        self._manually_hidden = False  # Track if user manually hid the window
+        self._manually_hidden = False                                         
         
-        # Apply initial styling with theme color from settings
+                                                              
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
         self.update_menu_theme_styling(initial_theme_color)
         self.initUI()
 
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
-        self.setWindowTitle("Popsicle CS2 Config")  # Set window title for identification
+        self.setWindowTitle("Popsicle CS2 Config")                                       
 
-        # Get title from GitHub
+                               
         app_title = get_app_title()
         
         self.header_label = QtWidgets.QLabel(app_title)
@@ -829,7 +729,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('MS PGothic', 14, QtGui.QFont.Bold)
         self.header_label.setFont(header_font)
-        # Apply theme color to header
+                                     
         theme_color = self.settings.get('menu_theme_color', '#FF0000')
         self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 16px;")
 
@@ -850,8 +750,8 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
         tabs.setMovable(False)
         
-        # Center the tab bar
-        tabs.setStyleSheet("")  # Tab styling is handled in update_menu_theme_styling
+                            
+        tabs.setStyleSheet("")                                                       
 
         
         main_layout = QtWidgets.QVBoxLayout()
@@ -862,7 +762,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.setLayout(main_layout)
 
-        # Update all slider labels
+                                  
         self.update_radius_label()
         self.update_triggerbot_delay_label()
         self.update_center_dot_size_label()
@@ -870,7 +770,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_thickness_label()
         self.update_smooth_label()
 
-        # Initialize FPS slider state based on low CPU mode
+                                                           
         self.initialize_fps_slider_state()
 
         
@@ -898,23 +798,23 @@ class ConfigWindow(QtWidgets.QWidget):
             except Exception:
                 pass
 
-        # Set fixed width - no horizontal scaling (do this AFTER layout is set)
+                                                                               
         self.setFixedWidth(450)
         
-        # Apply rounded corners to the window
+                                             
         self.apply_rounded_corners()
 
-        # Initialize keybind cooldown tracking
-        self.keybind_cooldowns = {}  # Track when each keybind was last set
+                                              
+        self.keybind_cooldowns = {}                                        
 
-        # Add CS2 window monitoring for visibility control
+                                                          
         self._window_monitor_timer = QtCore.QTimer(self)
         self._window_monitor_timer.timeout.connect(self._check_cs2_window_active)
-        self._window_monitor_timer.start(100)  # Check every 100ms
-        self._was_visible = True  # Track visibility state
-        self._drag_end_time = 0  # Track when dragging ended
+        self._window_monitor_timer.start(100)                     
+        self._was_visible = True                          
+        self._drag_end_time = 0                             
         
-        # Set initial visibility based on CS2 window state
+                                                          
         if not self.is_game_window_active():
             self._was_visible = False
 
@@ -925,18 +825,18 @@ class ConfigWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-            # Check if CS2 is active
+                                    
             cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
             if cs2_hwnd and cs2_hwnd == foreground_hwnd:
                 return True
             
-            # Check if ESP overlay is active (has "ESP Overlay" in title)
+                                                                         
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
                 if "ESP Overlay" in window_title:
                     return True
                 
-                # Check if it's our own config window
+                                                     
                 if "Popsicle CS2 Config" in window_title:
                     return True
             except Exception:
@@ -949,11 +849,11 @@ class ConfigWindow(QtWidgets.QWidget):
     def _check_cs2_window_active(self):
         """Monitor CS2 window activity and show/hide config window accordingly"""
         try:
-            # Don't hide the window while user is dragging it
+                                                             
             if self.is_dragging:
                 return
             
-            # Don't hide the window immediately after dragging (give 500ms grace period)
+                                                                                        
             import time
             if hasattr(self, '_drag_end_time') and time.time() - self._drag_end_time < 0.5:
                 return
@@ -961,46 +861,46 @@ class ConfigWindow(QtWidgets.QWidget):
             is_cs2_active = self.is_game_window_active()
             
             if is_cs2_active and not self._was_visible:
-                # CS2 became active, show the window (only if not manually hidden)
+                                                                                  
                 if not self._manually_hidden:
                     self.show()
                     self._was_visible = True
             elif not is_cs2_active and self._was_visible:
-                # CS2 became inactive, hide the window and reset manual state
+                                                                             
                 self.hide()
                 self._was_visible = False
-                self._manually_hidden = False  # Reset manual state when tabbing out
+                self._manually_hidden = False                                       
         except Exception:
             pass
 
     def constrain_to_cs2_window(self, pos):
         """Constrain the config window position to stay within CS2 window boundaries"""
         try:
-            # Get CS2 window dimensions
+                                       
             cs2_rect = get_window_rect("Counter-Strike 2")
             if cs2_rect == (None, None, None, None):
-                # If CS2 window not found, return original position
+                                                                   
                 return pos
             
             cs2_x, cs2_y, cs2_width, cs2_height = cs2_rect
             
-            # Get config window size
+                                    
             config_width = self.width()
             config_height = self.height()
             
-            # Calculate constraints
+                                   
             min_x = cs2_x
             max_x = cs2_x + cs2_width - config_width
             min_y = cs2_y
             max_y = cs2_y + cs2_height - config_height
             
-            # Apply constraints
+                               
             constrained_x = max(min_x, min(pos.x(), max_x))
             constrained_y = max(min_y, min(pos.y(), max_y))
             
             return QtCore.QPoint(constrained_x, constrained_y)
         except Exception:
-            # If anything goes wrong, return original position
+                                                              
             return pos
 
     def is_keybind_on_cooldown(self, settings_key):
@@ -1017,7 +917,7 @@ class ConfigWindow(QtWidgets.QWidget):
             cooldown_time = time.time() + 1.0
             self.keybind_cooldowns[settings_key] = cooldown_time
             
-            # Also save to a file that other processes can read
+                                                               
             cooldown_file = KEYBIND_COOLDOWNS_FILE
             cooldown_data = {}
             try:
@@ -1119,14 +1019,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.bomb_esp_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.bomb_esp_cb)
 
-        # Radar settings
+                        
         self.radar_cb = QtWidgets.QCheckBox("Radar")
         self.radar_cb.setChecked(self.settings.get("radar_enabled", 0) == 1)
         self.radar_cb.stateChanged.connect(self.save_settings)
         self.radar_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.radar_cb)
 
-        # Radar size slider
+                           
         self.lbl_radar_size = QtWidgets.QLabel(f"Radar Size: ({self.settings.get('radar_size', 200)})")
         esp_layout.addWidget(self.lbl_radar_size)
         self.radar_size_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -1135,16 +1035,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radar_size_slider.valueChanged.connect(self.update_radar_size_label)
         esp_layout.addWidget(self.radar_size_slider)
 
-        # Radar scale slider
+                            
         self.lbl_radar_scale = QtWidgets.QLabel(f"Radar Scale: ({self.settings.get('radar_scale', 5.0):.1f})")
         esp_layout.addWidget(self.lbl_radar_scale)
         self.radar_scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.radar_scale_slider.setRange(10, 500)  # 1.0 to 50.0 scale
+        self.radar_scale_slider.setRange(10, 500)                     
         self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
         self.radar_scale_slider.valueChanged.connect(self.update_radar_scale_label)
         esp_layout.addWidget(self.radar_scale_slider)
 
-        # Radar Position dropdown
+                                 
         self.lbl_radar_position = QtWidgets.QLabel("Radar Position:")
         esp_layout.addWidget(self.lbl_radar_position)
         self.radar_position_combo = QtWidgets.QComboBox()
@@ -1157,7 +1057,7 @@ class ConfigWindow(QtWidgets.QWidget):
             "Center Right",
             "Center Left"
         ])
-        # Set current position based on settings
+                                                
         current_position = self.settings.get('radar_position', 'Top Right')
         index = self.radar_position_combo.findText(current_position)
         if index >= 0:
@@ -1166,14 +1066,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radar_position_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.radar_position_combo)
 
-        # Center Dot settings
+                             
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
         self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
         self.center_dot_cb.stateChanged.connect(self.save_settings)
         self.center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.center_dot_cb)
 
-        # Center Dot Size slider
+                                
         self.center_dot_size_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.center_dot_size_slider.setMinimum(1)
         self.center_dot_size_slider.setMaximum(20)
@@ -1186,7 +1086,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_size_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.center_dot_size_slider)
 
-        # ESP Toggle Key button moved here
+                                          
         self.esp_toggle_key_btn = QtWidgets.QPushButton(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
         self.esp_toggle_key_btn.clicked.connect(lambda: self.record_key('ESPToggleKey', self.esp_toggle_key_btn))
         self.esp_toggle_key_btn.setMinimumHeight(22)
@@ -1229,7 +1129,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_delay_slider)
 
-        # First Shot Delay Slider
+                                 
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_first_shot_delay_slider.setMinimum(0)
         self.triggerbot_first_shot_delay_slider.setMaximum(1000)
@@ -1286,7 +1186,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radius_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.radius_slider)
 
-        # Circle Opacity slider moved here
+                                          
         self.opacity_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.opacity_slider.setMinimum(0)
         self.opacity_slider.setMaximum(255)
@@ -1299,7 +1199,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.opacity_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.opacity_slider)
 
-        # Circle Thickness slider
+                                 
         self.thickness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.thickness_slider.setMinimum(1)
         self.thickness_slider.setMaximum(10)
@@ -1312,7 +1212,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.thickness_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.thickness_slider)
 
-        # Aim Smoothness slider moved here
+                                          
         self.smooth_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.smooth_slider.setMinimum(0)
         self.smooth_slider.setMaximum(2000000)
@@ -1325,7 +1225,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.smooth_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.smooth_slider)
 
-        # Aim Circle Visibility toggle
+                                      
         self.aim_circle_visible_cb = QtWidgets.QCheckBox("Show Aim Circle")
         self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
         self.aim_circle_visible_cb.stateChanged.connect(self.save_settings)
@@ -1340,10 +1240,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.aim_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'AimKey', self.aim_key_btn)
 
         self.aim_mode_cb = QtWidgets.QComboBox()
-        # Populate with bone targeting options
+                                              
         bone_options = [BONE_TARGET_MODES[i]["name"] for i in sorted(BONE_TARGET_MODES.keys())]
         self.aim_mode_cb.addItems(bone_options)
-        self.aim_mode_cb.setCurrentIndex(self.settings.get("aim_bone_target", 1))  # Default to head
+        self.aim_mode_cb.setCurrentIndex(self.settings.get("aim_bone_target", 1))                   
         self.aim_mode_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
         self.aim_mode_cb.currentIndexChanged.connect(self.save_settings)
         lbl_aimmode = QtWidgets.QLabel("Target Bone:")
@@ -1384,7 +1284,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.lock_target_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.lock_target_cb)
 
-        # Disable aim when crosshair is on enemy
+                                                
         self.disable_crosshair_cb = QtWidgets.QCheckBox("Disable Aim When Crosshair on Enemy")
         self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
         self.disable_crosshair_cb.stateChanged.connect(self.save_settings)
@@ -1407,7 +1307,7 @@ class ConfigWindow(QtWidgets.QWidget):
         colors_label.setMinimumHeight(18)
         colors_layout.addWidget(colors_label)
 
-        # Team Color button
+                           
         self.team_color_btn = QtWidgets.QPushButton('Team Color')
         team_hex = self.settings.get('team_color', '#47A76A')
         self.team_color_btn.setStyleSheet(f'background-color: {team_hex}; color: white;')
@@ -1416,7 +1316,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.team_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.team_color_btn)
 
-        # Enemy Color button
+                            
         self.enemy_color_btn = QtWidgets.QPushButton('Enemy Color')
         enemy_hex = self.settings.get('enemy_color', '#C41E3A')
         self.enemy_color_btn.setStyleSheet(f'background-color: {enemy_hex}; color: white;')
@@ -1425,7 +1325,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.enemy_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.enemy_color_btn)
 
-        # Aim Circle Color button
+                                 
         self.aim_circle_color_btn = QtWidgets.QPushButton('Aim Circle Color')
         aim_hex = self.settings.get('aim_circle_color', '#FF0000')
         self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: white;')
@@ -1434,7 +1334,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.aim_circle_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.aim_circle_color_btn)
 
-        # Center Dot Color button
+                                 
         self.center_dot_color_btn = QtWidgets.QPushButton('Center Dot Color')
         center_dot_hex = self.settings.get('center_dot_color', '#FFFFFF')
         self.center_dot_color_btn.setStyleSheet(f'background-color: {center_dot_hex}; color: black;')
@@ -1443,7 +1343,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.center_dot_color_btn)
 
-        # Menu Theme Color button
+                                 
         self.menu_theme_color_btn = QtWidgets.QPushButton('Menu Theme Color')
         menu_theme_hex = self.settings.get('menu_theme_color', '#FF0000')
         self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: white;')
@@ -1452,14 +1352,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.menu_theme_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.menu_theme_color_btn)
 
-        # Rainbow FOV Circle toggle
+                                   
         self.rainbow_fov_cb = QtWidgets.QCheckBox("Rainbow FOV Circle")
         self.rainbow_fov_cb.setChecked(self.settings.get('rainbow_fov', 0) == 1)
         self.rainbow_fov_cb.stateChanged.connect(self.save_settings)
         self.rainbow_fov_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.rainbow_fov_cb)
 
-        # Rainbow Center Dot toggle
+                                   
         self.rainbow_center_dot_cb = QtWidgets.QCheckBox("Rainbow Center Dot")
         self.rainbow_center_dot_cb.setChecked(self.settings.get('rainbow_center_dot', 0) == 1)
         self.rainbow_center_dot_cb.stateChanged.connect(self.save_settings)
@@ -1482,7 +1382,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
 
-        # Menu toggle key button
+                                
         self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
         self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
         self.menu_key_btn.setMinimumHeight(22)
@@ -1490,7 +1390,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        # Auto Accept Match checkbox
+                                    
         self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
         self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
         self.auto_accept_cb.stateChanged.connect(self.on_auto_accept_changed)
@@ -1503,13 +1403,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.low_cpu_cb)
 
-        # FPS Limit slider
+                          
         self.lbl_fps_limit = QtWidgets.QLabel(f"FPS Limit: ({self.settings.get('fps_limit', 60)})")
         self.lbl_fps_limit.setMinimumHeight(16)
         misc_layout.addWidget(self.lbl_fps_limit)
         
         self.fps_limit_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.fps_limit_slider.setMinimum(20)  # Minimum 20 FPS (except when low CPU mode forces 10)
+        self.fps_limit_slider.setMinimum(20)                                                       
         self.fps_limit_slider.setMaximum(100)
         self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
         self.fps_limit_slider.valueChanged.connect(self.update_fps_limit_label)
@@ -1517,14 +1417,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.fps_limit_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.fps_limit_slider)
 
-        # Bhop toggle checkbox
+                              
         self.bhop_cb = QtWidgets.QCheckBox("Bhop")
         self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
         self.bhop_cb.stateChanged.connect(self.on_bhop_changed)
         self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.bhop_cb)
 
-        # Bhop key button
+                         
         self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
         self.bhop_key_btn.clicked.connect(lambda: self.record_key('BhopKey', self.bhop_key_btn))
         self.bhop_key_btn.setMinimumHeight(22)
@@ -1568,12 +1468,12 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def handle_keybind_mouse_event(self, event, key_name, btn):
         if event.button() == QtCore.Qt.RightButton:
-            # Right click sets to NONE
+                                      
             self.settings[key_name] = 'NONE'
             btn.setText(f"{btn.text().split(':')[0]}: NONE")
             self.save_settings()
         else:
-            # For left clicks, let the normal button behavior handle it
+                                                                       
             QtWidgets.QPushButton.mousePressEvent(btn, event)
 
     def on_low_cpu_changed(self):
@@ -1583,16 +1483,16 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["low_cpu"] = 1 if low_cpu_enabled else 0
             
             if low_cpu_enabled:
-                # Lock FPS slider at 10 FPS when low CPU mode is enabled
-                self.fps_limit_slider.setMinimum(10)  # Allow 10 FPS minimum in low CPU mode
+                                                                        
+                self.fps_limit_slider.setMinimum(10)                                        
                 self.fps_limit_slider.setValue(10)
                 self.fps_limit_slider.setEnabled(False)
                 self.settings["fps_limit"] = 10
                 self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
             else:
-                # Unlock FPS slider when low CPU mode is disabled
-                self.fps_limit_slider.setMinimum(20)  # Reset to 20 FPS minimum
-                # Ensure current value meets new minimum
+                                                                 
+                self.fps_limit_slider.setMinimum(20)                           
+                                                        
                 current_fps = max(20, self.settings.get('fps_limit', 60))
                 self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
@@ -1609,17 +1509,17 @@ class ConfigWindow(QtWidgets.QWidget):
             low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
             
             if low_cpu_enabled:
-                # Lock FPS slider at 10 FPS if low CPU mode is already enabled
-                self.fps_limit_slider.setMinimum(10)  # Allow 10 FPS minimum in low CPU mode
+                                                                              
+                self.fps_limit_slider.setMinimum(10)                                        
                 self.fps_limit_slider.setValue(10)
                 self.fps_limit_slider.setEnabled(False)
                 self.settings["fps_limit"] = 10
                 self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
                 save_settings(self.settings)
             else:
-                # Ensure FPS slider is enabled if low CPU mode is disabled
-                self.fps_limit_slider.setMinimum(20)  # Set 20 FPS minimum for normal mode
-                current_fps = max(20, self.settings.get('fps_limit', 60))  # Ensure meets minimum
+                                                                          
+                self.fps_limit_slider.setMinimum(20)                                      
+                current_fps = max(20, self.settings.get('fps_limit', 60))                        
                 self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
                 self.settings["fps_limit"] = current_fps
@@ -1630,43 +1530,43 @@ class ConfigWindow(QtWidgets.QWidget):
     def apply_rounded_corners(self):
         """Apply smooth rounded corners to the window using antialiased masking"""
         try:
-            # Get the current window size
+                                         
             rect = self.rect()
             
-            # Create a high-resolution pixmap for smoother edges
-            scale_factor = 2  # Use 2x scale for antialiasing
+                                                                
+            scale_factor = 2                                 
             scaled_size = rect.size() * scale_factor
             pixmap = QtGui.QPixmap(scaled_size)
             pixmap.fill(QtCore.Qt.transparent)
             
-            # Create painter with antialiasing enabled
+                                                      
             painter = QtGui.QPainter(pixmap)
             painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
             painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
             
-            # Draw rounded rectangle with smooth edges
+                                                      
             painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
             painter.setPen(QtCore.Qt.NoPen)
             scaled_rect = QtCore.QRectF(0, 0, scaled_size.width(), scaled_size.height())
             painter.drawRoundedRect(scaled_rect, 15 * scale_factor, 15 * scale_factor)
             painter.end()
             
-            # Scale down the pixmap for smooth edges
+                                                    
             smooth_pixmap = pixmap.scaled(rect.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
             
-            # Create mask from the smooth pixmap
+                                                
             mask = smooth_pixmap.createMaskFromColor(QtCore.Qt.transparent)
             self.setMask(QtGui.QBitmap(mask))
             
         except Exception:
-            # If advanced masking fails, try simple path-based approach
+                                                                       
             try:
                 path = QtGui.QPainterPath()
                 path.addRoundedRect(QtCore.QRectF(self.rect()), 15, 15)
                 region = QtGui.QRegion(path.toFillPolygon().toPolygon())
                 self.setMask(region)
             except Exception:
-                # If all masking fails, fall back to just the CSS styling
+                                                                         
                 pass
 
     def apply_topmost(self):
@@ -1684,7 +1584,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
         try:
-            # Clean up keybind cooldowns file
+                                             
             if os.path.exists(KEYBIND_COOLDOWNS_FILE):
                 os.remove(KEYBIND_COOLDOWNS_FILE)
         except Exception:
@@ -1774,7 +1674,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if getattr(self, 'triggerbot_delay_slider', None) is not None:
                     self.triggerbot_delay_slider.setValue(self.settings.get('triggerbot_delay', 30))
                 
-                # Radar sliders
+                               
                 if getattr(self, 'radar_size_slider', None) is not None:
                     self.radar_size_slider.setValue(self.settings.get('radar_size', 200))
                 if getattr(self, 'radar_scale_slider', None) is not None:
@@ -1789,7 +1689,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if getattr(self, 'center_dot_size_slider', None) is not None:
                     self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
 
-                # Update all slider labels after setting values
+                                                               
                 try:
                     if hasattr(self, 'update_radius_label'):
                         self.update_radius_label()
@@ -1839,7 +1739,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if getattr(self, 'esp_toggle_key_btn', None) is not None:
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
 
-                # Reset aim mode dropdown to default bone target
+                                                                
                 if getattr(self, 'aim_mode_cb', None) is not None:
                     self.aim_mode_cb.setCurrentIndex(self.settings.get('aim_bone_target', DEFAULT_SETTINGS.get('aim_bone_target', 1)))
 
@@ -1861,7 +1761,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 except Exception:
                     pass
 
-                # Always apply topmost (no longer user-configurable)
+                                                                    
                 try:
                     self.apply_topmost()
                 except Exception:
@@ -1878,7 +1778,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 except Exception:
                     pass
             try:
-                # Initialize FPS slider state after reset
+                                                         
                 self.initialize_fps_slider_state()
                 save_settings(self.settings)
             except Exception:
@@ -1928,7 +1828,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
         self.settings["aim_active"] = 1 if self.aim_active_cb.isChecked() else 0
         
-        # Aim circle visibility setting
+                                       
         try:
             self.settings["aim_circle_visible"] = 1 if getattr(self, 'aim_circle_visible_cb', None) and self.aim_circle_visible_cb.isChecked() else 0
         except Exception:
@@ -1937,7 +1837,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         self.settings["radius"] = self.radius_slider.value()
         
-        # Radar settings
+                        
         if hasattr(self, 'radar_size_slider'):
             self.settings["radar_size"] = self.radar_size_slider.value()
         if hasattr(self, 'radar_scale_slider'):
@@ -1945,7 +1845,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if hasattr(self, 'radar_position_combo'):
             self.settings["radar_position"] = self.radar_position_combo.currentText()
         
-        # FPS limit setting
+                           
         if hasattr(self, 'fps_limit_slider'):
             self.settings["fps_limit"] = self.fps_limit_slider.value()
 
@@ -1999,7 +1899,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         self.settings["circle_thickness"] = self.thickness_slider.value()
 
-        # Topmost is always enabled (no longer user-configurable)
+                                                                 
         try:
             self.settings["topmost"] = 1
         except Exception:
@@ -2013,7 +1913,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-        # Aim smoothness setting
+                                
         try:
             self.settings["aim_smoothness"] = self.smooth_slider.value()
         except Exception:
@@ -2034,7 +1934,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
         
-        # Save bhop key setting
+                               
         try:
             if getattr(self, 'bhop_key_btn', None) is not None:
                 text = self.bhop_key_btn.text()
@@ -2054,8 +1954,8 @@ class ConfigWindow(QtWidgets.QWidget):
     def record_key(self, settings_key: str, btn: QtWidgets.QPushButton):
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle('Press a key or mouse button')
-        dialog.setModal(False)  # Changed to non-modal to keep overlay visible
-        dialog.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Dialog)  # Stay on top
+        dialog.setModal(False)                                                
+        dialog.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Dialog)               
         lbl = QtWidgets.QLabel('Press desired key or mouse button now...')
         v = QtWidgets.QVBoxLayout(dialog)
         v.addWidget(lbl)
@@ -2068,7 +1968,7 @@ class ConfigWindow(QtWidgets.QWidget):
             dialog_cancelled = True
             timer.stop()
 
-        # Override close event to handle X button clicks properly
+                                                                 
         def closeEvent(event):
             on_dialog_close()
             QtWidgets.QDialog.closeEvent(dialog, event)
@@ -2079,28 +1979,28 @@ class ConfigWindow(QtWidgets.QWidget):
             if dialog_cancelled:
                 return
                 
-            # Check mouse buttons first
+                                       
             mouse_buttons = [
-                (0x01, 'LMB'),    # Left mouse button
-                (0x02, 'RMB'),    # Right mouse button  
-                (0x04, 'MMB'),    # Middle mouse button
-                (0x05, 'MOUSE4'), # X1 mouse button
-                (0x06, 'MOUSE5'), # X2 mouse button
+                (0x01, 'LMB'),                       
+                (0x02, 'RMB'),                          
+                (0x04, 'MMB'),                         
+                (0x05, 'MOUSE4'),                  
+                (0x06, 'MOUSE5'),                  
             ]
             
             for code, name in mouse_buttons:
                 try:
                     if (win32api.GetAsyncKeyState(code) & 0x8000) != 0:
-                        # Skip left mouse button if dialog might be getting closed
+                                                                                  
                         if code == 0x01:
-                            # Add a small delay to see if this is a window close action
+                                                                                       
                             QtCore.QTimer.singleShot(50, lambda: check_delayed_mouse(code, name))
                             return
                         else:
                             self.settings[settings_key] = name
                             save_settings(self.settings)
                             
-                            # Set cooldown for this keybind (1 second)
+                                                                      
                             self.set_keybind_cooldown(settings_key)
                             
                             short = settings_key
@@ -2113,11 +2013,11 @@ class ConfigWindow(QtWidgets.QWidget):
                 except Exception:
                     continue
             
-            # Check keyboard keys
+                                 
             for code in range(0x08, 0xFF):
                 try:
                     if (win32api.GetAsyncKeyState(code) & 0x8000) != 0:
-                        # Skip mouse buttons since we already checked them
+                                                                          
                         if code in [0x01, 0x02, 0x04, 0x05, 0x06]:
                             continue
                             
@@ -2133,7 +2033,7 @@ class ConfigWindow(QtWidgets.QWidget):
                             if (win32api.GetAsyncKeyState(win32con.VK_SHIFT) & 0x8000) != 0:
                                 mods.append('SHIFT')
 
-                            # Enhanced key mapping
+                                                  
                             vk_name_map = {
                                 getattr(win32con, 'VK_ESCAPE', 0x1B): 'ESC',
                                 getattr(win32con, 'VK_RETURN', 0x0D): 'ENTER',
@@ -2179,7 +2079,7 @@ class ConfigWindow(QtWidgets.QWidget):
                                 getattr(win32con, 'VK_LWIN', 0x5B): 'LWIN',
                                 getattr(win32con, 'VK_RWIN', 0x5C): 'RWIN',
                                 getattr(win32con, 'VK_APPS', 0x5D): 'APPS',
-                                # OEM keys (symbols)
+                                                    
                                 getattr(win32con, 'VK_OEM_1', 0xBA): 'SEMICOLON',
                                 getattr(win32con, 'VK_OEM_PLUS', 0xBB): 'EQUALS',
                                 getattr(win32con, 'VK_OEM_COMMA', 0xBC): 'COMMA',
@@ -2201,7 +2101,7 @@ class ConfigWindow(QtWidgets.QWidget):
                             else:
                                 base = vk_name_map.get(code, '')
                                 if not base:
-                                    # Handle generic cases
+                                                          
                                     if code == win32con.VK_MENU:
                                         base = 'ALT'
                                     elif code == win32con.VK_CONTROL:
@@ -2213,7 +2113,7 @@ class ConfigWindow(QtWidgets.QWidget):
                                     else:
                                         base = str(code)
 
-                            # Build final key string
+                                                    
                             parts = []
                             for m in mods:
                                 if m not in parts:
@@ -2225,7 +2125,7 @@ class ConfigWindow(QtWidgets.QWidget):
                             else:
                                 val = str(base).upper()
                         except Exception:
-                            # Fallback key naming
+                                                 
                             if 0x30 <= code <= 0x5A:
                                 val = chr(code)
                             elif 0x70 <= code <= 0x87:
@@ -2233,11 +2133,11 @@ class ConfigWindow(QtWidgets.QWidget):
                             else:
                                 val = str(code)
 
-                        # Save the key and track cooldown
+                                                         
                         self.settings[settings_key] = val
                         save_settings(self.settings)
                         
-                        # Set cooldown for this keybind (1 second)
+                                                                  
                         self.set_keybind_cooldown(settings_key)
                         
                         short = settings_key
@@ -2251,16 +2151,16 @@ class ConfigWindow(QtWidgets.QWidget):
                     continue
 
         def check_delayed_mouse(code, name):
-            # If dialog was cancelled, don't process the mouse click
+                                                                    
             if dialog_cancelled:
                 return
             
-            # Double-check if the mouse button is still pressed after delay
+                                                                           
             if (win32api.GetAsyncKeyState(code) & 0x8000) != 0:
                 self.settings[settings_key] = name
                 save_settings(self.settings)
                 
-                # Set cooldown for this keybind (1 second)
+                                                          
                 self.set_keybind_cooldown(settings_key)
                 
                 short = settings_key
@@ -2272,7 +2172,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         timer.timeout.connect(check)
         timer.start(20)
-        dialog.show()  # Changed from dialog.exec() to dialog.show() for non-modal
+        dialog.show()                                                             
 
     def pick_color(self, settings_key: str, btn: QtWidgets.QPushButton):
         init = QtGui.QColor(self.settings.get(settings_key, '#FFFFFF'))
@@ -2283,17 +2183,17 @@ class ConfigWindow(QtWidgets.QWidget):
             save_settings(self.settings)
             btn.setStyleSheet(f'background-color: {hexc}; color: white;')
             
-            # If menu theme color was changed, update the entire UI styling
+                                                                           
             if settings_key == 'menu_theme_color':
                 self.update_menu_theme_styling(hexc)
 
     def update_menu_theme_styling(self, theme_color):
         """Update the UI styling with the new menu theme color"""
-        # Calculate darker shade for hover effects
+                                                  
         color = QtGui.QColor(theme_color)
         darker_color = color.darker(110).name()
         
-        # Update the main window stylesheet with the new theme color
+                                                                    
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: #020203;
@@ -2468,7 +2368,7 @@ class ConfigWindow(QtWidgets.QWidget):
             }}
         """)
         
-        # Update the header label with MS PGothic font and theme color
+                                                                      
         try:
             if hasattr(self, 'header_label') and self.header_label:
                 self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 14px;")
@@ -2486,7 +2386,7 @@ class ConfigWindow(QtWidgets.QWidget):
             if not key or str(key).upper() == "NONE":
                 return
                 
-            # Check if MenuToggleKey is on cooldown
+                                                   
             if self.is_keybind_on_cooldown("MenuToggleKey"):
                 return
                 
@@ -2496,8 +2396,8 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 if self.isVisible():
                     self.hide()
-                    self._manually_hidden = True  # User manually hid the window
-                    self._was_visible = False  # Update visibility tracking
+                    self._manually_hidden = True                                
+                    self._was_visible = False                              
                 else:
                     
                     try:
@@ -2505,25 +2405,25 @@ class ConfigWindow(QtWidgets.QWidget):
                     except Exception:
                         pass
                     self.show()
-                    self._manually_hidden = False  # User manually showed the window
-                    self._was_visible = True  # Update visibility tracking
+                    self._manually_hidden = False                                   
+                    self._was_visible = True                              
                 self.menu_toggle_pressed = True
             elif not pressed:
                 self.menu_toggle_pressed = False
-            # ESP toggle handling: separate key that flips esp_rendering
+                                                                        
             try:
                 esp_key = self.settings.get('ESPToggleKey', 'NONE')
                 if esp_key and str(esp_key).upper() != 'NONE':
-                    # Check if ESPToggleKey is on cooldown
+                                                          
                     if not self.is_keybind_on_cooldown("ESPToggleKey"):
                         esp_vk = key_str_to_vk(esp_key)
                         esp_pressed = (win32api.GetAsyncKeyState(esp_vk) & 0x8000) != 0 if esp_vk != 0 else False
                         if esp_pressed and not getattr(self, 'esp_toggle_pressed', False):
-                            # flip setting
+                                          
                             cur = 1 if self.settings.get('esp_rendering', 1) == 1 else 0
                             self.settings['esp_rendering'] = 0 if cur == 1 else 1
                             save_settings(self.settings)
-                            # update UI checkbox if present
+                                                           
                             try:
                                 if getattr(self, 'esp_rendering_cb', None) is not None:
                                     self.esp_rendering_cb.setChecked(self.settings['esp_rendering'] == 1)
@@ -2600,7 +2500,7 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
         super().showEvent(event)
         
-        # Ensure window is positioned within CS2 bounds when shown
+                                                                  
         try:
             current_pos = self.pos()
             constrained_pos = self.constrain_to_cs2_window(current_pos)
@@ -2618,7 +2518,7 @@ class ConfigWindow(QtWidgets.QWidget):
             if constrained_pos != current_pos:
                 self.move(constrained_pos)
             
-            # Reapply rounded corners after resize
+                                                  
             self.apply_rounded_corners()
         except Exception:
             pass
@@ -2633,7 +2533,7 @@ class ConfigWindow(QtWidgets.QWidget):
             delta = event.globalPosition().toPoint() - self.drag_start_position
             new_pos = self.pos() + delta
             
-            # Constrain window within CS2 window boundaries
+                                                           
             constrained_pos = self.constrain_to_cs2_window(new_pos)
             
             self.move(constrained_pos)
@@ -2642,7 +2542,7 @@ class ConfigWindow(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent):
         if event.button() == QtCore.Qt.LeftButton:
             self.is_dragging = False
-            # Set a timestamp when dragging ends to prevent immediate hiding
+                                                                            
             import time
             self._drag_end_time = time.time()
 
@@ -2707,9 +2607,9 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_fps_limit_label(self):
         try:
-            # Don't allow FPS changes when low CPU mode is active
+                                                                 
             if self.settings.get('low_cpu', 0) == 1:
-                self.fps_limit_slider.setValue(10)  # Force back to 10
+                self.fps_limit_slider.setValue(10)                    
                 self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
                 return
                 
@@ -2720,18 +2620,18 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
 def configurator():
-    # Set DPI awareness before creating QApplication to avoid Windows errors
+                                                                            
     import os
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
     os.environ["QT_SCALE_FACTOR"] = "1"
     
-    # Suppress Qt DPI warnings
+                              
     os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
     
     app = QtWidgets.QApplication(sys.argv)
     
-    # Set DPI awareness policy (suppress errors)
+                                                
     try:
         app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
         app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
@@ -2742,12 +2642,11 @@ def configurator():
     
     window = ConfigWindow()
     
-    # Only show the window initially if CS2 is the active window
+                                                                
     if window.is_game_window_active():
         window.show()
     
     sys.exit(app.exec())
-
 
 class ESPWindow(QtWidgets.QWidget):
     def __init__(self, settings, window_width=None, window_height=None):
@@ -2757,7 +2656,7 @@ class ESPWindow(QtWidgets.QWidget):
         
         if window_width is not None and window_height is not None:
             self.window_width, self.window_height = window_width, window_height
-            # Try to get position info as well - use client area for accurate positioning
+                                                                                         
             self.window_x, self.window_y, _, _ = get_window_client_rect("Counter-Strike 2")
             if self.window_x is None or self.window_y is None:
                 self.window_x, self.window_y = 0, 0
@@ -2772,7 +2671,7 @@ class ESPWindow(QtWidgets.QWidget):
             self.window_width, self.window_height = 800, 600
             self.window_x, self.window_y = 0, 0
         
-        # Track window size and position for dynamic updates
+                                                            
         self.last_window_width = self.window_width
         self.last_window_height = self.window_height
         self.last_window_x = self.window_x
@@ -2813,7 +2712,7 @@ class ESPWindow(QtWidgets.QWidget):
         self.file_watcher = QFileSystemWatcher([CONFIG_FILE])
         self.file_watcher.fileChanged.connect(self.reload_settings)
 
-        # Use global offsets and client_dll
+                                           
         self.offsets = offsets
         self.client_dll = client_dll
         
@@ -2835,16 +2734,16 @@ class ESPWindow(QtWidgets.QWidget):
         self.view = QGraphicsView(self.scene, self)
         self.view.setGeometry(0, 0, self.window_width, self.window_height)
         
-        # Set initial rendering quality based on low CPU mode setting
+                                                                     
         low_cpu_mode = self.settings.get('low_cpu', 0) == 1
         if not low_cpu_mode:
-            # Enable high-quality rendering for modern/pixelated look (only if not in low CPU mode)
+                                                                                                   
             self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
             self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
             self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
             self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, True)
         else:
-            # Use basic rendering for low CPU mode
+                                                  
             self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)
             self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, False)
             self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
@@ -2856,9 +2755,9 @@ class ESPWindow(QtWidgets.QWidget):
         self.view.setSceneRect(0, 0, self.window_width, self.window_height)
         self.view.setFrameShape(QtWidgets.QFrame.NoFrame)
 
-        # Optimize graphics view for performance
+                                                
         try:
-            # Use minimal update mode for better performance
+                                                            
             self.view.setViewportUpdateMode(QtWidgets.QGraphicsView.MinimalViewportUpdate)
         except Exception:
             try:
@@ -2866,15 +2765,15 @@ class ESPWindow(QtWidgets.QWidget):
             except Exception:
                 pass
         try:
-            # Disable caching for better performance with frequent updates
+                                                                          
             self.view.setCacheMode(QtWidgets.QGraphicsView.CacheNone)
         except Exception:
             pass
 
-        # Performance optimizations
+                                   
         try:
             self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-            # Additional performance attributes
+                                               
             self.setAttribute(QtCore.Qt.WA_NoBackground)
             self.setAttribute(QtCore.Qt.WA_PaintOnScreen)
         except Exception:
@@ -2897,7 +2796,7 @@ class ESPWindow(QtWidgets.QWidget):
         self.frame_count = 0
         self.fps = 0
         
-        # Initialize precise frame timing variables
+                                                   
         self.last_frame_time = time.time()
         self.target_fps = 60
         self.target_frame_time = 1.0 / 60.0
@@ -2917,7 +2816,7 @@ class ESPWindow(QtWidgets.QWidget):
     def reload_settings(self):
         self.settings = load_settings()
         
-        # Force a window size and position check when settings are reloaded
+                                                                           
         current_x, current_y, current_width, current_height = get_window_client_rect("Counter-Strike 2")
         if current_width is not None and current_height is not None:
             self.window_x = current_x
@@ -2952,26 +2851,26 @@ class ESPWindow(QtWidgets.QWidget):
             low = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
             fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
             
-            # Configure rendering quality based on low CPU mode
+                                                               
             if low:
-                # Low CPU mode: Disable high-quality rendering features
+                                                                       
                 self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)
                 self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, False)
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
                 self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
                 
-                # Store target FPS for precise limiting
+                                                       
                 self.target_fps = 10
-                self.target_frame_time = 1.0 / 10.0  # 100ms per frame
-                # Low CPU mode: 10 FPS with optimized processing
+                self.target_frame_time = 1.0 / 10.0                   
+                                                                
                 self.timer.start(100)
-                # Enable additional optimizations for low CPU mode
+                                                                  
                 self.setUpdatesEnabled(False)
                 self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontAdjustForAntialiasing | 
                                               QtWidgets.QGraphicsView.DontSavePainterState)
                 self.setUpdatesEnabled(True)
             else:
-                # Normal mode: Enable high-quality rendering features
+                                                                     
                 self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
@@ -2979,20 +2878,20 @@ class ESPWindow(QtWidgets.QWidget):
                 
                 self.target_fps = fps_limit
                 self.target_frame_time = 1.0 / max(fps_limit, 1)
-                # For lower FPS (under 80), use more accurate timer intervals
-                # For higher FPS, use faster timer with frame timing control
+                                                                             
+                                                                            
                 if fps_limit < 80:
-                    interval_ms = int(1000 / max(fps_limit, 1))  # Accurate timer intervals for lower FPS
+                    interval_ms = int(1000 / max(fps_limit, 1))                                          
                 else:
-                    interval_ms = max(int(1000 / max(fps_limit, 1)) - 3, 1)  # Faster timer for high FPS with timing control
+                    interval_ms = max(int(1000 / max(fps_limit, 1)) - 3, 1)                                                 
                 self.timer.start(interval_ms)
-                # Reset optimizations for higher FPS modes
+                                                          
                 try:
                     self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontSavePainterState)
                 except Exception:
                     pass
             
-            # Initialize frame timing variables for precise FPS limiting
+                                                                        
             if not hasattr(self, 'last_frame_time'):
                 self.last_frame_time = time.time()
                 
@@ -3002,46 +2901,46 @@ class ESPWindow(QtWidgets.QWidget):
     def check_and_update_window_size(self):
         """Check for CS2 window size and position changes and update overlay accordingly."""
         try:
-            # Determine check frequency based on low CPU mode and FPS limit
+                                                                           
             low_cpu_mode = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
             fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
             
-            # Adaptive check frequency based on performance mode
-            # Make window checking much less frequent to avoid FPS dips
+                                                                
+                                                                       
             if low_cpu_mode:
-                check_interval = 50   # Check every 5 seconds at 10 FPS
+                check_interval = 50                                    
             elif fps_limit >= 100:
-                check_interval = 500  # Check every 5 seconds at high FPS
+                check_interval = 500                                     
             elif fps_limit >= 60:
-                check_interval = 300  # Check every 5 seconds at 60 FPS
+                check_interval = 300                                   
             else:
-                check_interval = 150  # Check every 5 seconds at 30 FPS
+                check_interval = 150                                   
             
             self.window_check_counter += 1
             if self.window_check_counter < check_interval:
-                return False  # No check needed yet
+                return False                       
             
-            # Reset counter
+                           
             self.window_check_counter = 0
             
-            # Quick optimization: only check if we're not in fullscreen mode
-            # Most users don't resize CS2 window frequently, so this check is often unnecessary
+                                                                            
+                                                                                               
             try:
-                # Get current CS2 window client area position and size
+                                                                      
                 current_x, current_y, current_width, current_height = get_window_client_rect("Counter-Strike 2")
                 
-                # If we can't get the window client rect, keep current dimensions
+                                                                                 
                 if current_width is None or current_height is None:
                     return False
                 
-                # Check if size or position changed significantly (reduce sensitivity for performance)
-                size_threshold = 15  # Increased threshold to reduce unnecessary updates
+                                                                                                      
+                size_threshold = 15                                                     
                 if (abs(current_width - self.last_window_width) > size_threshold or 
                     abs(current_height - self.last_window_height) > size_threshold or
                     abs(current_x - self.last_window_x) > size_threshold or
                     abs(current_y - self.last_window_y) > size_threshold):
                     
-                    # Update stored dimensions and position
+                                                           
                     self.window_x = current_x
                     self.window_y = current_y
                     self.window_width = current_width
@@ -3051,21 +2950,21 @@ class ESPWindow(QtWidgets.QWidget):
                     self.last_window_width = current_width
                     self.last_window_height = current_height
                     
-                    # Resize and reposition overlay window
+                                                          
                     self.setGeometry(self.window_x, self.window_y, self.window_width, self.window_height)
                     
-                    # Update view and scene
+                                           
                     try:
                         self.view.setGeometry(0, 0, self.window_width, self.window_height)
                         self.view.setSceneRect(0, 0, self.window_width, self.window_height)
-                        # Clear scene to prevent visual artifacts during resize
+                                                                               
                         self.scene.clear()
                     except Exception:
                         pass
                     
-                    return True  # Size/position was updated
+                    return True                             
             except Exception:
-                # If window checking fails, don't spam retries
+                                                              
                 pass
                 
         except Exception:
@@ -3074,44 +2973,44 @@ class ESPWindow(QtWidgets.QWidget):
         return False
 
     def update_scene(self):
-        # Early exit if game is not active - avoid all processing
+                                                                 
         if not self.is_game_window_active():
             if hasattr(self, 'scene') and self.scene.items():
                 self.scene.clear()
             return
             
-        # Early exit if memory access is not available
+                                                      
         if not hasattr(self, 'pm') or not hasattr(self, 'client') or self.pm is None or self.client is None:
             if hasattr(self, 'scene') and self.scene.items():
                 self.scene.clear()
             return
 
-        # Precise FPS limiting only for high FPS settings (80+ FPS)
-        # For lower FPS, rely primarily on timer intervals
+                                                                   
+                                                          
         current_time = time.time()
         if hasattr(self, 'target_fps') and hasattr(self, 'target_frame_time') and hasattr(self, 'last_frame_time'):
-            if self.target_fps >= 80:  # Only use strict timing for high FPS
+            if self.target_fps >= 80:                                       
                 elapsed_time = current_time - self.last_frame_time
-                if elapsed_time < self.target_frame_time * 0.85:  # 85% threshold for high FPS
+                if elapsed_time < self.target_frame_time * 0.85:                              
                     return
             self.last_frame_time = current_time
 
-        # Check for window size and position changes (less frequently for performance)
+                                                                                      
         size_or_position_changed = self.check_and_update_window_size()
 
-        # Clear scene only if necessary
+                                       
         if hasattr(self, 'scene'):
             self.scene.clear()
         
         try:
-            # Cache settings for this frame to avoid repeated dictionary lookups
+                                                                                
             esp_enabled = self.settings.get('esp_rendering', 1) == 1
             radar_enabled = self.settings.get('radar_enabled', 0) == 1
             center_dot_enabled = self.settings.get('center_dot', 0) == 1
             aim_active = self.settings.get('aim_active', 0) == 1
             aim_circle_visible = self.settings.get('aim_circle_visible', 1) == 1
             
-            # Only render what's actually enabled to save processing
+                                                                    
             if center_dot_enabled:
                 render_center_dot(self.scene, self.window_width, self.window_height, self.settings)
             
@@ -3124,25 +3023,25 @@ class ESPWindow(QtWidgets.QWidget):
             if esp_enabled:
                 esp(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
-            # Render bomb ESP independently of main ESP toggle
+                                                              
             render_bomb_esp(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
-            # Update FPS counter calculation (using the current_time from precise timing)
+                                                                                         
             self.frame_count += 1
             if current_time - self.last_time >= 1.0:
-                # Calculate actual FPS with more precision
+                                                          
                 actual_elapsed = current_time - self.last_time
                 self.fps = round(self.frame_count / actual_elapsed)
                 self.frame_count = 0
                 self.last_time = current_time
             
-            # Always render FPS text with enhanced quality using menu theme color
+                                                                                 
             try:
                 fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
-                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
                 fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", fps_font)
                 
-                # Get menu theme color and apply it to FPS text
+                                                               
                 theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
                 theme_color = QtGui.QColor(theme_color_hex)
                 fps_item.setDefaultTextColor(theme_color)
@@ -3151,7 +3050,7 @@ class ESPWindow(QtWidgets.QWidget):
                 pass
             
         except Exception as e:
-            # Reduce error logging frequency to avoid spam
+                                                          
             if not hasattr(self, '_last_error_time') or current_time - self._last_error_time > 5.0:
                 pass
                 self._last_error_time = current_time
@@ -3165,12 +3064,12 @@ class ESPWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-            # Check if CS2 is active
+                                    
             cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
             if cs2_hwnd and cs2_hwnd == foreground_hwnd:
                 return True
             
-            # Check if config UI is active by window title
+                                                          
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
                 if "Popsicle CS2 Config" in window_title:
@@ -3191,11 +3090,11 @@ def render_center_dot(scene, window_width, window_height, settings):
             center_y = window_height / 2
             dot_size = settings.get('center_dot_size', 3)
             
-            # Handle rainbow center dot
+                                       
             if settings.get('rainbow_center_dot', 0) == 1:
                 try:
                     global RAINBOW_HUE
-                    # Update RAINBOW_HUE for center dot rainbow mode
+                                                                    
                     RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
                     r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                     dot_qcolor = QtGui.QColor(r, g, b)
@@ -3206,20 +3105,20 @@ def render_center_dot(scene, window_width, window_height, settings):
                 dot_hex = settings.get('center_dot_color', '#FFFFFF')
                 dot_qcolor = QtGui.QColor(dot_hex)
             
-            # Render modern center dot with enhanced quality
+                                                            
             dot_rect = QtCore.QRectF(center_x - dot_size/2, center_y - dot_size/2, dot_size, dot_size)
             
-            # Create high-quality pen for center dot
+                                                    
             dot_pen = QtGui.QPen(dot_qcolor, 1)
             dot_pen.setCapStyle(QtCore.Qt.RoundCap)
             
-            # Add subtle outline for better visibility
-            outline_color = QtGui.QColor(0, 0, 0, 128)  # Semi-transparent black outline
+                                                      
+            outline_color = QtGui.QColor(0, 0, 0, 128)                                  
             outline_pen = QtGui.QPen(outline_color, 1)
             outline_rect = QtCore.QRectF(center_x - (dot_size+2)/2, center_y - (dot_size+2)/2, dot_size+2, dot_size+2)
             scene.addEllipse(outline_rect, outline_pen, QtGui.QBrush(outline_color))
             
-            # Add main center dot
+                                 
             scene.addEllipse(dot_rect, dot_pen, QtGui.QBrush(dot_qcolor))
     except Exception:
         pass
@@ -3237,8 +3136,8 @@ def render_aim_circle(scene, window_width, window_height, settings):
             global RAINBOW_HUE
             if settings.get('rainbow_fov', 0) == 1:
                 try:
-                    # Only update RAINBOW_HUE if center dot rainbow is not already doing it
-                    # This prevents double-updating when both rainbow modes are enabled
+                                                                                           
+                                                                                       
                     if settings.get('rainbow_center_dot', 0) != 1:
                         RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
                     r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
@@ -3253,15 +3152,15 @@ def render_aim_circle(scene, window_width, window_height, settings):
                 aim_qcolor = QtGui.QColor(aim_hex)
                 aim_qcolor.setAlpha(opacity)
             
-            # Get circle thickness from settings
+                                                
             circle_thickness = settings.get('circle_thickness', 2)
             
-            # Create modern aim circle with enhanced styling
+                                                            
             circle_pen = QtGui.QPen(aim_qcolor, circle_thickness)
-            circle_pen.setCapStyle(QtCore.Qt.RoundCap)  # Rounded caps for smooth look
-            circle_pen.setJoinStyle(QtCore.Qt.RoundJoin)  # Smooth joins
+            circle_pen.setCapStyle(QtCore.Qt.RoundCap)                                
+            circle_pen.setJoinStyle(QtCore.Qt.RoundJoin)                
             
-            # Render aim circle with improved quality
+                                                     
             scene.addEllipse(
                 QtCore.QRectF(center_x - screen_radius, center_y - screen_radius, screen_radius * 2, screen_radius * 2),
                 circle_pen,
@@ -3276,14 +3175,14 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         if not settings.get('radar_enabled', 0):
             return
             
-        # Radar settings
+                        
         radar_size = settings.get('radar_size', 200)
         radar_scale = settings.get('radar_scale', 5.0)
         radar_position = settings.get('radar_position', 'Top Right')
         radar_opacity = settings.get('radar_opacity', 180)
         
-        # Calculate radar position based on setting
-        margin = 50  # Margin from screen edges
+                                                   
+        margin = 50                            
         if radar_position == 'Top Right':
             radar_x = window_width - radar_size - margin
             radar_y = margin
@@ -3306,39 +3205,39 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
             radar_x = margin
             radar_y = (window_height - radar_size) / 2
         else:
-            # Default to top right if unknown position
+                                                      
             radar_x = window_width - radar_size - margin
             radar_y = margin
         
-        # Draw modern radar background with enhanced styling
+                                                            
         radar_bg = QtGui.QColor(0, 0, 0, radar_opacity)
         
-        # Get theme color for radar border
+                                          
         theme_color_hex = settings.get('menu_theme_color', '#FF0000')
         theme_color = QtGui.QColor(theme_color_hex)
-        theme_color.setAlpha(200)  # Set transparency for the border
+        theme_color.setAlpha(200)                                   
         radar_border = theme_color
         
-        # Enhanced radar circle background with better border
-        radar_pen = QtGui.QPen(radar_border, 3)  # Thicker border
+                                                             
+        radar_pen = QtGui.QPen(radar_border, 3)                  
         radar_pen.setCapStyle(QtCore.Qt.RoundCap)
         
-        # Radar circle background
+                                 
         scene.addEllipse(
             QtCore.QRectF(radar_x, radar_y, radar_size, radar_size),
             radar_pen,
             QtGui.QBrush(radar_bg)
         )
         
-        # Radar center (local player)
+                                     
         center_x = radar_x + radar_size / 2
         center_y = radar_y + radar_size / 2
         
-        # Draw enhanced center dot (local player)
-        player_color = QtGui.QColor(255, 255, 255, 255)  # White for local player
-        player_outline = QtGui.QColor(0, 0, 0, 180)  # Black outline
+                                                 
+        player_color = QtGui.QColor(255, 255, 255, 255)                          
+        player_outline = QtGui.QColor(0, 0, 0, 180)                 
         
-        # Player dot with outline for better visibility
+                                                       
         scene.addEllipse(
             QtCore.QRectF(center_x - 4, center_y - 4, 8, 8),
             QtGui.QPen(player_outline, 1),
@@ -3350,7 +3249,7 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
             QtGui.QBrush(player_color)
         )
         
-        # Get local player position and team
+                                            
         
         local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
         if not local_player_pawn_addr:
@@ -3361,33 +3260,33 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
             local_game_scene = pm.read_longlong(local_player_pawn_addr + m_pGameSceneNode)
             local_x = pm.read_float(local_game_scene + m_vecAbsOrigin)
             local_y = pm.read_float(local_game_scene + m_vecAbsOrigin + 0x4)
-            local_z = pm.read_float(local_game_scene + m_vecAbsOrigin + 0x8)  # Read Z coordinate for height comparison
+            local_z = pm.read_float(local_game_scene + m_vecAbsOrigin + 0x8)                                           
             
-            # Extract view direction from view matrix (already defined offset)
+                                                                              
             view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
             
-            # Calculate yaw from view matrix - extract forward vector correctly
-            # CS2 view matrix layout: forward vector is in elements [8], [9], [10]
-            # Elements [8] and [9] represent the horizontal components of the forward vector
-            forward_x = view_matrix[8]   # Forward X component
-            forward_y = view_matrix[9]   # Forward Y component
+                                                                               
+                                                                                  
+                                                                                            
+            forward_x = view_matrix[8]                        
+            forward_y = view_matrix[9]                        
             
-            # Calculate yaw angle from forward vector (corrected coordinate system)
+                                                                                   
             local_yaw = math.degrees(math.atan2(forward_x, -forward_y))
             
         except Exception:
-            # Fallback to no rotation if view matrix read fails
+                                                               
             local_yaw = 0.0
         
-        # Get entity list
+                         
         entity_list = pm.read_longlong(client + dwEntityList)
         entity_ptr = pm.read_longlong(entity_list + 0x10)
         
-        # Optimize radar entity processing - limit entities for performance
+                                                                           
         max_radar_entities = 16 if settings.get('low_cpu', 0) == 1 else 32
         entities_processed = 0
         
-        # Draw enemies on radar
+                               
         for i in range(1, 64):
             if entities_processed >= max_radar_entities:
                 break
@@ -3412,31 +3311,31 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                 if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                     continue
 
-                # Validate entity before processing
+                                                   
                 try:
-                    # Check if entity is still valid and connected
+                                                                  
                     entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
                     entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
                     entity_health = pm.read_int(entity_pawn_addr + m_iHealth)
                     
-                    # Strict validation for disconnected players
-                    # 1. Must be alive (lifeState == 256)
-                    # 2. Must have valid health (> 0)
-                    # 3. Must have valid team (2 or 3 for CS2)
-                    # 4. Team must not be same as player (unless ESP mode allows it)
+                                                                
+                                                         
+                                                     
+                                                              
+                                                                                    
                     if entity_alive != 256:
                         continue
                     if entity_health <= 0:
                         continue
-                    if entity_team < 2 or entity_team > 3:  # Valid CS2 teams are 2 (T) and 3 (CT)
+                    if entity_team < 2 or entity_team > 3:                                        
                         continue
                     if entity_team == local_player_team:
-                        # Skip teammates unless ESP mode includes them
+                                                                      
                         esp_mode = settings.get('esp_mode', 0)
-                        if esp_mode == 0:  # Enemies only mode
+                        if esp_mode == 0:                     
                             continue
                     
-                    # Additional validation: check if entity has valid position data
+                                                                                    
                     entity_game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     if entity_game_scene == 0:
                         continue
@@ -3445,53 +3344,53 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                     entity_y = pm.read_float(entity_game_scene + m_vecAbsOrigin + 0x4)
                     entity_z = pm.read_float(entity_game_scene + m_vecAbsOrigin + 0x8)
                     
-                    # Check for invalid positions (common with disconnected players)
+                                                                                    
                     if abs(entity_x) > 50000 or abs(entity_y) > 50000 or abs(entity_z) > 50000:
                         continue
                     if entity_x == 0.0 and entity_y == 0.0 and entity_z == 0.0:
                         continue
                         
                 except Exception:
-                    # If we can't read basic entity data, skip this entity
+                                                                          
                     continue
                 
                 entities_processed += 1
                 
-                # Calculate relative position
+                                             
                 rel_x = (entity_x - local_x) / radar_scale
                 rel_y = (entity_y - local_y) / radar_scale
                 
-                # Apply rotation so player's facing direction is always at top of radar
+                                                                                       
                 try:
-                    # Calculate angle offset to make player's forward direction point "up" (north)
+                                                                                                  
                     rotation_angle = math.radians(-local_yaw + 180)
                     cos_rot = math.cos(rotation_angle)
                     sin_rot = math.sin(rotation_angle)
                     
-                    # Apply rotation matrix to make forward direction always point up
+                                                                                     
                     rotated_x = rel_x * cos_rot - rel_y * sin_rot
                     rotated_y = rel_x * sin_rot + rel_y * cos_rot
                     
-                    # Convert to radar coordinates
+                                                  
                     radar_entity_x = center_x + rotated_x
-                    radar_entity_y = center_y - rotated_y  # Negative Y to make "up" work correctly
+                    radar_entity_y = center_y - rotated_y                                          
                 except Exception:
-                    # Fallback to non-rotated coordinates if rotation fails
+                                                                           
                     radar_entity_x = center_x + rel_x
-                    radar_entity_y = center_y - rel_y  # Flip Y axis
+                    radar_entity_y = center_y - rel_y               
                 
-                # Check if entity is within radar bounds
+                                                        
                 radar_radius = radar_size / 2
                 distance_from_center = ((radar_entity_x - center_x) ** 2 + (radar_entity_y - center_y) ** 2) ** 0.5
                 
                 if distance_from_center <= radar_radius - 5:
-                    # Choose color based on team (team validation already done above)
+                                                                                     
                     if entity_team == local_player_team:
-                        entity_color = QtGui.QColor(0, 255, 0, 255)  # Green for teammates
+                        entity_color = QtGui.QColor(0, 255, 0, 255)                       
                     else:
-                        entity_color = QtGui.QColor(255, 0, 0, 255)  # Red for enemies
+                        entity_color = QtGui.QColor(255, 0, 0, 255)                   
                     
-                    # Check if enemy is spotted for white outline (only for enemies)
+                                                                                    
                     is_spotted = False
                     if entity_team != local_player_team:
                         try:
@@ -3500,9 +3399,9 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                         except Exception:
                             is_spotted = False
                     
-                    # Check height difference to determine dot shape
+                                                                    
                     try:
-                        height_threshold = 50.0  # Height difference threshold in game units (adjust as needed)
+                        height_threshold = 50.0                                                                
                         height_diff = entity_z - local_z
                         is_height_different = abs(height_diff) > height_threshold
                         is_above = height_diff > 0
@@ -3510,23 +3409,23 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                         is_height_different = False
                         is_above = False
                     
-                    # If enemy is spotted, draw enhanced white outline
+                                                                      
                     if is_spotted and entity_team != local_player_team:
                         if is_height_different:
-                            # Draw enhanced white outline for arrow shape
+                                                                         
                             if is_above:
-                                # Upward arrow outline
+                                                      
                                 outline_points = [
-                                    QtCore.QPointF(radar_entity_x, radar_entity_y - 4),      # Top point
-                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y + 2),  # Bottom left
-                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y + 2)   # Bottom right
+                                    QtCore.QPointF(radar_entity_x, radar_entity_y - 4),                 
+                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y + 2),               
+                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y + 2)                 
                                 ]
                             else:
-                                # Downward arrow outline
+                                                        
                                 outline_points = [
-                                    QtCore.QPointF(radar_entity_x, radar_entity_y + 4),      # Bottom point
-                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y - 2),  # Top left
-                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y - 2)   # Top right
+                                    QtCore.QPointF(radar_entity_x, radar_entity_y + 4),                    
+                                    QtCore.QPointF(radar_entity_x - 4, radar_entity_y - 2),            
+                                    QtCore.QPointF(radar_entity_x + 4, radar_entity_y - 2)              
                                 ]
                             outline_polygon = QtGui.QPolygonF(outline_points)
                             outline_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 2)
@@ -3538,7 +3437,7 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                                 QtCore.Qt.NoBrush
                             )
                         else:
-                            # Draw enhanced white outline (larger circle) for same height
+                                                                                         
                             outline_rect = QtCore.QRectF(radar_entity_x - 4, radar_entity_y - 4, 8, 8)
                             outline_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 255), 2)
                             outline_pen.setCapStyle(QtCore.Qt.RoundCap)
@@ -3548,22 +3447,22 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                                 QtCore.Qt.NoBrush
                             )
                     
-                    # Draw enhanced main dot - change shape based on height difference
+                                                                                      
                     if is_height_different:
-                        # Draw enhanced arrow shape instead of circle
+                                                                     
                         if is_above:
-                            # Upward arrow (entity is above)
+                                                            
                             arrow_points = [
-                                QtCore.QPointF(radar_entity_x, radar_entity_y - 3),      # Top point
-                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y + 1),  # Bottom left
-                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y + 1)   # Bottom right
+                                QtCore.QPointF(radar_entity_x, radar_entity_y - 3),                 
+                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y + 1),               
+                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y + 1)                 
                             ]
                         else:
-                            # Downward arrow (entity is below)
+                                                              
                             arrow_points = [
-                                QtCore.QPointF(radar_entity_x, radar_entity_y + 3),      # Bottom point
-                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y - 1),  # Top left
-                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y - 1)   # Top right
+                                QtCore.QPointF(radar_entity_x, radar_entity_y + 3),                    
+                                QtCore.QPointF(radar_entity_x - 3, radar_entity_y - 1),            
+                                QtCore.QPointF(radar_entity_x + 3, radar_entity_y - 1)              
                             ]
                         arrow_polygon = QtGui.QPolygonF(arrow_points)
                         arrow_pen = QtGui.QPen(entity_color, 1)
@@ -3575,7 +3474,7 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                             QtGui.QBrush(entity_color)
                         )
                     else:
-                        # Draw enhanced circular dot for same height
+                                                                    
                         dot_rect = QtCore.QRectF(radar_entity_x - 3, radar_entity_y - 3, 6, 6)
                         dot_pen = QtGui.QPen(entity_color, 1)
                         dot_pen.setCapStyle(QtCore.Qt.RoundCap)
@@ -3598,8 +3497,8 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
         if not bomb_esp_enabled:
             return
             
-        # Cache offsets for bomb ESP
-        # Get view matrix for world to screen conversion
+                                    
+                                                        
         view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
 
         def bombisplant():
@@ -3644,16 +3543,16 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
             return DefuseTime if (isBeingDefused() and DefuseTime >= 0) else 0
 
         bfont = QtGui.QFont('MS PGothic', 10, QtGui.QFont.Bold)
-        bfont.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+        bfont.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
 
-        # Bomb ESP rendering
+                            
         if bombisplant():
             BombPosition = getPositionWTS()
             BombTime = getBombTime()
             DefuseTime = getDefuseTime()
         
             if (BombPosition[0] > 0 and BombPosition[1] > 0):
-                # Determine bomb text based on defuse status
+                                                            
                 if DefuseTime > 0:
                     bomb_text = f'BOMB: {round(BombTime, 2)} | DIF {round(DefuseTime, 2)}'
                 else:
@@ -3662,14 +3561,14 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
                 c4_name_x = BombPosition[0]
                 c4_name_y = BombPosition[1]
                 
-                # Create black text stroke by adding multiple offset text items
+                                                                               
                 stroke_offsets = [(-1, -1), (1, -1), (-1, 1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)]
                 for offset_x, offset_y in stroke_offsets:
                     stroke_text = scene.addText(bomb_text, bfont)
                     stroke_text.setPos(c4_name_x + offset_x, c4_name_y + offset_y)
-                    stroke_text.setDefaultTextColor(QtGui.QColor(0, 0, 0))  # Black stroke
+                    stroke_text.setDefaultTextColor(QtGui.QColor(0, 0, 0))                
                 
-                # Add main white text on top
+                                            
                 c4_name_text = scene.addText(bomb_text, bfont)
                 c4_name_text.setPos(c4_name_x, c4_name_y)
                 c4_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
@@ -3678,14 +3577,14 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
         pass
 
 def esp(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
-    # Early exit if ESP is disabled
+                                   
     if settings.get('esp_rendering', 1) == 0:
         return
     
-    # Cache frequently accessed settings for performance
+                                                        
     esp_mode = settings.get('esp_mode', 1)
     
-    # Cache rendering flags - early exit optimization
+                                                     
     box_rendering = settings.get('box_rendering', 1) == 1
     line_rendering = settings.get('line_rendering', 1) == 1
     hp_bar_rendering = settings.get('hp_bar_rendering', 1) == 1
@@ -3694,12 +3593,12 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
     nickname_rendering = settings.get('nickname', 0) == 1
     weapon_rendering = settings.get('weapon', 0) == 1
     
-    # Early exit if nothing to render (bomb ESP is now separate)
+                                                                
     if not (box_rendering or line_rendering or hp_bar_rendering or head_hitbox_rendering or 
             bones_rendering or nickname_rendering or weapon_rendering):
         return
     
-    # Cache color objects to avoid repeated creation
+                                                    
     try:
         team_hex = settings.get('team_color', '#47A76A')
         enemy_hex = settings.get('enemy_color', '#C41E3A')
@@ -3709,7 +3608,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         team_color = QtGui.QColor(71, 167, 106)
         enemy_color = QtGui.QColor(196, 30, 58)
 
-    # Cache offsets for better performance
+                                          
     view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
 
     local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -3756,12 +3655,12 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
             if entity_alive != 256:
                 continue
             
-            # Read armor only if HP bar rendering is enabled
+                                                            
             armor_hp = 0
             if hp_bar_rendering:
                 armor_hp = pm.read_int(entity_pawn_addr + m_ArmorValue)
             
-            # Read weapon only if weapon rendering is enabled
+                                                             
             weapon_name = ""
             if weapon_rendering:
                 try:
@@ -3771,21 +3670,21 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 except Exception:
                     weapon_name = "Unknown"
 
-            # Use cached color objects
+                                      
             color = team_color if entity_team == local_player_team else enemy_color
             
-            # Calculate position only if we have the entity
+                                                           
             game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
             bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
 
             try:
-                # Read bone positions once
+                                          
                 headX = pm.read_float(bone_matrix + 6 * 0x20)
                 headY = pm.read_float(bone_matrix + 6 * 0x20 + 0x4)
                 headZ = pm.read_float(bone_matrix + 6 * 0x20 + 0x8) + 8
                 legZ = pm.read_float(bone_matrix + 28 * 0x20 + 0x8)
                 
-                # Calculate screen positions once
+                                                 
                 head_pos = w2s(view_matrix, headX, headY, headZ, window_width, window_height)
                 if head_pos[1] < 0:
                     continue
@@ -3795,115 +3694,115 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 leftX = head_pos[0] - deltaZ // 4
                 rightX = head_pos[0] + deltaZ // 4
                 
-                # Render line if enabled
+                                        
                 if line_rendering:
                     bottom_left_x = head_pos[0] - (head_pos[0] - leg_pos[0]) // 2
                     bottom_y = leg_pos[1]
-                    # Create modern line with enhanced styling
-                    line_pen = QtGui.QPen(color, 2)  # Increased thickness
-                    line_pen.setCapStyle(QtCore.Qt.RoundCap)  # Rounded caps for smoother look
+                                                              
+                    line_pen = QtGui.QPen(color, 2)                       
+                    line_pen.setCapStyle(QtCore.Qt.RoundCap)                                  
                     line = scene.addLine(bottom_left_x, bottom_y, no_center_x, no_center_y, line_pen)
                 
-                # Render box if enabled
+                                       
                 if box_rendering:
-                    # Create modern looking box with enhanced styling
-                    box_pen = QtGui.QPen(color, 2)  # Increased thickness for better visibility
-                    box_pen.setCapStyle(QtCore.Qt.SquareCap)  # Square caps for pixelated look
-                    box_pen.setJoinStyle(QtCore.Qt.MiterJoin)  # Sharp corners
+                                                                     
+                    box_pen = QtGui.QPen(color, 2)                                             
+                    box_pen.setCapStyle(QtCore.Qt.SquareCap)                                  
+                    box_pen.setJoinStyle(QtCore.Qt.MiterJoin)                 
                     rect = scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
 
-                # Render HP bar if enabled
+                                          
                 if hp_bar_rendering:
                     max_hp = 100
                     hp_percentage = min(1.0, max(0.0, entity_hp / max_hp))
-                    hp_bar_width = 3  # Increased width for better visibility
+                    hp_bar_width = 3                                         
                     hp_bar_height = deltaZ
                     hp_bar_x_left = leftX - hp_bar_width - 3
                     hp_bar_y_top = head_pos[1]
                     
-                    # Create modern HP bar with enhanced styling
-                    # Background with border
+                                                                
+                                            
                     bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
                     hp_bar_bg = scene.addRect(QtCore.QRectF(hp_bar_x_left-1, hp_bar_y_top-1, hp_bar_width+2, hp_bar_height+2), bg_pen, QtGui.QColor(0, 0, 0, 120))
                     
-                    # HP gradient from red to green based on percentage
+                                                                       
                     hp_color = QtGui.QColor()
                     if hp_percentage > 0.6:
-                        hp_color.setRgb(int(255*(1-hp_percentage)), 255, 0)  # Green to yellow
+                        hp_color.setRgb(int(255*(1-hp_percentage)), 255, 0)                   
                     elif hp_percentage > 0.3:
-                        hp_color.setRgb(255, int(255*hp_percentage/0.6), 0)  # Yellow to red
+                        hp_color.setRgb(255, int(255*hp_percentage/0.6), 0)                 
                     else:
-                        hp_color.setRgb(255, 0, 0)  # Red
+                        hp_color.setRgb(255, 0, 0)       
                     
                     current_hp_height = hp_bar_height * hp_percentage
                     hp_bar_y_bottom = hp_bar_y_top + hp_bar_height - current_hp_height
                     hp_bar_current = scene.addRect(QtCore.QRectF(hp_bar_x_left, hp_bar_y_bottom, hp_bar_width, current_hp_height), QtGui.QPen(QtCore.Qt.NoPen), hp_color)
                     
-                    # Render modern armor bar if there's armor
+                                                              
                     if armor_hp > 0:
                         max_armor_hp = 100
                         armor_hp_percentage = min(1.0, max(0.0, armor_hp / max_armor_hp))
-                        armor_bar_width = 3  # Increased width to match HP bar
+                        armor_bar_width = 3                                   
                         armor_bar_height = deltaZ
                         armor_bar_x_left = hp_bar_x_left - armor_bar_width - 3
                         armor_bar_y_top = head_pos[1]
                         
-                        # Background with border for armor bar
+                                                              
                         armor_bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
                         armor_bar_bg = scene.addRect(QtCore.QRectF(armor_bar_x_left-1, armor_bar_y_top-1, armor_bar_width+2, armor_bar_height+2), armor_bg_pen, QtGui.QColor(0, 0, 0, 120))
                         
                         current_armor_height = armor_bar_height * armor_hp_percentage
                         armor_bar_y_bottom = armor_bar_y_top + armor_bar_height - current_armor_height
-                        # Blue armor color with better visibility
-                        armor_color = QtGui.QColor(100, 149, 237)  # Cornflower blue
+                                                                 
+                        armor_color = QtGui.QColor(100, 149, 237)                   
                         armor_bar_current = scene.addRect(QtCore.QRectF(armor_bar_x_left, armor_bar_y_bottom, armor_bar_width, current_armor_height), QtGui.QPen(QtCore.Qt.NoPen), armor_color)
 
-                # Render head hitbox if enabled
+                                               
                 if head_hitbox_rendering:
                     head_hitbox_size = (rightX - leftX) / 5
                     head_hitbox_radius = head_hitbox_size * 2 ** 0.5 / 2
                     head_hitbox_x = leftX + 2.5 * head_hitbox_size
                     head_hitbox_y = head_pos[1] + deltaZ / 9
                     
-                    # Modern head hitbox with border
+                                                    
                     hitbox_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 200), 2)
                     hitbox_pen.setCapStyle(QtCore.Qt.RoundCap)
-                    hitbox_color = QtGui.QColor(255, 0, 0, 100)  # Semi-transparent red
+                    hitbox_color = QtGui.QColor(255, 0, 0, 100)                        
                     ellipse = scene.addEllipse(QtCore.QRectF(head_hitbox_x - head_hitbox_radius, head_hitbox_y - head_hitbox_radius, head_hitbox_radius * 2, head_hitbox_radius * 2), hitbox_pen, hitbox_color)
 
-                # Render bones if enabled
+                                         
                 if bones_rendering:
                     draw_Bones(scene, pm, bone_matrix, view_matrix, window_width, window_height)
 
-                # Render enhanced nickname if enabled
+                                                     
                 if nickname_rendering:
                     player_name = pm.read_string(entity_controller + m_iszPlayerName, 32)
                     font_size = max(6, min(18, deltaZ / 25))
                     font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
-                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
                     name_text = scene.addText(player_name, font)
                     text_rect = name_text.boundingRect()
                     name_x = head_pos[0] - text_rect.width() / 2
                     name_y = head_pos[1] - text_rect.height()
                     name_text.setPos(name_x, name_y)
                     
-                    # Add text outline for better visibility
+                                                            
                     name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
                     
-                    # Create text shadow effect
+                                               
                     shadow_text = scene.addText(player_name, font)
                     shadow_text.setPos(name_x + 1, name_y + 1)
                     shadow_text.setDefaultTextColor(QtGui.QColor(0, 0, 0, 150))
-                    shadow_text.setZValue(-1)  # Put shadow behind main text
+                    shadow_text.setZValue(-1)                               
                 
-                # Render spotted status if enabled (independent of nickname)
+                                                                            
                 if settings.get('show_visibility', 0) == 1:
                     try:
                         try:
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             is_spotted = spotted_flag != 0
                         except Exception:
-                            # Fallback to bool read
+                                                   
                             try:
                                 is_spotted = pm.read_bool(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
                             except Exception:
@@ -3913,18 +3812,18 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                         font_size = max(6, min(18, deltaZ / 25))
                         vis_font = QtGui.QFont('MS PGothic', max(5, min(14, font_size)))
                         vis_font.setBold(True)
-                        vis_font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+                        vis_font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
                         vis_item = scene.addText(vis_text, vis_font)
                         vrect = vis_item.boundingRect()
                         vis_x = head_pos[0] - vrect.width() / 2
                         
-                        # Position spotted status based on whether nickname is shown
+                                                                                    
                         if nickname_rendering:
-                            # If nickname is shown, place spotted status above it
-                            name_y = head_pos[1] - 20  # Approximate nickname position
+                                                                                 
+                            name_y = head_pos[1] - 20                                 
                             vis_y = name_y - 15
                         else:
-                            # If no nickname, place spotted status above head
+                                                                             
                             vis_y = head_pos[1] - 20
                         
                         vis_item.setPos(vis_x, vis_y)
@@ -3936,11 +3835,11 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     except Exception:
                         pass
                 
-                # Render enhanced weapon if enabled
+                                                   
                 if weapon_rendering and weapon_name:
                     font_size = max(6, min(18, deltaZ / 25))
                     font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
-                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)  # Better text rendering
+                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
                     weapon_name_text = scene.addText(weapon_name, font)
                     text_rect = weapon_name_text.boundingRect()
                     weapon_name_x = head_pos[0] - text_rect.width() / 2
@@ -3948,11 +3847,11 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     weapon_name_text.setPos(weapon_name_x, weapon_name_y)
                     weapon_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
                     
-                    # Add weapon text shadow effect
+                                                   
                     weapon_shadow_text = scene.addText(weapon_name, font)
                     weapon_shadow_text.setPos(weapon_name_x + 1, weapon_name_y + 1)
                     weapon_shadow_text.setDefaultTextColor(QtGui.QColor(0, 0, 0, 150))
-                    weapon_shadow_text.setZValue(-1)  # Put shadow behind main text
+                    weapon_shadow_text.setZValue(-1)                               
 
 
             except:
@@ -4030,7 +3929,7 @@ def esp_main():
         if w is not None and h is not None:
             window_width, window_height = w, h
         
-        # Use the improved CS2 detection function
+                                                 
         if is_cs2_running():
             try:
                 pm = pymem.Pymem("cs2.exe")
@@ -4053,7 +3952,7 @@ def esp_main():
     window = ESPWindow(settings, window_width=window_width, window_height=window_height)
     
     try:
-        # Use global offsets and client_dll
+                                           
         window.offsets = offsets
         window.client_dll = client_dll
         window.pm = pm
@@ -4063,7 +3962,6 @@ def esp_main():
 
     window.show()
     sys.exit(app.exec())
-
 
 def triggerbot():
     from pynput.mouse import Controller, Button
@@ -4087,7 +3985,7 @@ def triggerbot():
         pm = None
         client = None
         
-        # State tracking for first shot delay
+                                             
         trigger_key_pressed = False
         first_shot_time = None
         
@@ -4113,20 +4011,20 @@ def triggerbot():
                 
                 vk = key_str_to_vk(keyboards)
                 
-                # Check if trigger key is on cooldown
+                                                     
                 if is_keybind_on_global_cooldown("TriggerKey"):
                     key_currently_pressed = False
                 else:
-                    # Check if trigger key is currently pressed
+                                                               
                     key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                 
-                # Track key press state changes
+                                               
                 if key_currently_pressed and not trigger_key_pressed:
-                    # Key just pressed - start first shot timer
+                                                               
                     trigger_key_pressed = True
                     first_shot_time = time.time()
                 elif not key_currently_pressed and trigger_key_pressed:
-                    # Key just released - reset state
+                                                     
                     trigger_key_pressed = False
                     first_shot_time = None
                 
@@ -4136,7 +4034,7 @@ def triggerbot():
                             player = pm.read_longlong(client + dwLocalPlayerPawn)
                             entityId = pm.read_int(player + m_iIDEntIndex)
                             
-                            # Debug: Print entityId to see if we're detecting targets
+                                                                                     
                             if entityId > 0:
                                 pass
                             
@@ -4148,46 +4046,46 @@ def triggerbot():
                                 playerTeam = pm.read_int(player + m_iTeamNum)
                                 entityHp = pm.read_int(entity + m_iHealth)
                                 
-                                # Debug: Print team and health info
+                                                                   
                                 pass
                                 
-                                # Triggerbot should only shoot enemies, never teammates
+                                                                                       
                                 if entityTeam != playerTeam:
                                     if entityHp > 0:
-                                        # Check if first shot delay has elapsed
+                                                                               
                                         current_time = time.time()
                                         if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
                                             pass
                                             
-                                            # Fire the shot
+                                                           
                                             try:
                                                 mouse.press(Button.left)
                                                 mouse.release(Button.left)
                                                 pass
                                                 
-                                                # Set up for continuous firing
+                                                                              
                                                 if first_shot_time is not None:
-                                                    first_shot_time = None  # Clear first shot delay
+                                                    first_shot_time = None                          
                                                 last_shot_time = current_time
                                                 
-                                                # Continuous firing loop
+                                                                        
                                                 while key_currently_pressed and trigger_bot_active == 1:
-                                                    time.sleep(0.001)  # Small sleep first
+                                                    time.sleep(0.001)                     
                                                     
-                                                    # Check if enough time has passed for next shot
+                                                                                                   
                                                     current_time = time.time()
                                                     if current_time - last_shot_time >= (delay_ms / 1000.0):
-                                                        # Re-check key state
+                                                                            
                                                         key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                                                         if not key_currently_pressed:
                                                             break
                                                         
-                                                        # Re-check settings
+                                                                           
                                                         trigger_bot_active = settings.get("trigger_bot_active", 0)
                                                         if trigger_bot_active != 1:
                                                             break
                                                         
-                                                        # Re-read player/entity to ensure still valid target
+                                                                                                            
                                                         try:
                                                             player_r = pm.read_longlong(client + dwLocalPlayerPawn)
                                                             entityId_r = pm.read_int(player_r + m_iIDEntIndex)
@@ -4199,7 +4097,7 @@ def triggerbot():
                                                             entity_r = pm.read_longlong(entEntry_r + 0x78 * (entityId_r & 0x1FF))
                                                             entityTeam_r = pm.read_int(entity_r + m_iTeamNum)
                                                             playerTeam_r = pm.read_int(player_r + m_iTeamNum)
-                                                            # Triggerbot should only shoot enemies, never teammates
+                                                                                                                   
                                                             if entityTeam_r == playerTeam_r:
                                                                 pass
                                                                 break
@@ -4211,7 +4109,7 @@ def triggerbot():
                                                             pass
                                                             break
                                                         
-                                                        # Fire next shot
+                                                                        
                                                         try:
                                                             mouse.press(Button.left)
                                                             mouse.release(Button.left)
@@ -4230,26 +4128,26 @@ def triggerbot():
                                 else:
                                     pass
                             else:
-                                # Only print this occasionally to avoid spam
+                                                                            
                                 if hasattr(main, '_no_target_counter'):
                                     main._no_target_counter += 1
                                 else:
                                     main._no_target_counter = 1
                                     
-                                if main._no_target_counter % 100 == 0:  # Print every 100 iterations
+                                if main._no_target_counter % 100 == 0:                              
                                     pass
                         except Exception as e:
                             pass
                     else:
-                        # Only print this occasionally
+                                                      
                         if hasattr(main, '_inactive_counter'):
                             main._inactive_counter += 1
                         else:
                             main._inactive_counter = 1
                             
-                        if main._inactive_counter % 1000 == 0:  # Print every 1000 iterations
+                        if main._inactive_counter % 1000 == 0:                               
                             pass
-                # Idle sleep when not actively repeating shots: keep short for responsiveness
+                                                                                             
                 time.sleep(0.01)
             except KeyboardInterrupt:
                 break
@@ -4282,7 +4180,7 @@ def bhop():
     import time
     import keyboard
     
-    # Timing constants
+                      
     TICK_64_MS = 0.0156
     exit_key = "end"
     toggle_key = "+"
@@ -4296,7 +4194,7 @@ def bhop():
         
         key = str(key_str).strip().upper()
         
-        # Handle special cases for keyboard library
+                                                   
         key_mapping = {
             'SPACE': 'space',
             'ENTER': 'enter',
@@ -4319,7 +4217,7 @@ def bhop():
             'END': 'end',
             'PAGEUP': 'page up',
             'PAGEDOWN': 'page down',
-            # Mouse buttons fallback to space
+                                             
             'LMB': 'space',
             'RMB': 'space',
             'MMB': 'space',
@@ -4330,7 +4228,7 @@ def bhop():
         if key in key_mapping:
             return key_mapping[key]
         
-        # Handle F-keys
+                       
         if key.startswith('F') and key[1:].isdigit():
             try:
                 num = int(key[1:])
@@ -4339,29 +4237,29 @@ def bhop():
             except:
                 pass
         
-        # Handle single characters - be very specific about format
+                                                                  
         if len(key) == 1:
             if key.isalpha():
                 return key.lower()
             elif key.isdigit():
                 return key
         
-        # If nothing matches, test if the key is valid by trying to use it
+                                                                          
         try:
-            # Test if keyboard library recognizes this key
+                                                          
             keyboard.is_pressed(key.lower())
             return key.lower()
         except:
             pass
         
         try:
-            # Test uppercase
+                            
             keyboard.is_pressed(key)
             return key
         except:
             pass
         
-        # Fallback to space if nothing works
+                                            
         return "space"
 
     def send_space(duration):
@@ -4412,11 +4310,11 @@ def bhop():
                 bhop_enabled = settings.get("bhop_enabled", 0)
                 
                 if bhop_enabled == 1 and is_cs2_window_active():
-                    # Get the current keybind from settings each time (this allows live updates)
+                                                                                                
                     bhop_key_setting = settings.get("BhopKey", "SPACE")
                     activation_key = convert_key_to_keyboard_format(bhop_key_setting)
                     
-                    # Test if the key is valid, fallback to space if not
+                                                                        
                     try:
                         keyboard.is_pressed(activation_key)
                     except:
@@ -4544,27 +4442,27 @@ def aim():
                 game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                 bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                 try:
-                    # Get the bone target index from settings
-                    aim_bone_target_idx = int(settings.get('aim_bone_target', 1))  # Default to head
+                                                             
+                    aim_bone_target_idx = int(settings.get('aim_bone_target', 1))                   
                     
-                    # Use the global BONE_TARGET_MODES and bone_ids for consistency
+                                                                                   
                     global BONE_TARGET_MODES, bone_ids
                     
-                    # Get target bone configuration from global BONE_TARGET_MODES
+                                                                                 
                     if aim_bone_target_idx in BONE_TARGET_MODES:
                         target_bone_name = BONE_TARGET_MODES[aim_bone_target_idx]["bone"]
                     else:
-                        target_bone_name = "head"  # Default fallback
+                        target_bone_name = "head"                    
                     
-                    # Get the bone ID from the global bone_ids dictionary
+                                                                         
                     if target_bone_name in bone_ids:
                         bone_id = bone_ids[target_bone_name]
                     else:
-                        bone_id = bone_ids["head"]  # Default to head bone ID
+                        bone_id = bone_ids["head"]                           
 
-                    # Calculate bone positions for all targetable bones from global bone_ids
+                                                                                            
                     bone_positions = {}
-                    bone_ids_to_calc = list(bone_ids.values())  # Use the global bone_ids values
+                    bone_ids_to_calc = list(bone_ids.values())                                  
                     for bone_name, bid in bone_ids.items():
                         try:
                             bx = pm.read_float(bone_matrix + bid * 0x20)
@@ -4602,7 +4500,7 @@ def aim():
         locked entity and will only set a new lock when the AimKey edge was
         detected in `main()` (that clears previous lock on fresh press).
         """
-        # Load settings for mouse blocking
+                                          
         try:
             settings = load_settings()
         except Exception:
@@ -4614,23 +4512,23 @@ def aim():
         center_x = win32api.GetSystemMetrics(0) // 2
         center_y = win32api.GetSystemMetrics(1) // 2
 
-        aim_bone_target_idx = int(settings.get('aim_bone_target', 1)) if settings.get('aim_bone_target') is not None else 1  # Default to head
+        aim_bone_target_idx = int(settings.get('aim_bone_target', 1)) if settings.get('aim_bone_target') is not None else 1                   
         
-        # Use the global BONE_TARGET_MODES and bone_ids for consistency
+                                                                       
         global BONE_TARGET_MODES, bone_ids
 
         def _select_bone_for_entity(ent_addr):
-            # Get target bone configuration from global BONE_TARGET_MODES
+                                                                         
             if aim_bone_target_idx in BONE_TARGET_MODES:
                 target_bone_name = BONE_TARGET_MODES[aim_bone_target_idx]["bone"]
             else:
-                target_bone_name = "head"  # Default fallback
+                target_bone_name = "head"                    
 
-            # Get the bone ID from the global bone_ids dictionary
+                                                                 
             if target_bone_name in bone_ids:
                 return bone_ids[target_bone_name]
             else:
-                return bone_ids["head"]  # Default to head bone ID
+                return bone_ids["head"]                           
 
         
         closest = None  
@@ -4719,30 +4617,30 @@ def aim():
 
         
 
-        # Target the selected bone position directly without offset
+                                                                   
         target_x, target_y = pos
         dx = target_x - center_x
         dy = target_y - center_y
 
-        # Use regular smoothness value
+                                      
         if smoothness is None:
             smoothness = 0
 
-        # Distance-based smoothness modification (applies to both regular and dynamic)
-        # Feature removed
+                                                                                      
+                         
 
         if smoothness <= 0:
             move_x = int(dx)
             move_y = int(dy)
         else:
-            # Improved smoothness formula - uses slider's maximum value automatically
-            # smoothness 0 = instant (alpha = 1.0)
-            # smoothness max = maximum smooth (alpha = 0.0005)
+                                                                                     
+                                                  
+                                                              
             max_smoothness = float(globals().get('smooth_slider_max', 1000000))
-            min_alpha = 0.0005  # Minimum movement multiplier (0.05%)
-            max_alpha = 1.0     # Maximum movement multiplier (100%)
+            min_alpha = 0.0005                                       
+            max_alpha = 1.0                                         
             
-            # Exponential curve for better feel across the range
+                                                                
             normalized_smoothness = min(1.0, smoothness / max_smoothness)
             alpha = min_alpha + (max_alpha - min_alpha) * (1.0 - normalized_smoothness) ** 2
             
@@ -4753,19 +4651,19 @@ def aim():
             if move_y == 0 and dy != 0:
                 move_y = 1 if dy > 0 else -1
 
-        # Check if we should disable aim when crosshair is on enemy
+                                                                   
         disable_when_crosshair_on_enemy = settings.get('aim_disable_when_crosshair_on_enemy', 0) == 1
         
         if disable_when_crosshair_on_enemy and pm and client:
             try:
-                # Get local player and check what's in crosshair
+                                                                
                 local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
                 if local_player_pawn_addr:
-                    # Check what entity is in crosshair
+                                                       
                     entity_id = pm.read_int(local_player_pawn_addr + m_iIDEntIndex)
                     
                     if entity_id > 0:
-                        # Get the entity in crosshair
+                                                     
                         entity_list = pm.read_longlong(client + dwEntityList)
                         entity_entry = pm.read_longlong(entity_list + 0x8 * (entity_id >> 9) + 0x10)
                         entity = pm.read_longlong(entity_entry + 0x78 * (entity_id & 0x1FF))
@@ -4775,14 +4673,14 @@ def aim():
                             entity_health = pm.read_int(entity + m_iHealth)
                             local_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
                             
-                            # If crosshair is on a living enemy, don't move mouse
+                                                                                 
                             if entity_health > 0 and entity_team != local_team:
-                                return  # Exit without moving mouse
+                                return                             
                             
             except Exception:
-                pass  # If crosshair check fails, continue with normal aim
+                pass                                                      
 
-        # Perform the aimbot mouse movement
+                                           
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
 
     def main(settings):
@@ -4808,13 +4706,13 @@ def aim():
             target_list = []
             target_list = esp(pm, client, settings, target_list, window_size)
             
-            # Check aim key
+                           
             try:
                 vk = key_str_to_vk(settings.get('AimKey', ''))
             except Exception:
                 vk = 0
             try:
-                # Check if aim key is on cooldown
+                                                 
                 if is_keybind_on_global_cooldown("AimKey"):
                     pressed = False
                 else:
@@ -4824,7 +4722,7 @@ def aim():
 
             
             
-            # Handle normal aim mode
+                                    
             try:
                 if pressed and not aim_lock_state.get('aim_was_pressed', False):
                     aim_lock_state['locked_entity'] = None
@@ -4836,7 +4734,7 @@ def aim():
                 pass
 
             if pressed:
-                # Use the aim smoothness setting
+                                                
                 smoothness = settings.get('aim_smoothness', 0)
                 aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
             time.sleep(0.001)
@@ -4866,27 +4764,26 @@ def wait_for_cs2_startup():
     """Wait for CS2 to start and then wait additional 6 seconds"""
     pass
     
-    # Wait for CS2 process to appear
+                                    
     while not is_cs2_running():
         time.sleep(0.5)
     
-    # Check if startup delays are enabled
+                                         
     if STARTUP_ENABLED:
         pass
         time.sleep(25)
         
-        # Restart graphics driver
+                                 
         trigger_graphics_restart()
         
         pass
-
 
 def find_accept_button():
     """Find the green accept button on screen"""
     try:
         screenshot = ImageGrab.grab()
         img = np.array(screenshot)
-        # Green color for accept button (may need adjustment)
+                                                             
         color = (54, 183, 82)
         color_match = np.all(img == color, axis=-1).astype(int)
         kernel = np.ones((10, 10))
@@ -4901,12 +4798,11 @@ def find_accept_button():
         pass
     return None
 
-
 def auto_accept_main():
     """Main auto accept loop"""
     while True:
         try:
-            # Load config each loop in case user toggles
+                                                        
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r') as f:
                     settings = json.load(f)
@@ -4922,7 +4818,7 @@ def auto_accept_main():
                 x, y = pos
                 pyautogui.moveTo(x, y)
                 pyautogui.click()
-                # Move mouse back to center
+                                           
                 screen_width, screen_height = pyautogui.size()
                 pyautogui.moveTo(screen_width // 2, screen_height // 2)
                 time.sleep(3)
@@ -4933,7 +4829,7 @@ def auto_accept_main():
 
 if __name__ == "__main__":
     
-    # Setup debug console if DEBUG_MODE is enabled
+                                                  
     setup_debug_console()
     debug_print("Starting Popsicle CS2 application...")
     
@@ -4942,23 +4838,23 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # Start version check worker in background
+                                              
     version_thread = threading.Thread(target=version_check_worker, daemon=True)
     version_thread.start()
     debug_print("Version check worker started")
 
-    # Check for existing instance and handle user choice
+                                                        
     if not handle_instance_check():
         sys.exit(0)
     
-    # Create lock file to indicate this instance is running
+                                                           
     if not create_lock_file():
         app_title = get_app_title()
         ctypes.windll.user32.MessageBoxW(
             0,
             "Failed to create lock file. Another instance may be starting.",
             f"{app_title} - Error",
-            0x00000010 | 0x00010000 | 0x00040000  # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST
+            0x00000010 | 0x00010000 | 0x00040000                                                
         )
         sys.exit(0)
     
@@ -4970,19 +4866,19 @@ if __name__ == "__main__":
     IDOK = 1
     IDCANCEL = 2
     
-    # Check if CS2 is already running
+                                     
     if is_cs2_running():
         debug_print("CS2 is already running - proceeding with startup")
-        # Check if startup delays are enabled
+                                             
         if STARTUP_ENABLED:
             debug_print("Startup delays enabled - waiting 4 seconds")
             time.sleep(4)
             
-            # Restart graphics driver
+                                     
             debug_print("Triggering graphics restart")
             trigger_graphics_restart()
             
-        # CS2 is already running, start everything after delay
+                                                              
         pm = None
         try:
             pm = pymem.Pymem("cs2.exe")
@@ -4991,11 +4887,11 @@ if __name__ == "__main__":
             debug_print("Failed to connect to CS2 process initially")
     else:
         debug_print("CS2 is not running - showing wait dialog")
-        # CS2 is not running, show message and wait
+                                                   
         app_title = get_app_title()
         result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
         if result != IDOK:
-            # User clicked Cancel or closed the dialog, exit the script
+                                                                       
             remove_lock_file()
             try:
                 if os.path.exists(KEYBIND_COOLDOWNS_FILE):
@@ -5004,10 +4900,10 @@ if __name__ == "__main__":
                 pass
             sys.exit(0)
         
-        # Wait for CS2 to start and then wait 6 seconds
+                                                       
         wait_for_cs2_startup()
         
-        # Now ensure CS2 is accessible
+                                      
         pm = None
         while pm is None:
             try:
@@ -5040,7 +4936,7 @@ if __name__ == "__main__":
             
             if os.path.exists(TERMINATE_SIGNAL_FILE):
                 break
-            # Use the new CS2 detection function instead of trying to create pymem object
+                                                                                         
             if not is_cs2_running():
                 pass
                 break
@@ -5053,7 +4949,7 @@ if __name__ == "__main__":
             except Exception:
                 pass
         
-        # Clean up files
+                        
         remove_lock_file()
         try:
             if os.path.exists(TERMINATE_SIGNAL_FILE):
@@ -5066,5 +4962,3 @@ if __name__ == "__main__":
         except Exception:
             pass
         sys.exit(0)
-
-
