@@ -425,6 +425,7 @@ DEFAULT_SETTINGS = {
     "menu_theme_color": "#FF0000",
     "rainbow_fov": 0,
     "rainbow_center_dot": 0,
+    "rainbow_menu_theme": 0,
     "low_cpu": 0,
     "fps_limit": 60,
 }
@@ -813,6 +814,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self._window_monitor_timer.start(100)                     
         self._was_visible = True                          
         self._drag_end_time = 0                             
+        
+                                                    
+        self._rainbow_menu_timer = QtCore.QTimer(self)
+        self._rainbow_menu_timer.timeout.connect(self._update_rainbow_menu_theme)
+        self._rainbow_menu_timer.start(50)                     
         
                                                           
         if not self.is_game_window_active():
@@ -1366,6 +1372,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.rainbow_center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.rainbow_center_dot_cb)
 
+                                   
+        self.rainbow_menu_theme_cb = QtWidgets.QCheckBox("Rainbow Menu Theme")
+        self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
+        self.rainbow_menu_theme_cb.stateChanged.connect(self.save_settings)
+        self.rainbow_menu_theme_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        colors_layout.addWidget(self.rainbow_menu_theme_cb)
+
         colors_container.setLayout(colors_layout)
         colors_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return colors_container
@@ -1613,7 +1626,7 @@ class ConfigWindow(QtWidgets.QWidget):
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
             'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn',
-            'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb',
+            'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb',
             'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
@@ -1655,7 +1668,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     'trigger_bot_active_cb': 'trigger_bot_active',
                     'aim_active_cb': 'aim_active',
                     'aim_circle_visible_cb': 'aim_circle_visible',
-                    'rainbow_fov_cb': 'rainbow_fov', 'low_cpu_cb': 'low_cpu'
+                    'rainbow_fov_cb': 'rainbow_fov', 'rainbow_center_dot_cb': 'rainbow_center_dot', 'rainbow_menu_theme_cb': 'rainbow_menu_theme', 'low_cpu_cb': 'low_cpu'
                 }
                 for cb_name, key in mapping.items():
                     cb = getattr(self, cb_name, None)
@@ -1810,6 +1823,11 @@ class ConfigWindow(QtWidgets.QWidget):
         
         try:
             self.settings["rainbow_center_dot"] = 1 if getattr(self, 'rainbow_center_dot_cb', None) and self.rainbow_center_dot_cb.isChecked() else 0
+        except Exception:
+            pass
+        
+        try:
+            self.settings["rainbow_menu_theme"] = 1 if getattr(self, 'rainbow_menu_theme_cb', None) and self.rainbow_menu_theme_cb.isChecked() else 0
         except Exception:
             pass
         
@@ -2372,6 +2390,58 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             if hasattr(self, 'header_label') and self.header_label:
                 self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 14px;")
+        except Exception:
+            pass
+
+    def _update_rainbow_menu_theme(self):
+        """Update menu theme with rainbow colors when rainbow_menu_theme is enabled"""
+        try:
+            rainbow_enabled = self.settings.get('rainbow_menu_theme', 0) == 1
+            
+                                                                               
+            if not hasattr(self, '_rainbow_was_enabled'):
+                self._rainbow_was_enabled = False
+                
+            if rainbow_enabled:
+                global RAINBOW_HUE
+                                                                                               
+                if (self.settings.get('rainbow_fov', 0) != 1 and 
+                    self.settings.get('rainbow_center_dot', 0) != 1):
+                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                
+                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
+                
+                                                                                          
+                self.settings['current_rainbow_color'] = rainbow_color
+                save_settings(self.settings)
+                
+                                                                             
+                self.update_menu_theme_styling(rainbow_color)
+                
+                                                                        
+                if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
+                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {rainbow_color}; color: white;')
+                    
+                self._rainbow_was_enabled = True
+                
+            elif self._rainbow_was_enabled:
+                                                                                    
+                                                                               
+                if 'current_rainbow_color' in self.settings:
+                    del self.settings['current_rainbow_color']
+                save_settings(self.settings)
+                
+                                                                                  
+                original_color = self.settings.get('menu_theme_color', '#FF0000')
+                self.update_menu_theme_styling(original_color)
+                
+                                                                              
+                if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
+                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {original_color}; color: white;')
+                    
+                self._rainbow_was_enabled = False
+                
         except Exception:
             pass
 
@@ -3042,8 +3112,16 @@ class ESPWindow(QtWidgets.QWidget):
                 fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", fps_font)
                 
                                                                
-                theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
-                theme_color = QtGui.QColor(theme_color_hex)
+                if self.settings.get('rainbow_menu_theme', 0) == 1:
+                    try:
+                        rainbow_color_hex = self.settings.get('current_rainbow_color', '#FF0000')
+                        theme_color = QtGui.QColor(rainbow_color_hex)
+                    except Exception:
+                        theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                        theme_color = QtGui.QColor(theme_color_hex)
+                else:
+                    theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                    theme_color = QtGui.QColor(theme_color_hex)
                 fps_item.setDefaultTextColor(theme_color)
                 fps_item.setPos(5, 5)
             except Exception:
@@ -3213,8 +3291,16 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         radar_bg = QtGui.QColor(0, 0, 0, radar_opacity)
         
                                           
-        theme_color_hex = settings.get('menu_theme_color', '#FF0000')
-        theme_color = QtGui.QColor(theme_color_hex)
+        if settings.get('rainbow_menu_theme', 0) == 1:
+            try:
+                rainbow_color_hex = settings.get('current_rainbow_color', '#FF0000')
+                theme_color = QtGui.QColor(rainbow_color_hex)
+            except Exception:
+                theme_color_hex = settings.get('menu_theme_color', '#FF0000')
+                theme_color = QtGui.QColor(theme_color_hex)
+        else:
+            theme_color_hex = settings.get('menu_theme_color', '#FF0000')
+            theme_color = QtGui.QColor(theme_color_hex)
         theme_color.setAlpha(200)                                   
         radar_border = theme_color
         
