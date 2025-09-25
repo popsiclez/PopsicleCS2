@@ -407,6 +407,7 @@ DEFAULT_SETTINGS = {
     "TriggerKey": "X", 
     "triggerbot_delay": 30,
     "triggerbot_first_shot_delay": 0,
+    "triggerbot_head_only": 0,  # Only fire if aiming at head
     
                    
     "bhop_enabled": 0,
@@ -1121,6 +1122,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.stateChanged.connect(self.save_settings)
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
+
+        self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Triggerbot: Only Fire at Head")
+        self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
+        self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
+        self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.triggerbot_head_only_cb)
 
         
         self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -1898,6 +1905,12 @@ class ConfigWindow(QtWidgets.QWidget):
 
         
         self.settings["trigger_bot_active"] = 1 if self.trigger_bot_active_cb.isChecked() else 0
+
+        # Add the new triggerbot head-only setting
+        try:
+            self.settings["triggerbot_head_only"] = 1 if getattr(self, 'triggerbot_head_only_cb', None) and self.triggerbot_head_only_cb.isChecked() else 0
+        except Exception:
+            pass
 
         
         
@@ -4094,7 +4107,7 @@ def triggerbot():
                 keyboards = settings.get("TriggerKey", "X")
                 delay_ms = settings.get("triggerbot_delay", 30)
                 first_shot_delay_ms = settings.get("triggerbot_first_shot_delay", 0)
-                
+                head_only = settings.get("triggerbot_head_only", 0)
                 vk = key_str_to_vk(keyboards)
                 
                                                      
@@ -4138,74 +4151,89 @@ def triggerbot():
                                                                                        
                                 if entityTeam != playerTeam:
                                     if entityHp > 0:
-                                                                               
+                                        # Head-only logic
+                                        if head_only:
+                                            try:
+                                                # Get view matrix and window size
+                                                view_matrix_addr = pm.read_longlong(client + dwViewMatrix)
+                                                view_matrix = [pm.read_float(view_matrix_addr + i * 4) for i in range(16)]
+                                                w, h = get_window_size("Counter-Strike 2")
+                                                if w is None or h is None:
+                                                    continue  # Can't get window size, skip head check
+                                                # Get head bone position
+                                                bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
+                                                bone_matrix = pm.read_longlong(bone_ptr + 0x160)
+                                                head_id = 6  # bone_ids["head"]
+                                                head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                # Get screen center
+                                                cx, cy = w // 2, h // 2
+                                                # Allow a small pixel tolerance (e.g., 5px)
+                                                if abs(sx - cx) > 5 or abs(sy - cy) > 5:
+                                                    continue  # Not aiming at head
+                                            except Exception:
+                                                continue
                                         current_time = time.time()
                                         if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
-                                            pass
-                                            
-                                                           
                                             try:
                                                 mouse.press(Button.left)
                                                 mouse.release(Button.left)
-                                                pass
-                                                
-                                                                              
                                                 if first_shot_time is not None:
                                                     first_shot_time = None                          
                                                 last_shot_time = current_time
-                                                
-                                                                        
                                                 while key_currently_pressed and trigger_bot_active == 1:
                                                     time.sleep(0.001)                     
-                                                    
-                                                                                                   
                                                     current_time = time.time()
                                                     if current_time - last_shot_time >= (delay_ms / 1000.0):
-                                                                            
                                                         key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                                                         if not key_currently_pressed:
                                                             break
-                                                        
-                                                                           
                                                         trigger_bot_active = settings.get("trigger_bot_active", 0)
                                                         if trigger_bot_active != 1:
                                                             break
-                                                        
-                                                                                                            
                                                         try:
                                                             player_r = pm.read_longlong(client + dwLocalPlayerPawn)
                                                             entityId_r = pm.read_int(player_r + m_iIDEntIndex)
                                                             if entityId_r <= 0:
-                                                                pass
                                                                 break
                                                             entList_r = pm.read_longlong(client + dwEntityList)
                                                             entEntry_r = pm.read_longlong(entList_r + 0x8 * (entityId_r >> 9) + 0x10)
                                                             entity_r = pm.read_longlong(entEntry_r + 0x78 * (entityId_r & 0x1FF))
                                                             entityTeam_r = pm.read_int(entity_r + m_iTeamNum)
                                                             playerTeam_r = pm.read_int(player_r + m_iTeamNum)
-                                                                                                                   
                                                             if entityTeam_r == playerTeam_r:
-                                                                pass
                                                                 break
                                                             entityHp_r = pm.read_int(entity_r + m_iHealth)
                                                             if entityHp_r <= 0:
-                                                                pass
                                                                 break
-                                                        except Exception as e:
-                                                            pass
-                                                            break
-                                                        
-                                                                        
-                                                        try:
+                                                            # Head-only check for repeat shots
+                                                            if head_only:
+                                                                try:
+                                                                    view_matrix_addr = pm.read_longlong(client + dwViewMatrix)
+                                                                    view_matrix = [pm.read_float(view_matrix_addr + i * 4) for i in range(16)]
+                                                                    w, h = get_window_size("Counter-Strike 2")
+                                                                    if w is None or h is None:
+                                                                        break  # Can't get window size, stop shooting
+                                                                    bone_ptr = pm.read_longlong(entity_r + m_pGameSceneNode)
+                                                                    bone_matrix = pm.read_longlong(bone_ptr + 0x160)
+                                                                    head_id = 6
+                                                                    head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                                    head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                                    sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                                    cx, cy = w // 2, h // 2
+                                                                    if abs(sx - cx) > 5 or abs(sy - cy) > 5:
+                                                                        break
+                                                                except Exception:
+                                                                    break
                                                             mouse.press(Button.left)
                                                             mouse.release(Button.left)
                                                             last_shot_time = current_time
-                                                            pass
-                                                        except Exception as e:
-                                                            pass
+                                                        except Exception:
                                                             break
-                                                
-                                            except Exception as e:
+                                            except Exception:
                                                 pass
                                         else:
                                             pass
