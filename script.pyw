@@ -741,7 +741,6 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_container = self.create_trigger_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
-        sus_container = self.create_sus_container()
 
         
         tabs = QtWidgets.QTabWidget()
@@ -750,7 +749,6 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(trigger_container, "Trigger")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Misc")
-        tabs.addTab(sus_container, "sus")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
         tabs.setMovable(False)
         
@@ -1472,59 +1470,6 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return misc_container
-
-    def create_sus_container(self):
-        sus_container = QtWidgets.QWidget()
-        sus_layout = QtWidgets.QVBoxLayout()
-        sus_layout.setSpacing(6)
-        sus_layout.setContentsMargins(6, 6, 6, 6)
-        sus_layout.setAlignment(QtCore.Qt.AlignCenter)
-
-        try:
-            # Download and display the image
-            import urllib.request
-            image_url = "https://github.com/popsiclez/PopsicleCS2/blob/main/hydraulic%20press.png?raw=true"
-            
-            # Create QLabel for the image
-            image_label = QtWidgets.QLabel()
-            image_label.setAlignment(QtCore.Qt.AlignCenter)
-            image_label.setMinimumSize(400, 300)
-            
-            try:
-                # Download the image with timeout
-                request = urllib.request.Request(image_url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                })
-                with urllib.request.urlopen(request, timeout=10) as response:
-                    image_data = response.read()
-                
-                # Create QPixmap from the downloaded data
-                pixmap = QtGui.QPixmap()
-                pixmap.loadFromData(image_data)
-                
-                # Scale the image to fit nicely (max 400x400)
-                if not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(400, 400, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-                    image_label.setPixmap(scaled_pixmap)
-                else:
-                    image_label.setText("Failed to load image")
-                    image_label.setStyleSheet("color: white; font-size: 14px;")
-            except Exception as e:
-                image_label.setText(f"Could not load image:\n{str(e)}")
-                image_label.setStyleSheet("color: white; font-size: 12px;")
-            
-            sus_layout.addWidget(image_label)
-            
-        except Exception as e:
-            # Fallback if image loading fails
-            error_label = QtWidgets.QLabel(f"Sus tab failed to load:\n{str(e)}")
-            error_label.setAlignment(QtCore.Qt.AlignCenter)
-            error_label.setStyleSheet("color: white; font-size: 12px;")
-            sus_layout.addWidget(error_label)
-
-        sus_container.setLayout(sus_layout)
-        sus_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
-        return sus_container
 
     def on_auto_accept_changed(self):
         try:
