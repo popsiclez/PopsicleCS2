@@ -1123,7 +1123,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-        self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Triggerbot: Only Fire at Head")
+        self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Only Fire at Head")
         self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
         self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
         self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
@@ -4068,7 +4068,8 @@ def triggerbot():
     default_settings = {
         "TriggerKey": "X",
         "trigger_bot_active":  1,
-        "esp_mode": 1
+        "esp_mode": 1,
+        "triggerbot_head_only": 0
     }
 
     def load_settings():
@@ -4151,92 +4152,113 @@ def triggerbot():
                                                                                        
                                 if entityTeam != playerTeam:
                                     if entityHp > 0:
-                                        # Head-only logic
+                                        # Head-only logic - check if we should proceed with shooting
+                                        should_shoot = True
                                         if head_only:
+                                            should_shoot = False
                                             try:
                                                 # Get view matrix and window size
-                                                view_matrix_addr = pm.read_longlong(client + dwViewMatrix)
-                                                view_matrix = [pm.read_float(view_matrix_addr + i * 4) for i in range(16)]
+                                                view_matrix = []
+                                                for i in range(16):
+                                                    view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
+                                                
                                                 w, h = get_window_size("Counter-Strike 2")
-                                                if w is None or h is None:
-                                                    continue  # Can't get window size, skip head check
-                                                # Get head bone position
-                                                bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
-                                                bone_matrix = pm.read_longlong(bone_ptr + 0x160)
-                                                head_id = 6  # bone_ids["head"]
-                                                head_x = pm.read_float(bone_matrix + head_id * 0x20)
-                                                head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                                                head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                                                sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
-                                                # Get screen center
-                                                cx, cy = w // 2, h // 2
-                                                # Allow a small pixel tolerance (e.g., 5px)
-                                                if abs(sx - cx) > 5 or abs(sy - cy) > 5:
-                                                    continue  # Not aiming at head
+                                                if w is not None and h is not None:
+                                                    # Get head bone position
+                                                    bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
+                                                    if bone_ptr:
+                                                        bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
+                                                        if bone_matrix:
+                                                            head_id = 6  # bone_ids["head"]
+                                                            head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                            head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                            head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                            sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                            
+                                                            # Check if head is projected successfully and within screen bounds
+                                                            if sx != -999 and sy != -999:
+                                                                # Get screen center (crosshair position)
+                                                                cx, cy = w // 2, h // 2
+                                                                # Use precise tolerance for head shots (8px radius)
+                                                                distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
+                                                                if distance_to_head <= 8:
+                                                                    should_shoot = True
                                             except Exception:
-                                                continue
-                                        current_time = time.time()
-                                        if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
-                                            try:
-                                                mouse.press(Button.left)
-                                                mouse.release(Button.left)
-                                                if first_shot_time is not None:
-                                                    first_shot_time = None                          
-                                                last_shot_time = current_time
-                                                while key_currently_pressed and trigger_bot_active == 1:
-                                                    time.sleep(0.001)                     
-                                                    current_time = time.time()
-                                                    if current_time - last_shot_time >= (delay_ms / 1000.0):
-                                                        key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
-                                                        if not key_currently_pressed:
-                                                            break
-                                                        trigger_bot_active = settings.get("trigger_bot_active", 0)
-                                                        if trigger_bot_active != 1:
-                                                            break
-                                                        try:
-                                                            player_r = pm.read_longlong(client + dwLocalPlayerPawn)
-                                                            entityId_r = pm.read_int(player_r + m_iIDEntIndex)
-                                                            if entityId_r <= 0:
+                                                pass  # If head check fails, don't shoot in head-only mode
+                                        
+                                        if should_shoot:
+                                            current_time = time.time()
+                                            if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
+                                                try:
+                                                    mouse.press(Button.left)
+                                                    mouse.release(Button.left)
+                                                    if first_shot_time is not None:
+                                                        first_shot_time = None                          
+                                                    last_shot_time = current_time
+                                                    while key_currently_pressed and trigger_bot_active == 1:
+                                                        time.sleep(0.001)                     
+                                                        current_time = time.time()
+                                                        if current_time - last_shot_time >= (delay_ms / 1000.0):
+                                                            key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
+                                                            if not key_currently_pressed:
                                                                 break
-                                                            entList_r = pm.read_longlong(client + dwEntityList)
-                                                            entEntry_r = pm.read_longlong(entList_r + 0x8 * (entityId_r >> 9) + 0x10)
-                                                            entity_r = pm.read_longlong(entEntry_r + 0x78 * (entityId_r & 0x1FF))
-                                                            entityTeam_r = pm.read_int(entity_r + m_iTeamNum)
-                                                            playerTeam_r = pm.read_int(player_r + m_iTeamNum)
-                                                            if entityTeam_r == playerTeam_r:
+                                                            trigger_bot_active = settings.get("trigger_bot_active", 0)
+                                                            if trigger_bot_active != 1:
                                                                 break
-                                                            entityHp_r = pm.read_int(entity_r + m_iHealth)
-                                                            if entityHp_r <= 0:
-                                                                break
-                                                            # Head-only check for repeat shots
-                                                            if head_only:
-                                                                try:
-                                                                    view_matrix_addr = pm.read_longlong(client + dwViewMatrix)
-                                                                    view_matrix = [pm.read_float(view_matrix_addr + i * 4) for i in range(16)]
-                                                                    w, h = get_window_size("Counter-Strike 2")
-                                                                    if w is None or h is None:
-                                                                        break  # Can't get window size, stop shooting
-                                                                    bone_ptr = pm.read_longlong(entity_r + m_pGameSceneNode)
-                                                                    bone_matrix = pm.read_longlong(bone_ptr + 0x160)
-                                                                    head_id = 6
-                                                                    head_x = pm.read_float(bone_matrix + head_id * 0x20)
-                                                                    head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                                                                    sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
-                                                                    cx, cy = w // 2, h // 2
-                                                                    if abs(sx - cx) > 5 or abs(sy - cy) > 5:
-                                                                        break
-                                                                except Exception:
+                                                            try:
+                                                                player_r = pm.read_longlong(client + dwLocalPlayerPawn)
+                                                                entityId_r = pm.read_int(player_r + m_iIDEntIndex)
+                                                                if entityId_r <= 0:
                                                                     break
-                                                            mouse.press(Button.left)
-                                                            mouse.release(Button.left)
-                                                            last_shot_time = current_time
-                                                        except Exception:
-                                                            break
-                                            except Exception:
+                                                                entList_r = pm.read_longlong(client + dwEntityList)
+                                                                entEntry_r = pm.read_longlong(entList_r + 0x8 * (entityId_r >> 9) + 0x10)
+                                                                entity_r = pm.read_longlong(entEntry_r + 0x78 * (entityId_r & 0x1FF))
+                                                                entityTeam_r = pm.read_int(entity_r + m_iTeamNum)
+                                                                playerTeam_r = pm.read_int(player_r + m_iTeamNum)
+                                                                if entityTeam_r == playerTeam_r:
+                                                                    break
+                                                                entityHp_r = pm.read_int(entity_r + m_iHealth)
+                                                                if entityHp_r <= 0:
+                                                                    break
+                                                                # Head-only check for repeat shots
+                                                                if head_only:
+                                                                    should_continue = False
+                                                                    try:
+                                                                        view_matrix = []
+                                                                        for i in range(16):
+                                                                            view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
+                                                                        
+                                                                        w, h = get_window_size("Counter-Strike 2")
+                                                                        if w is not None and h is not None:
+                                                                            bone_ptr = pm.read_longlong(entity_r + m_pGameSceneNode)
+                                                                            if bone_ptr:
+                                                                                bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
+                                                                                if bone_matrix:
+                                                                                    head_id = 6
+                                                                                    head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                                                    head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                                                    sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                                                    
+                                                                                    if sx != -999 and sy != -999:
+                                                                                        cx, cy = w // 2, h // 2
+                                                                                        distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
+                                                                                        if distance_to_head <= 8:
+                                                                                            should_continue = True
+                                                                    except Exception:
+                                                                        pass
+                                                                    
+                                                                    if not should_continue:
+                                                                        break
+                                                                mouse.press(Button.left)
+                                                                mouse.release(Button.left)
+                                                                last_shot_time = current_time
+                                                            except Exception:
+                                                                break
+                                                except Exception:
+                                                    pass
+                                            else:
                                                 pass
-                                        else:
-                                            pass
                                     else:
                                         pass
                                 else:
