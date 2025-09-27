@@ -1326,6 +1326,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
                                           
         self.esp_toggle_key_btn = QtWidgets.QPushButton(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
+        self.esp_toggle_key_btn.setObjectName("keybind_button")
         self.esp_toggle_key_btn.clicked.connect(lambda: self.record_key('ESPToggleKey', self.esp_toggle_key_btn))
         self.set_tooltip_if_enabled(self.esp_toggle_key_btn, "Click to set a hotkey for quickly toggling ESP on/off during gameplay. Set to NONE to disable.")
         self.esp_toggle_key_btn.setMinimumHeight(22)
@@ -1408,6 +1409,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+        self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
         self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot. Hold this key while aiming at enemies to auto-shoot.")
         self.trigger_key_btn.setMinimumHeight(22)
@@ -1485,6 +1487,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         # Head Trigger Key Button
         self.head_trigger_key_btn = QtWidgets.QPushButton(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
+        self.head_trigger_key_btn.setObjectName("keybind_button")
         self.head_trigger_key_btn.clicked.connect(lambda: self.record_key('HeadTriggerKey', self.head_trigger_key_btn))
         self.set_tooltip_if_enabled(self.head_trigger_key_btn, "Click to set the key for head-only triggerbot. Hold this key while aiming at enemy heads.")
         self.head_trigger_key_btn.setMinimumHeight(22)
@@ -1580,6 +1583,7 @@ class ConfigWindow(QtWidgets.QWidget):
         aim_layout.addWidget(self.aim_circle_visible_cb)
 
         self.aim_key_btn = QtWidgets.QPushButton(f"AimKey: {self.settings.get('AimKey', 'C')}")
+        self.aim_key_btn.setObjectName("keybind_button")
         self.aim_key_btn.clicked.connect(lambda: self.record_key('AimKey', self.aim_key_btn))
         self.set_tooltip_if_enabled(self.aim_key_btn, "Click to set the key that activates aimbot. Hold this key to enable automatic aiming.")
         self.aim_key_btn.setMinimumHeight(22)
@@ -1757,6 +1761,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
                                 
         self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
+        self.menu_key_btn.setObjectName("keybind_button")
         self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
         self.set_tooltip_if_enabled(self.menu_key_btn, "Click to set the key for opening/closing this configuration menu during gameplay.")
         self.menu_key_btn.setMinimumHeight(22)
@@ -1804,6 +1809,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
                          
         self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+        self.bhop_key_btn.setObjectName("keybind_button")
         self.bhop_key_btn.clicked.connect(lambda: self.record_key('BhopKey', self.bhop_key_btn))
         self.set_tooltip_if_enabled(self.bhop_key_btn, "Click to set the key that activates bunny hopping. Hold this key to automatically time your jumps.")
         self.bhop_key_btn.setMinimumHeight(22)
@@ -2789,6 +2795,33 @@ class ConfigWindow(QtWidgets.QWidget):
             
             QPushButton:focus {{
                 border: 1px solid {theme_color};
+            }}
+            
+            /* Keybind buttons with theme-colored borders */
+            QPushButton[objectName="keybind_button"] {{
+                background-color: #3a3a3a;
+                border: 2px solid {theme_color};
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                font-size: 12px;
+                min-height: 20px;
+            }}
+            
+            QPushButton[objectName="keybind_button"]:hover {{
+                background-color: #4a4a4a;
+                border: 2px solid {darker_color};
+            }}
+            
+            QPushButton[objectName="keybind_button"]:pressed {{
+                background-color: #2a2a2a;
+                border: 2px solid {color.lighter(120).name()};
+            }}
+            
+            QPushButton[objectName="keybind_button"]:focus {{
+                border: 2px solid {color.lighter(130).name()};
             }}
             
             QTabWidget::pane {{
