@@ -537,9 +537,16 @@ DEFAULT_SETTINGS = {
     "TriggerKey": "X", 
     "triggerbot_between_shots_delay": 30,  # Renamed from triggerbot_delay
     "triggerbot_first_shot_delay": 0,
-    "triggerbot_head_only": 0,  # Only fire if aiming at head
     "triggerbot_burst_mode": 0,  # Burst mode toggle
     "triggerbot_burst_shots": 3,  # Number of shots per burst (2-5)
+    
+    # Head-only triggerbot settings
+    "head_triggerbot_active": 0,
+    "HeadTriggerKey": "Z",
+    "head_triggerbot_between_shots_delay": 30,
+    "head_triggerbot_first_shot_delay": 0,
+    "head_triggerbot_burst_mode": 0,
+    "head_triggerbot_burst_shots": 3,
     
                    
     "bhop_enabled": 0,
@@ -903,6 +910,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_radius_label()
         self.update_triggerbot_delay_label()
         self.update_triggerbot_burst_shots_label()
+        self.update_head_triggerbot_delay_label()
+        self.update_head_triggerbot_first_shot_delay_label()
+        self.update_head_triggerbot_burst_shots_label()
         self.update_center_dot_size_label()
         self.update_opacity_label()
         self.update_thickness_label()
@@ -978,10 +988,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
                 self.nickname_cb, self.show_visibility_cb, self.weapon_cb, self.bomb_esp_cb,
                 self.radar_cb, self.center_dot_cb, self.trigger_bot_active_cb,
-                self.triggerbot_head_only_cb, self.triggerbot_burst_mode_cb, self.aim_active_cb,
-                self.aim_circle_visible_cb, self.aim_visibility_cb, self.lock_target_cb,
-                self.disable_crosshair_cb, self.rainbow_fov_cb, self.rainbow_center_dot_cb,
-                self.rainbow_menu_theme_cb, self.auto_accept_cb, self.low_cpu_cb
+                self.triggerbot_burst_mode_cb, 
+                self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
+                self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb, 
+                self.lock_target_cb, self.disable_crosshair_cb, self.rainbow_fov_cb, 
+                self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb, self.auto_accept_cb, 
+                self.low_cpu_cb
             ]
             
             for cb in checkboxes:
@@ -992,8 +1004,10 @@ class ConfigWindow(QtWidgets.QWidget):
             sliders = [
                 self.radius_slider, self.opacity_slider, self.thickness_slider,
                 self.smooth_slider, self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
-                self.triggerbot_burst_shots_slider, self.center_dot_size_slider, self.radar_size_slider,
-                self.radar_scale_slider, self.fps_limit_slider
+                self.triggerbot_burst_shots_slider, self.head_triggerbot_delay_slider, 
+                self.head_triggerbot_first_shot_delay_slider, self.head_triggerbot_burst_shots_slider,
+                self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
+                self.fps_limit_slider
             ]
             
             for slider in sliders:
@@ -1002,8 +1016,8 @@ class ConfigWindow(QtWidgets.QWidget):
             
             # Disable focus for all buttons
             buttons = [
-                self.esp_toggle_key_btn, self.trigger_key_btn, self.aim_key_btn,
-                self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
+                self.esp_toggle_key_btn, self.trigger_key_btn, self.head_trigger_key_btn,
+                self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
                 self.enemy_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
                 self.menu_theme_color_btn, self.terminate_btn, self.reset_btn
             ]
@@ -1342,13 +1356,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-        self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Only Fire at Head")
-        self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
-        self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.triggerbot_head_only_cb, "Restricts trigger bot to only fire when aiming at enemy head hitboxes for headshots only.")
-        self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.triggerbot_head_only_cb)
-
         # Burst Mode Toggle
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
         self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
@@ -1407,6 +1414,83 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_key_btn)
         self.trigger_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'TriggerKey', self.trigger_key_btn)
+
+        # Separator for head-only triggerbot
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        trigger_layout.addWidget(separator)
+        
+        head_trigger_label = QtWidgets.QLabel("Head-Only Trigger Bot")
+        head_trigger_label.setAlignment(QtCore.Qt.AlignCenter)
+        head_trigger_label.setMinimumHeight(18)
+        trigger_layout.addWidget(head_trigger_label)
+
+        self.head_trigger_bot_active_cb = QtWidgets.QCheckBox("Enable Head-Only Trigger Bot")
+        self.head_trigger_bot_active_cb.setChecked(self.settings.get("head_triggerbot_active", 0) == 1)
+        self.head_trigger_bot_active_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.head_trigger_bot_active_cb, "Automatically shoots when crosshair is on enemy head while holding the head trigger key.")
+        self.head_trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_trigger_bot_active_cb)
+
+        # Head Trigger Bot Burst Mode Toggle
+        self.head_triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Head Burst Mode")
+        self.head_triggerbot_burst_mode_cb.setChecked(self.settings.get("head_triggerbot_burst_mode", 0) == 1)
+        self.head_triggerbot_burst_mode_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.head_triggerbot_burst_mode_cb, "Fires limited shots in bursts for head-only triggerbot instead of continuous shooting.")
+        self.head_triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_triggerbot_burst_mode_cb)
+
+        # Head Trigger Bot Burst Shots Slider
+        self.head_triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.head_triggerbot_burst_shots_slider.setMinimum(2)
+        self.head_triggerbot_burst_shots_slider.setMaximum(5)
+        self.head_triggerbot_burst_shots_slider.setValue(self.settings.get("head_triggerbot_burst_shots", 3))
+        self.head_triggerbot_burst_shots_slider.valueChanged.connect(self.update_head_triggerbot_burst_shots_label)
+        self.set_tooltip_if_enabled(self.head_triggerbot_burst_shots_slider, "Number of shots per burst for head-only triggerbot when burst mode is enabled.")
+        self.lbl_head_burst_shots = QtWidgets.QLabel(f"Head Burst Shots: ({self.settings.get('head_triggerbot_burst_shots', 3)})")
+        self.lbl_head_burst_shots.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_head_burst_shots)
+        self.head_triggerbot_burst_shots_slider.setMinimumHeight(18)
+        self.head_triggerbot_burst_shots_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_triggerbot_burst_shots_slider)
+        
+        # Head Trigger Bot Between Shots Delay
+        self.head_triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.head_triggerbot_delay_slider.setMinimum(0)
+        self.head_triggerbot_delay_slider.setMaximum(1000)
+        self.head_triggerbot_delay_slider.setValue(self.settings.get("head_triggerbot_between_shots_delay", 30))
+        self.head_triggerbot_delay_slider.valueChanged.connect(self.update_head_triggerbot_delay_label)
+        self.set_tooltip_if_enabled(self.head_triggerbot_delay_slider, "Delay in milliseconds between each shot for head-only triggerbot.")
+        self.lbl_head_delay = QtWidgets.QLabel(f"Head Between Shots Delay (ms): ({self.settings.get('head_triggerbot_between_shots_delay', 30)})")
+        self.lbl_head_delay.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_head_delay)
+        self.head_triggerbot_delay_slider.setMinimumHeight(18)
+        self.head_triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_triggerbot_delay_slider)
+
+        # Head Trigger Bot First Shot Delay
+        self.head_triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.head_triggerbot_first_shot_delay_slider.setMinimum(0)
+        self.head_triggerbot_first_shot_delay_slider.setMaximum(1000)
+        self.head_triggerbot_first_shot_delay_slider.setValue(self.settings.get("head_triggerbot_first_shot_delay", 0))
+        self.head_triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_head_triggerbot_first_shot_delay_label)
+        self.set_tooltip_if_enabled(self.head_triggerbot_first_shot_delay_slider, "Delay before first shot for head-only triggerbot when trigger key is pressed.")
+        self.lbl_head_first_shot_delay = QtWidgets.QLabel(f"Head First Shot Delay (ms): ({self.settings.get('head_triggerbot_first_shot_delay', 0)})")
+        self.lbl_head_first_shot_delay.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_head_first_shot_delay)
+        self.head_triggerbot_first_shot_delay_slider.setMinimumHeight(18)
+        self.head_triggerbot_first_shot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_triggerbot_first_shot_delay_slider)
+
+        # Head Trigger Key Button
+        self.head_trigger_key_btn = QtWidgets.QPushButton(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
+        self.head_trigger_key_btn.clicked.connect(lambda: self.record_key('HeadTriggerKey', self.head_trigger_key_btn))
+        self.set_tooltip_if_enabled(self.head_trigger_key_btn, "Click to set the key for head-only triggerbot. Hold this key while aiming at enemy heads.")
+        self.head_trigger_key_btn.setMinimumHeight(22)
+        self.head_trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.head_trigger_key_btn)
+        self.head_trigger_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'HeadTriggerKey', self.head_trigger_key_btn)
 
         trigger_container.setLayout(trigger_layout)
         trigger_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
@@ -2162,6 +2246,18 @@ class ConfigWindow(QtWidgets.QWidget):
         if getattr(self, "triggerbot_first_shot_delay_slider", None):
             self.settings["triggerbot_first_shot_delay"] = self.triggerbot_first_shot_delay_slider.value()
 
+        # Head-only triggerbot settings
+        if getattr(self, "head_trigger_bot_active_cb", None):
+            self.settings["head_triggerbot_active"] = 1 if self.head_trigger_bot_active_cb.isChecked() else 0
+        if getattr(self, "head_triggerbot_burst_mode_cb", None):
+            self.settings["head_triggerbot_burst_mode"] = 1 if self.head_triggerbot_burst_mode_cb.isChecked() else 0
+        if getattr(self, "head_triggerbot_delay_slider", None):
+            self.settings["head_triggerbot_between_shots_delay"] = self.head_triggerbot_delay_slider.value()
+        if getattr(self, "head_triggerbot_first_shot_delay_slider", None):
+            self.settings["head_triggerbot_first_shot_delay"] = self.head_triggerbot_first_shot_delay_slider.value()
+        if getattr(self, "head_triggerbot_burst_shots_slider", None):
+            self.settings["head_triggerbot_burst_shots"] = self.head_triggerbot_burst_shots_slider.value()
+
         if getattr(self, "center_dot_size_slider", None):
             self.settings["center_dot_size"] = self.center_dot_size_slider.value()
 
@@ -2185,12 +2281,6 @@ class ConfigWindow(QtWidgets.QWidget):
         
         self.settings["trigger_bot_active"] = 1 if self.trigger_bot_active_cb.isChecked() else 0
 
-        # Add the new triggerbot head-only setting
-        try:
-            self.settings["triggerbot_head_only"] = 1 if getattr(self, 'triggerbot_head_only_cb', None) and self.triggerbot_head_only_cb.isChecked() else 0
-        except Exception:
-            pass
-
         
         
         try:
@@ -2200,6 +2290,16 @@ class ConfigWindow(QtWidgets.QWidget):
                     val = text.split(':', 1)[1].strip()
                     if val:
                         self.settings["TriggerKey"] = val
+        except Exception:
+            pass
+
+        try:
+            if getattr(self, 'head_trigger_key_btn', None) is not None:
+                text = self.head_trigger_key_btn.text()
+                if ':' in text:
+                    val = text.split(':', 1)[1].strip()
+                    if val:
+                        self.settings["HeadTriggerKey"] = val
         except Exception:
             pass
 
@@ -2983,6 +3083,18 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_triggerbot_burst_shots_label(self):
         self.lbl_burst_shots.setText(f"Burst Shots: ({self.triggerbot_burst_shots_slider.value()})")
+        self.save_settings()
+
+    def update_head_triggerbot_delay_label(self):
+        self.lbl_head_delay.setText(f"Head Between Shots Delay (ms): ({self.head_triggerbot_delay_slider.value()})")
+        self.save_settings()
+
+    def update_head_triggerbot_first_shot_delay_label(self):
+        self.lbl_head_first_shot_delay.setText(f"Head First Shot Delay (ms): ({self.head_triggerbot_first_shot_delay_slider.value()})")
+        self.save_settings()
+
+    def update_head_triggerbot_burst_shots_label(self):
+        self.lbl_head_burst_shots.setText(f"Head Burst Shots: ({self.head_triggerbot_burst_shots_slider.value()})")
         self.save_settings()
 
     def update_center_dot_size_label(self):
@@ -4400,7 +4512,15 @@ def triggerbot():
         "triggerbot_head_only": 0,
         "triggerbot_between_shots_delay": 30,
         "triggerbot_burst_mode": 0,
-        "triggerbot_burst_shots": 3
+        "triggerbot_burst_shots": 3,
+        "triggerbot_first_shot_delay": 0,
+        # Head-only triggerbot settings
+        "HeadTriggerKey": "Z",
+        "head_triggerbot_active": 0,
+        "head_triggerbot_between_shots_delay": 30,
+        "head_triggerbot_burst_mode": 0,
+        "head_triggerbot_burst_shots": 3,
+        "head_triggerbot_first_shot_delay": 0
     }
 
     def load_settings():
@@ -4465,11 +4585,15 @@ def triggerbot():
         pm = None
         client = None
         
-                                             
+        # Triggerbot state tracking
         trigger_key_pressed = False
+        head_trigger_key_pressed = False
         first_shot_time = None
+        head_first_shot_time = None
         burst_shot_count = 0  # Track shots fired in current burst
+        head_burst_shot_count = 0
         last_burst_time = 0   # Track time of last burst
+        head_last_burst_time = 0
         
         while pm is None or client is None:
             if is_cs2_running():
@@ -4486,180 +4610,236 @@ def triggerbot():
                 time.sleep(1)
         while True:
             try:
+                # Regular triggerbot settings
                 trigger_bot_active = settings.get("trigger_bot_active", 0)
                 keyboards = settings.get("TriggerKey", "X")
                 between_shots_delay_ms = settings.get("triggerbot_between_shots_delay", 30)
                 first_shot_delay_ms = settings.get("triggerbot_first_shot_delay", 0)
-                head_only = settings.get("triggerbot_head_only", 0)
                 burst_mode = settings.get("triggerbot_burst_mode", 0)
                 burst_shots = settings.get("triggerbot_burst_shots", 3)
                 vk = key_str_to_vk(keyboards)
                 
-                                                     
+                # Head-only triggerbot settings
+                head_triggerbot_active = settings.get("head_triggerbot_active", 0)
+                head_keyboards = settings.get("HeadTriggerKey", "Z")
+                head_between_shots_delay_ms = settings.get("head_triggerbot_between_shots_delay", 30)
+                head_first_shot_delay_ms = settings.get("head_triggerbot_first_shot_delay", 0)
+                head_burst_mode = settings.get("head_triggerbot_burst_mode", 0)
+                head_burst_shots = settings.get("head_triggerbot_burst_shots", 3)
+                head_vk = key_str_to_vk(head_keyboards)
+                
+                # Check regular triggerbot key state
                 if is_keybind_on_global_cooldown("TriggerKey"):
                     key_currently_pressed = False
                 else:
-                                                               
                     key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                 
-                                               
+                # Check head-only triggerbot key state  
+                if is_keybind_on_global_cooldown("HeadTriggerKey"):
+                    head_key_currently_pressed = False
+                else:
+                    head_key_currently_pressed = head_vk != 0 and (win32api.GetAsyncKeyState(head_vk) & 0x8000) != 0
+                
+                # Handle regular triggerbot key transitions
                 if key_currently_pressed and not trigger_key_pressed:
-                                                               
                     trigger_key_pressed = True
                     first_shot_time = time.time()
                 elif not key_currently_pressed and trigger_key_pressed:
-                                                     
                     trigger_key_pressed = False
                     first_shot_time = None
                 
-                if key_currently_pressed:
-                    if trigger_bot_active == 1:
-                        try:
-                            player = pm.read_longlong(client + dwLocalPlayerPawn)
-                            entityId = pm.read_int(player + m_iIDEntIndex)
+                # Handle head-only triggerbot key transitions
+                if head_key_currently_pressed and not head_trigger_key_pressed:
+                    head_trigger_key_pressed = True
+                    head_first_shot_time = time.time()
+                elif not head_key_currently_pressed and head_trigger_key_pressed:
+                    head_trigger_key_pressed = False
+                    head_first_shot_time = None
+                
+                # Process regular triggerbot
+                if key_currently_pressed and trigger_bot_active == 1:
+                    try:
+                        player = pm.read_longlong(client + dwLocalPlayerPawn)
+                        entityId = pm.read_int(player + m_iIDEntIndex)
+                        
+                        if entityId > 0:
+                            entList = pm.read_longlong(client + dwEntityList)
+                            entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
+                            entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
+                            entityTeam = pm.read_int(entity + m_iTeamNum)
+                            playerTeam = pm.read_int(player + m_iTeamNum)
+                            entityHp = pm.read_int(entity + m_iHealth)
                             
-                                                                                     
-                            if entityId > 0:
-                                pass
-                            
-                            if entityId > 0:
-                                entList = pm.read_longlong(client + dwEntityList)
-                                entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
-                                entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
-                                entityTeam = pm.read_int(entity + m_iTeamNum)
-                                playerTeam = pm.read_int(player + m_iTeamNum)
-                                entityHp = pm.read_int(entity + m_iHealth)
-                                
-                                                                   
-                                pass
-                                
-                                                                                       
-                                if entityTeam != playerTeam:
-                                    if entityHp > 0:
-                                        # Head-only logic - check if we should proceed with shooting
-                                        should_shoot = True
-                                        if head_only:
-                                            should_shoot = False
+                            if entityTeam != playerTeam and entityHp > 0:
+                                    current_time = time.time()
+                                    
+                                    # Handle first shot delay
+                                    if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
+                                        if not burst_mode:
+                                            # Normal mode - continuous shooting with delay
                                             try:
-                                                # Get view matrix and window size
-                                                view_matrix = []
-                                                for i in range(16):
-                                                    view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
+                                                mouse.press(Button.left)
+                                                mouse.release(Button.left)
+                                                if first_shot_time is not None:
+                                                    first_shot_time = None                          
+                                                last_shot_time = current_time
                                                 
-                                                w, h = get_window_size("Counter-Strike 2")
-                                                if w is not None and h is not None:
-                                                    # Get head bone position
-                                                    bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
-                                                    if bone_ptr:
-                                                        bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
-                                                        if bone_matrix:
-                                                            head_id = 6  # bone_ids["head"]
-                                                            head_x = pm.read_float(bone_matrix + head_id * 0x20)
-                                                            head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                                                            head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                                                            sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                # Continue shooting while key is held
+                                                while key_currently_pressed and trigger_bot_active == 1:
+                                                    time.sleep(0.001)                     
+                                                    current_time = time.time()
+                                                    if current_time - last_shot_time >= (between_shots_delay_ms / 1000.0):
+                                                        key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
+                                                        if not key_currently_pressed:
+                                                            break
+                                                        trigger_bot_active = settings.get("trigger_bot_active", 0)
+                                                        if trigger_bot_active != 1:
+                                                            break
+                                                        
+                                                        # Re-check target validity for continuous shooting
+                                                        if not _check_target_valid(pm, client, 0):
+                                                            break
                                                             
-                                                            # Check if head is projected successfully and within screen bounds
-                                                            if sx != -999 and sy != -999:
-                                                                # Get screen center (crosshair position)
-                                                                cx, cy = w // 2, h // 2
-                                                                # Use precise tolerance for head shots (8px radius)
-                                                                distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
-                                                                if distance_to_head <= 8:
-                                                                    should_shoot = True
-                                            except Exception:
-                                                pass  # If head check fails, don't shoot in head-only mode
-                                        
-                                        if should_shoot:
-                                            current_time = time.time()
-                                            
-                                            # Handle first shot delay
-                                            if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
-                                                if not burst_mode:
-                                                    # Normal mode - continuous shooting with delay
-                                                    try:
                                                         mouse.press(Button.left)
                                                         mouse.release(Button.left)
-                                                        if first_shot_time is not None:
-                                                            first_shot_time = None                          
                                                         last_shot_time = current_time
-                                                        
-                                                        # Continue shooting while key is held
-                                                        while key_currently_pressed and trigger_bot_active == 1:
-                                                            time.sleep(0.001)                     
-                                                            current_time = time.time()
-                                                            if current_time - last_shot_time >= (between_shots_delay_ms / 1000.0):
-                                                                key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
-                                                                if not key_currently_pressed:
-                                                                    break
-                                                                trigger_bot_active = settings.get("trigger_bot_active", 0)
-                                                                if trigger_bot_active != 1:
-                                                                    break
-                                                                
-                                                                # Re-check target validity for continuous shooting
-                                                                if not _check_target_valid(pm, client, head_only):
-                                                                    break
-                                                                    
-                                                                mouse.press(Button.left)
-                                                                mouse.release(Button.left)
-                                                                last_shot_time = current_time
-                                                    except Exception:
-                                                        pass
-                                                else:
-                                                    # Burst mode - fire exact number of shots specified
-                                                    try:
-                                                        # Check if enough time has passed since last burst
-                                                        if burst_shot_count == 0 or current_time - last_burst_time >= (between_shots_delay_ms / 1000.0):
-                                                            # Ultra simple approach - just click mouse exactly burst_shots times
-                                                            actual_clicks = 0
-                                                            i = 0
-                                                            while i < burst_shots:
-                                                                mouse.click(Button.left)
-                                                                actual_clicks += 1
-                                                                i += 1
-                                                                # Longer delay between clicks to ensure CS2 registers them
-                                                                if i < burst_shots:
-                                                                    time.sleep(0.1)  # Increased from 50ms to 100ms
-                                                            
-                                                            # Mark burst as completed
-                                                            burst_shot_count = actual_clicks
-                                                            last_burst_time = current_time
-                                                            if first_shot_time is not None:
-                                                                first_shot_time = None
-                                                    except Exception:
-                                                        pass
-                                            else:
+                                            except Exception:
                                                 pass
-                                    else:
-                                        pass
-                                else:
-                                    pass
-                            else:
-                                                                            
-                                if hasattr(main, '_no_target_counter'):
-                                    main._no_target_counter += 1
-                                else:
-                                    main._no_target_counter = 1
-                                    
-                                if main._no_target_counter % 100 == 0:                              
-                                    pass
-                        except Exception as e:
-                            pass
-                    else:
-                                                      
-                        if hasattr(main, '_inactive_counter'):
-                            main._inactive_counter += 1
-                        else:
-                            main._inactive_counter = 1
+                                        else:
+                                            # Burst mode - fire exact number of shots specified
+                                            try:
+                                                # Check if enough time has passed since last burst
+                                                if burst_shot_count == 0 or current_time - last_burst_time >= (between_shots_delay_ms / 1000.0):
+                                                    # Click mouse exactly burst_shots times
+                                                    actual_clicks = 0
+                                                    i = 0
+                                                    while i < burst_shots:
+                                                        mouse.click(Button.left)
+                                                        actual_clicks += 1
+                                                        i += 1
+                                                        # Delay between clicks to ensure CS2 registers them
+                                                        if i < burst_shots:
+                                                            time.sleep(0.1)
+                                                    
+                                                    # Mark burst as completed
+                                                    burst_shot_count = actual_clicks
+                                                    last_burst_time = current_time
+                                                    if first_shot_time is not None:
+                                                        first_shot_time = None
+                                            except Exception:
+                                                pass
+                    except Exception:
+                        pass
+                
+                # Process head-only triggerbot
+                if head_key_currently_pressed and head_triggerbot_active == 1:
+                    try:
+                        player = pm.read_longlong(client + dwLocalPlayerPawn)
+                        entityId = pm.read_int(player + m_iIDEntIndex)
+                        
+                        if entityId > 0:
+                            entList = pm.read_longlong(client + dwEntityList)
+                            entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
+                            entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
+                            entityTeam = pm.read_int(entity + m_iTeamNum)
+                            playerTeam = pm.read_int(player + m_iTeamNum)
+                            entityHp = pm.read_int(entity + m_iHealth)
                             
-                        if main._inactive_counter % 1000 == 0:                               
-                            pass
-                                                                                             
-                time.sleep(0.01)
-            except KeyboardInterrupt:
-                break
+                            if entityTeam != playerTeam and entityHp > 0:
+                                # Always head-only for head triggerbot
+                                should_shoot = False
+                                try:
+                                    view_matrix = []
+                                    for i in range(16):
+                                        view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
+                                    
+                                    w, h = get_window_size("Counter-Strike 2")
+                                    if w is not None and h is not None:
+                                        bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
+                                        if bone_ptr:
+                                            bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
+                                            if bone_matrix:
+                                                head_id = 6
+                                                head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                
+                                                if sx != -999 and sy != -999:
+                                                    cx, cy = w // 2, h // 2
+                                                    distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
+                                                    if distance_to_head <= 8:
+                                                        should_shoot = True
+                                except Exception:
+                                    pass
+                                
+                                if should_shoot:
+                                    current_time = time.time()
+                                    
+                                    # Handle first shot delay
+                                    if head_first_shot_time is None or current_time - head_first_shot_time >= (head_first_shot_delay_ms / 1000.0):
+                                        if not head_burst_mode:
+                                            # Normal mode - continuous shooting with delay
+                                            try:
+                                                mouse.press(Button.left)
+                                                mouse.release(Button.left)
+                                                if head_first_shot_time is not None:
+                                                    head_first_shot_time = None                          
+                                                head_last_shot_time = current_time
+                                                
+                                                # Continue shooting while key is held
+                                                while head_key_currently_pressed and head_triggerbot_active == 1:
+                                                    time.sleep(0.001)                     
+                                                    current_time = time.time()
+                                                    if current_time - head_last_shot_time >= (head_between_shots_delay_ms / 1000.0):
+                                                        head_key_currently_pressed = head_vk != 0 and (win32api.GetAsyncKeyState(head_vk) & 0x8000) != 0
+                                                        if not head_key_currently_pressed:
+                                                            break
+                                                        head_triggerbot_active = settings.get("head_triggerbot_active", 0)
+                                                        if head_triggerbot_active != 1:
+                                                            break
+                                                        
+                                                        # Re-check target validity for continuous shooting (always head-only)
+                                                        if not _check_target_valid(pm, client, True):
+                                                            break
+                                                            
+                                                        mouse.press(Button.left)
+                                                        mouse.release(Button.left)
+                                                        head_last_shot_time = current_time
+                                            except Exception:
+                                                pass
+                                        else:
+                                            # Burst mode - fire exact number of shots specified
+                                            try:
+                                                # Check if enough time has passed since last burst
+                                                if head_burst_shot_count == 0 or current_time - head_last_burst_time >= (head_between_shots_delay_ms / 1000.0):
+                                                    # Click mouse exactly burst_shots times
+                                                    actual_clicks = 0
+                                                    i = 0
+                                                    while i < head_burst_shots:
+                                                        mouse.click(Button.left)
+                                                        actual_clicks += 1
+                                                        i += 1
+                                                        # Delay between clicks to ensure CS2 registers them
+                                                        if i < head_burst_shots:
+                                                            time.sleep(0.1)
+                                                    
+                                                    # Mark burst as completed
+                                                    head_burst_shot_count = actual_clicks
+                                                    head_last_burst_time = current_time
+                                                    if head_first_shot_time is not None:
+                                                        head_first_shot_time = None
+                                            except Exception:
+                                                pass
+                    except Exception:
+                        pass
+                        
             except Exception:
-                time.sleep(1)
+                pass
+            
+            if os.path.exists(TERMINATE_SIGNAL_FILE):
+                break
+            time.sleep(0.001)
 
     def start_main_thread(settings):
         while True:
