@@ -1560,7 +1560,7 @@ class ConfigWindow(QtWidgets.QWidget):
                                           
         self.smooth_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.smooth_slider.setMinimum(0)
-        self.smooth_slider.setMaximum(2000000)
+        self.smooth_slider.setMaximum(3000000)
         self.smooth_slider.setValue(self.settings.get("aim_smoothness", 50))
         self.smooth_slider.valueChanged.connect(self.update_smooth_label)
         self.set_tooltip_if_enabled(self.smooth_slider, "Controls how smooth the aimbot movement is. Lower = instant snap, higher = gradual smooth aiming.")
@@ -5331,7 +5331,7 @@ def aim():
                                                                                      
                                                   
                                                               
-            max_smoothness = float(globals().get('smooth_slider_max', 1000000))
+            max_smoothness = 3000000.0  # Updated to 3 million maximum
             min_alpha = 0.0005                                       
             max_alpha = 1.0                                         
             
