@@ -4091,9 +4091,15 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
             if (BombPosition[0] > 0 and BombPosition[1] > 0):
                                                             
                 if DefuseTime > 0:
-                    bomb_text = f'BOMB: {round(BombTime, 2)} | DIF {round(DefuseTime, 2)}'
+                    bomb_text = f'BOMB: {round(BombTime, 2)} | DEFUSE: {round(DefuseTime, 2)}'
+                    # Determine text color based on defuse time vs bomb time
+                    if DefuseTime > BombTime:
+                        text_color = QtGui.QColor(0, 255, 0)  # Green - defuse will succeed
+                    else:
+                        text_color = QtGui.QColor(255, 0, 0)  # Red - defuse will fail
                 else:
                     bomb_text = f'BOMB: {round(BombTime, 2)}'
+                    text_color = QtGui.QColor(255, 255, 255)  # White - no defuse
                 
                 c4_name_x = BombPosition[0]
                 c4_name_y = BombPosition[1]
@@ -4108,7 +4114,7 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
                                             
                 c4_name_text = scene.addText(bomb_text, bfont)
                 c4_name_text.setPos(c4_name_x, c4_name_y)
-                c4_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
+                c4_name_text.setDefaultTextColor(text_color)
                 
     except Exception:
         pass
