@@ -4092,11 +4092,13 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
                                                             
                 if DefuseTime > 0:
                     bomb_text = f'BOMB: {round(BombTime, 2)} | DEFUSE: {round(DefuseTime, 2)}'
-                    # Determine text color based on defuse time vs bomb time
-                    if DefuseTime > BombTime:
-                        text_color = QtGui.QColor(0, 255, 0)  # Green - defuse will succeed
+                    # Determine text color based on bomb time vs defuse time
+                    if BombTime < DefuseTime:
+                        text_color = QtGui.QColor(255, 0, 0)  # Red - bomb will explode before defuse finishes
+                    elif BombTime > DefuseTime:
+                        text_color = QtGui.QColor(0, 255, 0)  # Green - defuse will finish before bomb explodes
                     else:
-                        text_color = QtGui.QColor(255, 0, 0)  # Red - defuse will fail
+                        text_color = QtGui.QColor(255, 255, 0)  # Yellow - exact timing (very rare)
                 else:
                     bomb_text = f'BOMB: {round(BombTime, 2)}'
                     text_color = QtGui.QColor(255, 255, 255)  # White - no defuse
