@@ -1,7 +1,6 @@
 VERSION = "2"
-DEBUG_MODE = False
-CONSOLE_CREATED = False  # Global flag to track console creation
-                 
+STARTUP_ENABLED = True
+            
 import threading
 import keyboard
 import os
@@ -9,8 +8,6 @@ import sys
 import json
 import time
                                                                                   
-STARTUP_ENABLED = True
-
 import random
 import threading
 import multiprocessing
@@ -34,32 +31,7 @@ import win32api
 import win32con
 import win32gui
 
-def setup_debug_console():
-    """Create a console window for debug output if DEBUG_MODE is True - only in main process"""
-    if DEBUG_MODE and __name__ == "__main__":  # Only create console in main process
-        try:
-                                                         
-            ctypes.windll.kernel32.AllocConsole()
-            
-            # Disable close button
-            disable_console_close_button()
-            
-            import sys
-            sys.stdout = open('CONOUT$', 'w')
-            sys.stderr = open('CONOUT$', 'w')
-            sys.stdin = open('CONIN$', 'r')
-            
-                               
-            ctypes.windll.kernel32.SetConsoleTitleW("Debug Console - Popsicle CS2")
-            
-            print("Debug mode enabled - Console output active")
-        except Exception as e:
-            pass
-
-def debug_print(*args, **kwargs):
-    """Print debug information only if DEBUG_MODE is True"""
-    if DEBUG_MODE:
-        print(*args, **kwargs)
+CONSOLE_CREATED = False  # Global flag to track console creation
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
@@ -74,18 +46,18 @@ def load_commands():
                     # Parse commands separated by commas
                     commands = [cmd.strip().lower() for cmd in content.split(',') if cmd.strip()]
                     print(f"[DEBUG] Parsed commands: {commands}")  # Always print this
-                    debug_print(f"Loaded commands from {COMMANDS_FILE}: {commands}")
+                    pass  # Commands loaded
         else:
             print(f"[DEBUG] No commands file found at {COMMANDS_FILE}")  # Always print this
-            debug_print(f"No commands file found at {COMMANDS_FILE}")
+            pass  # No commands file found
     except Exception as e:
         print(f"[DEBUG] Error reading commands file: {e}")  # Always print this
-        debug_print(f"Error reading commands file: {e}")
+        pass  # Error reading commands file
     return commands
 
 def apply_commands():
     """Apply commands from commands.txt file"""
-    global DEBUG_MODE, CONSOLE_CREATED
+    global CONSOLE_CREATED
     print("[DEBUG] apply_commands() called")  # Always print this
     commands = load_commands()
     print(f"[DEBUG] Commands loaded: {commands}")  # Always print this
@@ -93,11 +65,9 @@ def apply_commands():
     # Process debug command
     if "debug" in commands:
         print("[DEBUG] Debug command found in commands list")  # Always print this
-        original_debug_mode = DEBUG_MODE
-        DEBUG_MODE = True
         
         # Check if console already created by any process - only allow main process to create console
-        if not original_debug_mode and not CONSOLE_CREATED and not os.path.exists(CONSOLE_LOCK_FILE) and __name__ == "__main__":
+        if not CONSOLE_CREATED and not os.path.exists(CONSOLE_LOCK_FILE) and __name__ == "__main__":
             print("[DEBUG] Creating debug console in main process...")  # Always print this
             # Force console creation for debug command - but only once globally
             try:
@@ -136,7 +106,7 @@ def apply_commands():
             print("[DEBUG] Console lock file exists, skipping console creation")
         elif CONSOLE_CREATED:
             print("[DEBUG] Console already created in this process, skipping")
-        debug_print("Commands processed:", commands)
+        print("Commands processed:", commands)
     else:
         print("[DEBUG] Debug command NOT found in commands list")  # Always print this
 
@@ -146,10 +116,10 @@ def get_app_title():
         response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt', timeout=5)
         if response.status_code == 200:
             title = response.text.strip()
-            debug_print(f"Fetched title from GitHub: {title}")
+            pass  # Title fetched from GitHub
             return title
     except Exception as e:
-        debug_print(f"Failed to fetch title from GitHub: {e}")
+        pass  # Failed to fetch title from GitHub
     
                     
     return "Popsicle - CS2"
@@ -160,10 +130,10 @@ def check_version():
         response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/version.txt', timeout=5)
         if response.status_code == 200:
             remote_version = response.text.strip()
-            debug_print(f"Local version: {VERSION}, Remote version: {remote_version}")
+            pass  # Version comparison
             return VERSION == remote_version
     except Exception as e:
-        debug_print(f"Failed to check version: {e}")
+        pass  # Failed to check version
     
                                              
     return True
@@ -173,7 +143,7 @@ def version_check_worker():
     while True:
         try:
             if not check_version():
-                debug_print("Version mismatch detected - showing update notification")
+                pass  # Version mismatch detected
                                                                       
                 app_title = get_app_title()
                 ctypes.windll.user32.MessageBoxW(
@@ -183,7 +153,7 @@ def version_check_worker():
                     0x00000000 | 0x00010000 | 0x00040000 | 0x00001000                                                          
                 )
                 
-                debug_print("User dismissed update notification - creating terminate signal to exit all processes")
+                pass  # User dismissed update notification
                                                 
                 remove_lock_file()
                                                                    
@@ -205,7 +175,7 @@ def version_check_worker():
                                     
             time.sleep(30)
         except Exception as e:
-            debug_print(f"Version check error: {e}")
+            pass  # Version check error
             time.sleep(30)
                                      
 offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
@@ -232,7 +202,6 @@ m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['
                 
 m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
 m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
-m_pClippingWeapon = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_pClippingWeapon']
 m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
 m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
 m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
@@ -397,8 +366,7 @@ def disable_console_close_button():
                 # Redraw the menu bar
                 ctypes.windll.user32.DrawMenuBar(console_hwnd)
     except Exception as e:
-        if DEBUG_MODE:
-            print(f"[DEBUG] Failed to disable console close button: {e}")
+        pass
 
 def disable_console_close_button():
     """Disable the close button on the console window."""
@@ -417,8 +385,7 @@ def disable_console_close_button():
                 # Redraw the menu bar
                 ctypes.windll.user32.DrawMenuBar(console_hwnd)
     except Exception as e:
-        if DEBUG_MODE:
-            print(f"[DEBUG] Failed to disable console close button: {e}")
+        pass
 
 def remove_lock_file():
     """Remove the lock file when shutting down."""
@@ -496,12 +463,13 @@ DEFAULT_SETTINGS = {
     "esp_rendering": 1,
     "esp_mode": 0,
     "line_rendering": 1,
+    "lines_position": "Bottom",
     "hp_bar_rendering": 1,
     "head_hitbox_rendering": 1,
     "box_rendering": 1,
+    "box_mode": "2D",
     "Bones": 1,
     "nickname": 1,
-    "weapon": 1,
     "bomb_esp": 1,
     "show_visibility": 1,
     "ESPToggleKey": "NONE",
@@ -560,6 +528,7 @@ DEFAULT_SETTINGS = {
     "MenuToggleKey": "F8",
     "team_color": "#47A76A",
     "enemy_color": "#C41E3A",
+    "skeleton_color": "#FFFFFF",
     "aim_circle_color": "#FF0000",
     "center_dot_color": "#FFFFFF",
     "menu_theme_color": "#FF0000",
@@ -803,37 +772,28 @@ def w2s(view_matrix, x, y, z, width, height):
     except Exception:
         return -999, -999
 
-def get_weapon_name_by_index(index):
-    """Get weapon name by index."""
-    weapon_names = {
-        32: "P2000", 61: "USP-S", 4: "Glock", 2: "Dual Berettas", 36: "P250",
-        30: "Tec-9", 63: "CZ75-Auto", 1: "Desert Eagle", 3: "Five-SeveN", 64: "R8",
-        35: "Nova", 25: "XM1014", 27: "MAG-7", 29: "Sawed-Off", 14: "M249", 28: "Negev",
-        17: "MAC-10", 23: "MP5-SD", 24: "UMP-45", 19: "P90", 26: "Bizon", 34: "MP9",
-        33: "MP7", 10: "FAMAS", 16: "M4A4", 60: "M4A1-S", 8: "AUG", 43: "Galil",
-        7: "AK-47", 39: "SG 553", 40: "SSG 08", 9: "AWP", 38: "SCAR-20", 11: "G3SG1",
-        43: "Flashbang", 44: "Hegrenade", 45: "Smoke", 46: "Molotov", 47: "Decoy",
-        48: "Incgrenage", 49: "C4", 31: "Taser", 42: "Knife", 41: "Knife Gold",
-        59: "Knife", 80: "Knife Ghost", 500: "Knife Bayonet", 505: "Knife Flip",
-        506: "Knife Gut", 507: "Knife Karambit", 508: "Knife M9", 509: "Knife Tactica",
-        512: "Knife Falchion", 514: "Knife Survival Bowie", 515: "Knife Butterfly",
-        516: "Knife Rush", 519: "Knife Ursus", 520: "Knife Gypsy Jackknife",
-        522: "Knife Stiletto", 523: "Knife Widowmaker"
-    }
-    return weapon_names.get(index, 'Unknown')
-
 def load_settings():
-    """Load settings from config file."""
+    """Load settings from config file with proper defaults merging."""
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
+    
+    # Always start with default settings as base
+    merged_settings = DEFAULT_SETTINGS.copy()
+    
     if not os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "w") as f:
             json.dump(DEFAULT_SETTINGS, f, indent=4)
+        return merged_settings
+    
     try:
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return DEFAULT_SETTINGS.copy()
+            loaded_settings = json.load(f)
+            # Merge loaded settings with defaults to ensure all keys exist
+            merged_settings.update(loaded_settings)
+            return merged_settings
+    except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+        # Return defaults on any file read error
+        return merged_settings
 
 def save_settings(settings: dict):
     """Save settings to config file."""
@@ -986,7 +946,7 @@ class ConfigWindow(QtWidgets.QWidget):
             checkboxes = [
                 self.esp_rendering_cb, self.line_rendering_cb, self.hp_bar_rendering_cb,
                 self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
-                self.nickname_cb, self.show_visibility_cb, self.weapon_cb, self.bomb_esp_cb,
+                self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb,
                 self.radar_cb, self.center_dot_cb, self.trigger_bot_active_cb,
                 self.triggerbot_burst_mode_cb, 
                 self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
@@ -1018,7 +978,7 @@ class ConfigWindow(QtWidgets.QWidget):
             buttons = [
                 self.esp_toggle_key_btn, self.trigger_key_btn, self.head_trigger_key_btn,
                 self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
-                self.enemy_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
+                self.enemy_color_btn, self.skeleton_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
                 self.menu_theme_color_btn, self.terminate_btn, self.reset_btn
             ]
             
@@ -1028,7 +988,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
             # Disable focus for combo boxes
             comboboxes = [
-                self.esp_mode_cb, self.aim_mode_cb, self.aim_mode_distance_cb,
+                self.esp_mode_cb, self.lines_position_combo, self.aim_mode_cb, self.aim_mode_distance_cb,
                 self.radar_position_combo
             ]
             
@@ -1176,22 +1136,26 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.esp_rendering_cb)
 
-        self.esp_mode_cb = QtWidgets.QComboBox()
-        self.esp_mode_cb.addItems(["Enemies Only", "All Players"])
-        self.esp_mode_cb.setCurrentIndex(self.settings.get("esp_mode", 1))
-        self.esp_mode_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
-        self.esp_mode_cb.currentIndexChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.esp_mode_cb, "Choose whether to show ESP for enemies only or all players including teammates.")
-        self.esp_mode_cb.setMinimumHeight(22)
-        self.esp_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        esp_layout.addWidget(self.esp_mode_cb)
-
         self.line_rendering_cb = QtWidgets.QCheckBox("Draw Lines")
         self.line_rendering_cb.setChecked(self.settings.get("line_rendering", 1) == 1)
         self.line_rendering_cb.stateChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.line_rendering_cb, "Draw lines from the bottom center of your screen to each player's position.")
         self.line_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.line_rendering_cb)
+
+        # Lines Position dropdown
+        self.lines_position_label = QtWidgets.QLabel("Lines Position:")
+        esp_layout.addWidget(self.lines_position_label)
+        self.lines_position_combo = QtWidgets.QComboBox()
+        self.lines_position_combo.addItems(["Bottom", "Top"])
+        current_lines_position = self.settings.get('lines_position', 'Bottom')
+        index = self.lines_position_combo.findText(current_lines_position)
+        if index >= 0:
+            self.lines_position_combo.setCurrentIndex(index)
+        self.lines_position_combo.currentTextChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.lines_position_combo, "Choose whether ESP lines connect to the bottom or top of your screen.")
+        self.lines_position_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        esp_layout.addWidget(self.lines_position_combo)
 
         self.hp_bar_rendering_cb = QtWidgets.QCheckBox("Draw HP Bars")
         self.hp_bar_rendering_cb.setChecked(self.settings.get("hp_bar_rendering", 1) == 1)
@@ -1215,6 +1179,23 @@ class ConfigWindow(QtWidgets.QWidget):
         self.box_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.box_rendering_cb)
 
+        # Box Mode dropdown
+        self.box_mode_label = QtWidgets.QLabel("Box Mode:")
+        esp_layout.addWidget(self.box_mode_label)
+        self.box_mode_combo = QtWidgets.QComboBox()
+        self.box_mode_combo.addItems(["2D", "3D"])
+        current_box_mode = self.settings.get('box_mode', '2D')
+        index = self.box_mode_combo.findText(current_box_mode)
+        if index >= 0:
+            self.box_mode_combo.setCurrentIndex(index)
+        self.box_mode_combo.currentTextChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.box_mode_combo, "Choose between 2D flat boxes or 3D boxes that show actual player dimensions in game world.")
+        self.box_mode_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        esp_layout.addWidget(self.box_mode_combo)
+        
+        # Initialize dropdown state based on low CPU mode
+        self.update_box_mode_dropdown_state()
+
         self.Bones_cb = QtWidgets.QCheckBox("Draw Bones")
         self.Bones_cb.setChecked(self.settings.get("Bones", 1) == 1)
         self.Bones_cb.stateChanged.connect(self.save_settings)
@@ -1236,13 +1217,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.show_visibility_cb, "Show visual indicator when enemies are spotted by your team or visible to you.")
         self.show_visibility_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.show_visibility_cb)
-
-        self.weapon_cb = QtWidgets.QCheckBox("Show Weapon")
-        self.weapon_cb.setChecked(self.settings.get("weapon", 1) == 1)
-        self.weapon_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.weapon_cb, "Display the name of the weapon each player is currently holding.")
-        self.weapon_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        esp_layout.addWidget(self.weapon_cb)
 
         self.bomb_esp_cb = QtWidgets.QCheckBox("Bomb ESP")
         self.bomb_esp_cb.setChecked(self.settings.get("bomb_esp", 1) == 1)
@@ -1301,28 +1275,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radar_position_combo.currentTextChanged.connect(self.on_radar_position_changed)
         self.radar_position_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.radar_position_combo)
-
-                             
-        self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
-        self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
-        self.center_dot_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.center_dot_cb, "Draw a small dot in the center of your screen as a crosshair reference point.")
-        self.center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        esp_layout.addWidget(self.center_dot_cb)
-
-                                
-        self.center_dot_size_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.center_dot_size_slider.setMinimum(1)
-        self.center_dot_size_slider.setMaximum(20)
-        self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
-        self.center_dot_size_slider.valueChanged.connect(self.update_center_dot_size_label)
-        self.set_tooltip_if_enabled(self.center_dot_size_slider, "Adjust the size of the center dot crosshair from 1 (smallest) to 20 (largest) pixels.")
-        self.lbl_center_dot_size = QtWidgets.QLabel(f"Center Dot Size: ({self.settings.get('center_dot_size', 3)})")
-        self.lbl_center_dot_size.setMinimumHeight(16)
-        esp_layout.addWidget(self.lbl_center_dot_size)
-        self.center_dot_size_slider.setMinimumHeight(18)
-        self.center_dot_size_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        esp_layout.addWidget(self.center_dot_size_slider)
 
                                           
         self.esp_toggle_key_btn = QtWidgets.QPushButton(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
@@ -1524,7 +1476,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radius_slider.setMaximum(100)
         self.radius_slider.setValue(self.settings.get("radius", 50))
         self.radius_slider.valueChanged.connect(self.update_radius_label)
-        self.set_tooltip_if_enabled(self.radius_slider, "Size of the aim circle area in pixels. Aimbot only targets enemies within this circle.")
+        self.set_tooltip_if_enabled(self.radius_slider, "Size of the Aim Radius area in pixels. Aimbot only targets enemies within this radius.")
         self.lbl_radius = QtWidgets.QLabel(f"Aim Radius: ({self.settings.get('radius', 50)})")
         self.lbl_radius.setMinimumHeight(16)
         aim_layout.addWidget(self.lbl_radius)
@@ -1538,7 +1490,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.opacity_slider.setMaximum(255)
         self.opacity_slider.setValue(self.settings.get("circle_opacity", 16))
         self.opacity_slider.valueChanged.connect(self.update_opacity_label)
-        self.set_tooltip_if_enabled(self.opacity_slider, "Transparency of the aim circle. 0 = invisible, 255 = fully opaque.")
+        self.set_tooltip_if_enabled(self.opacity_slider, "Transparency of the Aim Radius. 0 = invisible, 255 = fully opaque.")
         self.lbl_opacity = QtWidgets.QLabel(f"Circle Opacity: ({self.settings.get('circle_opacity', 16)})")
         self.lbl_opacity.setMinimumHeight(16)
         aim_layout.addWidget(self.lbl_opacity)
@@ -1552,7 +1504,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.thickness_slider.setMaximum(10)
         self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
         self.thickness_slider.valueChanged.connect(self.update_thickness_label)
-        self.set_tooltip_if_enabled(self.thickness_slider, "Thickness of the aim circle outline in pixels. Higher values make the circle border thicker.")
+        self.set_tooltip_if_enabled(self.thickness_slider, "Thickness of the Aim Radius outline in pixels. Higher values make the circle border thicker.")
         self.lbl_thickness = QtWidgets.QLabel(f"Circle Thickness: ({self.settings.get('circle_thickness', 2)})")
         self.lbl_thickness.setMinimumHeight(16)
         aim_layout.addWidget(self.lbl_thickness)
@@ -1575,10 +1527,10 @@ class ConfigWindow(QtWidgets.QWidget):
         aim_layout.addWidget(self.smooth_slider)
 
                                       
-        self.aim_circle_visible_cb = QtWidgets.QCheckBox("Show Aim Circle")
+        self.aim_circle_visible_cb = QtWidgets.QCheckBox("Show Aim Radius")
         self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
         self.aim_circle_visible_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.aim_circle_visible_cb, "Display the circular area showing aimbot's targeting zone around your crosshair.")
+        self.set_tooltip_if_enabled(self.aim_circle_visible_cb, "Display the circular radius area showing aimbot's targeting zone around your crosshair.")
         self.aim_circle_visible_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.aim_circle_visible_cb)
 
@@ -1664,83 +1616,120 @@ class ConfigWindow(QtWidgets.QWidget):
         colors_label.setMinimumHeight(18)
         colors_layout.addWidget(colors_label)
 
-                           
-        self.team_color_btn = QtWidgets.QPushButton('Team Color')
+        # ESP Colors Section
+        esp_colors_label = QtWidgets.QLabel("ESP Colors")
+        esp_colors_label.setAlignment(QtCore.Qt.AlignLeft)
+        colors_layout.addWidget(esp_colors_label)
+
+        # Create horizontal layout for ESP colors
+        esp_colors_layout = QtWidgets.QHBoxLayout()
+        esp_colors_layout.setSpacing(8)
+
+        self.team_color_btn = QtWidgets.QPushButton('Team')
         team_hex = self.settings.get('team_color', '#47A76A')
         team_text_color = self.get_contrasting_text_color(team_hex)
-        self.team_color_btn.setStyleSheet(f'background-color: {team_hex}; color: {team_text_color};')
+        self.team_color_btn.setStyleSheet(f'background-color: {team_hex}; color: {team_text_color}; border-radius: 6px; font-weight: bold;')
         self.team_color_btn.clicked.connect(lambda: self.pick_color('team_color', self.team_color_btn))
         self.set_tooltip_if_enabled(self.team_color_btn, "Color used for drawing ESP elements of your teammates.")
-        self.team_color_btn.setMinimumHeight(28)
+        self.team_color_btn.setMinimumHeight(32)
         self.team_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        colors_layout.addWidget(self.team_color_btn)
+        esp_colors_layout.addWidget(self.team_color_btn)
 
-                            
-        self.enemy_color_btn = QtWidgets.QPushButton('Enemy Color')
+        self.enemy_color_btn = QtWidgets.QPushButton('Enemy')
         enemy_hex = self.settings.get('enemy_color', '#C41E3A')
         enemy_text_color = self.get_contrasting_text_color(enemy_hex)
-        self.enemy_color_btn.setStyleSheet(f'background-color: {enemy_hex}; color: {enemy_text_color};')
+        self.enemy_color_btn.setStyleSheet(f'background-color: {enemy_hex}; color: {enemy_text_color}; border-radius: 6px; font-weight: bold;')
         self.enemy_color_btn.clicked.connect(lambda: self.pick_color('enemy_color', self.enemy_color_btn))
         self.set_tooltip_if_enabled(self.enemy_color_btn, "Color used for drawing ESP elements of enemy players.")
-        self.enemy_color_btn.setMinimumHeight(28)
+        self.enemy_color_btn.setMinimumHeight(32)
         self.enemy_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        colors_layout.addWidget(self.enemy_color_btn)
+        esp_colors_layout.addWidget(self.enemy_color_btn)
 
-                                 
-        self.aim_circle_color_btn = QtWidgets.QPushButton('Aim Circle Color')
+        self.skeleton_color_btn = QtWidgets.QPushButton('Skeleton')
+        skeleton_hex = self.settings.get('skeleton_color', '#FFFFFF')
+        skeleton_text_color = self.get_contrasting_text_color(skeleton_hex)
+        self.skeleton_color_btn.setStyleSheet(f'background-color: {skeleton_hex}; color: {skeleton_text_color}; border-radius: 6px; font-weight: bold;')
+        self.skeleton_color_btn.clicked.connect(lambda: self.pick_color('skeleton_color', self.skeleton_color_btn))
+        self.set_tooltip_if_enabled(self.skeleton_color_btn, "Color used for drawing bone skeleton structures of players.")
+        self.skeleton_color_btn.setMinimumHeight(32)
+        self.skeleton_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        esp_colors_layout.addWidget(self.skeleton_color_btn)
+
+        colors_layout.addLayout(esp_colors_layout)
+
+        # Crosshair Colors Section
+        crosshair_colors_label = QtWidgets.QLabel("Crosshair Colors")
+        crosshair_colors_label.setAlignment(QtCore.Qt.AlignLeft)
+        colors_layout.addWidget(crosshair_colors_label)
+
+        # Create horizontal layout for crosshair colors
+        crosshair_colors_layout = QtWidgets.QHBoxLayout()
+        crosshair_colors_layout.setSpacing(8)
+
+        self.aim_circle_color_btn = QtWidgets.QPushButton('Aim Radius')
         aim_hex = self.settings.get('aim_circle_color', '#FF0000')
         aim_text_color = self.get_contrasting_text_color(aim_hex)
-        self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: {aim_text_color};')
+        self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: {aim_text_color}; border-radius: 6px; font-weight: bold;')
         self.aim_circle_color_btn.clicked.connect(lambda: self.pick_color('aim_circle_color', self.aim_circle_color_btn))
-        self.set_tooltip_if_enabled(self.aim_circle_color_btn, "Color of the aim circle that shows aimbot's targeting area.")
-        self.aim_circle_color_btn.setMinimumHeight(28)
+        self.set_tooltip_if_enabled(self.aim_circle_color_btn, "Color of the Aim Radius that shows aimbot's targeting area.")
+        self.aim_circle_color_btn.setMinimumHeight(32)
         self.aim_circle_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        colors_layout.addWidget(self.aim_circle_color_btn)
+        crosshair_colors_layout.addWidget(self.aim_circle_color_btn)
 
-                                 
-        self.center_dot_color_btn = QtWidgets.QPushButton('Center Dot Color')
+        self.center_dot_color_btn = QtWidgets.QPushButton('Center Dot')
         center_dot_hex = self.settings.get('center_dot_color', '#FFFFFF')
         center_dot_text_color = self.get_contrasting_text_color(center_dot_hex)
-        self.center_dot_color_btn.setStyleSheet(f'background-color: {center_dot_hex}; color: {center_dot_text_color};')
+        self.center_dot_color_btn.setStyleSheet(f'background-color: {center_dot_hex}; color: {center_dot_text_color}; border-radius: 6px; font-weight: bold;')
         self.center_dot_color_btn.clicked.connect(lambda: self.pick_color('center_dot_color', self.center_dot_color_btn))
         self.set_tooltip_if_enabled(self.center_dot_color_btn, "Color of the center crosshair dot displayed in the middle of your screen.")
-        self.center_dot_color_btn.setMinimumHeight(28)
+        self.center_dot_color_btn.setMinimumHeight(32)
         self.center_dot_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        colors_layout.addWidget(self.center_dot_color_btn)
+        crosshair_colors_layout.addWidget(self.center_dot_color_btn)
 
-                                 
+        colors_layout.addLayout(crosshair_colors_layout)
+
+        # Interface Colors Section
+        interface_colors_label = QtWidgets.QLabel("Interface Colors")
+        interface_colors_label.setAlignment(QtCore.Qt.AlignLeft)
+        colors_layout.addWidget(interface_colors_label)
+
         self.menu_theme_color_btn = QtWidgets.QPushButton('Menu Theme Color')
         menu_theme_hex = self.settings.get('menu_theme_color', '#FF0000')
         menu_theme_text_color = self.get_contrasting_text_color(menu_theme_hex)
-        self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: {menu_theme_text_color};')
+        self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: {menu_theme_text_color}; border-radius: 6px; font-weight: bold;')
         self.menu_theme_color_btn.clicked.connect(lambda: self.pick_color('menu_theme_color', self.menu_theme_color_btn))
         self.set_tooltip_if_enabled(self.menu_theme_color_btn, "Primary color theme for the configuration menu interface.")
-        self.menu_theme_color_btn.setMinimumHeight(28)
+        self.menu_theme_color_btn.setMinimumHeight(32)
         self.menu_theme_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.menu_theme_color_btn)
 
-                                   
-        self.rainbow_fov_cb = QtWidgets.QCheckBox("Rainbow FOV Circle")
+        # Rainbow Effects Section
+        rainbow_effects_label = QtWidgets.QLabel("Rainbow Effects")
+        rainbow_effects_label.setAlignment(QtCore.Qt.AlignLeft)
+        colors_layout.addWidget(rainbow_effects_label)
+
+        self.rainbow_fov_cb = QtWidgets.QCheckBox("Rainbow Aim Radius")
         self.rainbow_fov_cb.setChecked(self.settings.get('rainbow_fov', 0) == 1)
         self.rainbow_fov_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.rainbow_fov_cb, "Makes the aim circle continuously cycle through rainbow colors instead of using a fixed color.")
+        self.set_tooltip_if_enabled(self.rainbow_fov_cb, "Makes the Aim Radius continuously cycle through rainbow colors instead of using a fixed color.")
         self.rainbow_fov_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.rainbow_fov_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_fov_cb)
 
-                                   
         self.rainbow_center_dot_cb = QtWidgets.QCheckBox("Rainbow Center Dot")
         self.rainbow_center_dot_cb.setChecked(self.settings.get('rainbow_center_dot', 0) == 1)
         self.rainbow_center_dot_cb.stateChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.rainbow_center_dot_cb, "Makes the center crosshair dot continuously cycle through rainbow colors instead of using a fixed color.")
         self.rainbow_center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.rainbow_center_dot_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_center_dot_cb)
 
-                                   
         self.rainbow_menu_theme_cb = QtWidgets.QCheckBox("Rainbow Menu Theme")
         self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
         self.rainbow_menu_theme_cb.stateChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.rainbow_menu_theme_cb, "Makes the menu theme color continuously cycle through rainbow colors instead of using a fixed color.")
         self.rainbow_menu_theme_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.rainbow_menu_theme_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_menu_theme_cb)
 
         colors_container.setLayout(colors_layout)
@@ -1759,15 +1748,20 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
 
-                                
-        self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
-        self.menu_key_btn.setObjectName("keybind_button")
-        self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
-        self.set_tooltip_if_enabled(self.menu_key_btn, "Click to set the key for opening/closing this configuration menu during gameplay.")
-        self.menu_key_btn.setMinimumHeight(22)
-        self.menu_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.menu_key_btn)
-        self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
+        # Targeting Option
+        targeting_label = QtWidgets.QLabel("Targeting Option:")
+        targeting_label.setAlignment(QtCore.Qt.AlignLeft)
+        misc_layout.addWidget(targeting_label)
+        
+        self.esp_mode_cb = QtWidgets.QComboBox()
+        self.esp_mode_cb.addItems(["Enemies Only", "All Players"])
+        self.esp_mode_cb.setCurrentIndex(self.settings.get("esp_mode", 1))
+        self.esp_mode_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
+        self.esp_mode_cb.currentIndexChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.esp_mode_cb, "Choose whether to show ESP for enemies only or all players including teammates.")
+        self.esp_mode_cb.setMinimumHeight(22)
+        self.esp_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.esp_mode_cb)
 
                                     
         self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
@@ -1799,6 +1793,28 @@ class ConfigWindow(QtWidgets.QWidget):
         self.fps_limit_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.fps_limit_slider)
 
+                             
+        self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
+        self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
+        self.center_dot_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.center_dot_cb, "Draw a small dot in the center of your screen as a crosshair reference point.")
+        self.center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.center_dot_cb)
+
+                                
+        self.center_dot_size_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.center_dot_size_slider.setMinimum(1)
+        self.center_dot_size_slider.setMaximum(20)
+        self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
+        self.center_dot_size_slider.valueChanged.connect(self.update_center_dot_size_label)
+        self.set_tooltip_if_enabled(self.center_dot_size_slider, "Adjust the size of the center dot crosshair from 1 (smallest) to 20 (largest) pixels.")
+        self.lbl_center_dot_size = QtWidgets.QLabel(f"Center Dot Size: ({self.settings.get('center_dot_size', 3)})")
+        self.lbl_center_dot_size.setMinimumHeight(16)
+        misc_layout.addWidget(self.lbl_center_dot_size)
+        self.center_dot_size_slider.setMinimumHeight(18)
+        self.center_dot_size_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.center_dot_size_slider)
+
                               
         self.bhop_cb = QtWidgets.QCheckBox("Bhop")
         self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
@@ -1816,6 +1832,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.bhop_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.bhop_key_btn)
         self.bhop_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'BhopKey', self.bhop_key_btn)
+
+                                
+        self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
+        self.menu_key_btn.setObjectName("keybind_button")
+        self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
+        self.set_tooltip_if_enabled(self.menu_key_btn, "Click to set the key for opening/closing this configuration menu during gameplay.")
+        self.menu_key_btn.setMinimumHeight(22)
+        self.menu_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.menu_key_btn)
+        self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
         self.terminate_btn = QtWidgets.QPushButton("Exit Script (Hold ESC or click here)")
         self.set_tooltip_if_enabled(self.terminate_btn, "Close the entire script and all its processes. You can also hold ESC for 3 seconds to exit.")
@@ -1883,6 +1909,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.fps_limit_slider.setEnabled(True)
                 self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
+            
+            # Update box mode dropdown state when low CPU mode changes
+            self.update_box_mode_dropdown_state()
             
             save_settings(self.settings)
         except Exception:
@@ -1984,6 +2013,26 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
+    def update_box_mode_dropdown_state(self):
+        """Update box mode dropdown state based on low CPU mode setting"""
+        try:
+            low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
+            
+            if hasattr(self, 'box_mode_combo'):
+                if low_cpu_enabled:
+                    # Lock dropdown to 2D mode when low CPU is enabled
+                    self.box_mode_combo.setCurrentText('2D')
+                    self.box_mode_combo.setEnabled(False)
+                    if hasattr(self, 'box_mode_label'):
+                        self.box_mode_label.setToolTip('Box mode is locked to 2D when Low CPU Mode is enabled for better performance')
+                else:
+                    # Enable dropdown when low CPU is disabled
+                    self.box_mode_combo.setEnabled(True)
+                    if hasattr(self, 'box_mode_label'):
+                        self.box_mode_label.setToolTip('Choose between 2D flat boxes or 3D boxes that show actual player dimensions in game world')
+        except Exception:
+            pass
+
     def on_reset_clicked(self):
         """Restore DEFAULT_SETTINGS and update every configurable UI element in one atomic operation.
 
@@ -1993,12 +2042,12 @@ class ConfigWindow(QtWidgets.QWidget):
         """
         
         widget_names = [
-            'esp_rendering_cb', 'esp_mode_cb', 'line_rendering_cb', 'hp_bar_rendering_cb',
-            'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'weapon_cb', 'bomb_esp_cb',
+            'esp_rendering_cb', 'esp_mode_cb', 'line_rendering_cb', 'lines_position_combo', 'hp_bar_rendering_cb',
+            'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'bomb_esp_cb',
             'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
             'smooth_slider', 'center_dot_size_slider',
             'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn',
-            'team_color_btn', 'enemy_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb',
+            'team_color_btn', 'enemy_color_btn', 'skeleton_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb',
             'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
         ]
         widgets = [getattr(self, name, None) for name in widget_names]
@@ -2033,9 +2082,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     'nickname_cb': 'nickname',
                     'show_visibility_cb': 'show_visibility',
                     'aim_visibility_cb': 'aim_visibility_check',
-                    'lock_target_cb': 'aim_lock_target',
-                    'weapon_cb': 'weapon',
-                    'bomb_esp_cb': 'bomb_esp',
                     'radar_cb': 'radar_enabled',
                     'trigger_bot_active_cb': 'trigger_bot_active',
                     'aim_active_cb': 'aim_active',
@@ -2069,6 +2115,11 @@ class ConfigWindow(QtWidgets.QWidget):
                     index = self.radar_position_combo.findText(position)
                     if index >= 0:
                         self.radar_position_combo.setCurrentIndex(index)
+                if getattr(self, 'box_mode_combo', None) is not None:
+                    box_mode = self.settings.get('box_mode', '2D')
+                    index = self.box_mode_combo.findText(box_mode)
+                    if index >= 0:
+                        self.box_mode_combo.setCurrentIndex(index)
                 if getattr(self, 'triggerbot_first_shot_delay_slider', None) is not None:
                     self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
                 if getattr(self, 'center_dot_size_slider', None) is not None:
@@ -2120,6 +2171,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
                 if getattr(self, 'bhop_key_btn', None) is not None:
                     self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+                if getattr(self, 'head_trigger_key_btn', None) is not None:
+                    self.head_trigger_key_btn.setText(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
 
                 if getattr(self, 'esp_toggle_key_btn', None) is not None:
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
@@ -2136,6 +2189,9 @@ class ConfigWindow(QtWidgets.QWidget):
                     if getattr(self, 'enemy_color_btn', None) is not None:
                         enemy_hex = self.settings.get('enemy_color', DEFAULT_SETTINGS.get('enemy_color'))
                         self.enemy_color_btn.setStyleSheet(f'background-color: {enemy_hex}; color: white;')
+                    if getattr(self, 'skeleton_color_btn', None) is not None:
+                        skeleton_hex = self.settings.get('skeleton_color', DEFAULT_SETTINGS.get('skeleton_color'))
+                        self.skeleton_color_btn.setStyleSheet(f'background-color: {skeleton_hex}; color: black;')
                     if getattr(self, 'aim_circle_color_btn', None) is not None:
                         aim_hex = self.settings.get('aim_circle_color', DEFAULT_SETTINGS.get('aim_circle_color'))
                         self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: white;')
@@ -2165,6 +2221,8 @@ class ConfigWindow(QtWidgets.QWidget):
             try:
                                                          
                 self.initialize_fps_slider_state()
+                # Update box mode dropdown state after reset
+                self.update_box_mode_dropdown_state()
                 save_settings(self.settings)
             except Exception:
                 pass
@@ -2174,6 +2232,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.settings["esp_rendering"] = 1 if self.esp_rendering_cb.isChecked() else 0
         self.settings["esp_mode"] = self.esp_mode_cb.currentIndex()
         self.settings["line_rendering"] = 1 if self.line_rendering_cb.isChecked() else 0
+        self.settings["lines_position"] = self.lines_position_combo.currentText() if hasattr(self, 'lines_position_combo') else "Bottom"
+        # Force 2D mode if low CPU is enabled, otherwise use dropdown selection
+        low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
+        if low_cpu_enabled:
+            self.settings["box_mode"] = "2D"
+        else:
+            self.settings["box_mode"] = self.box_mode_combo.currentText() if hasattr(self, 'box_mode_combo') else "2D"
         self.settings["hp_bar_rendering"] = 1 if self.hp_bar_rendering_cb.isChecked() else 0
         self.settings["head_hitbox_rendering"] = 1 if self.head_hitbox_rendering_cb.isChecked() else 0
         self.settings["Bones"] = 1 if self.Bones_cb.isChecked() else 0
@@ -2213,7 +2278,6 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["show_visibility"] = 1 if getattr(self, 'show_visibility_cb', None) and self.show_visibility_cb.isChecked() else 0
         except Exception:
             self.settings["show_visibility"] = self.settings.get("show_visibility", 1)
-        self.settings["weapon"] = 1 if self.weapon_cb.isChecked() else 0
         self.settings["bomb_esp"] = 1 if self.bomb_esp_cb.isChecked() else 0
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
         self.settings["aim_active"] = 1 if self.aim_active_cb.isChecked() else 0
@@ -2556,10 +2620,17 @@ class ConfigWindow(QtWidgets.QWidget):
                                                                   
                         self.set_keybind_cooldown(settings_key)
                         
-                        short = settings_key
-                        if '_' in settings_key:
-                            short = settings_key.split('_')[0]
-                        btn.setText(f"{short.capitalize()}: {val}")
+                        # Use consistent button text formatting
+                        button_text_map = {
+                            'AimKey': 'AimKey',
+                            'TriggerKey': 'TriggerKey', 
+                            'HeadTriggerKey': 'Head TriggerKey',
+                            'MenuToggleKey': 'MenuToggleKey',
+                            'BhopKey': 'BhopKey',
+                            'ESPToggleKey': 'ESP Toggle'
+                        }
+                        display_text = button_text_map.get(settings_key, settings_key)
+                        btn.setText(f"{display_text}: {val}")
                         timer.stop()
                         dialog.accept()
                         return
@@ -3192,7 +3263,7 @@ def configurator():
     except Exception:
         pass
     
-    debug_print("Using default Qt styling - no themes applied")
+    pass  # Using default Qt styling
     
     window = ConfigWindow()
     
@@ -3205,7 +3276,11 @@ def configurator():
 class ESPWindow(QtWidgets.QWidget):
     def __init__(self, settings, window_width=None, window_height=None):
         super().__init__()
-        self.settings = settings
+        # Ensure settings are properly merged with defaults
+        merged_settings = DEFAULT_SETTINGS.copy()
+        if settings:
+            merged_settings.update(settings)
+        self.settings = merged_settings
         self.setWindowTitle('ESP Overlay')
         
         if window_width is not None and window_height is not None:
@@ -3368,7 +3443,22 @@ class ESPWindow(QtWidgets.QWidget):
     
 
     def reload_settings(self):
-        self.settings = load_settings()
+        # Load new settings with validation
+        try:
+            new_settings = load_settings()
+        except Exception:
+            # If loading fails, keep current settings
+            return
+        
+        # Only update if settings actually changed and are valid
+        if new_settings and isinstance(new_settings, dict) and len(new_settings) > 0:
+            if new_settings != self.settings:
+                self.settings = new_settings
+            else:
+                return  # No change, skip the rest of reload
+        else:
+            # Invalid settings loaded, skip update
+            return
         
                                                                            
         current_x, current_y, current_width, current_height = get_window_client_rect("Counter-Strike 2")
@@ -3527,6 +3617,13 @@ class ESPWindow(QtWidgets.QWidget):
         return False
 
     def update_scene(self):
+        # Early validation: ensure settings are properly loaded
+        if not hasattr(self, 'settings') or not self.settings:
+            # Only load default settings on first initialization, not during normal operation
+            if not hasattr(self, '_initialization_complete'):
+                self.settings = load_settings()
+                self._initialization_complete = True
+            return  # Skip this frame to prevent settings issues
                                                                  
         if not self.is_game_window_active():
             if hasattr(self, 'scene') and self.scene.items():
@@ -3569,6 +3666,7 @@ class ESPWindow(QtWidgets.QWidget):
                 render_center_dot(self.scene, self.window_width, self.window_height, self.settings)
             
             if aim_circle_visible:
+                # Render Aim Radius
                 render_aim_circle(self.scene, self.window_width, self.window_height, self.settings)
             
             if radar_enabled:
@@ -3686,7 +3784,7 @@ def render_center_dot(scene, window_width, window_height, settings):
         pass
 
 def render_aim_circle(scene, window_width, window_height, settings):
-    """Render aim circle independently of ESP settings"""
+    """Render Aim Radius independently of ESP settings"""
     try:
         aim_circle_visible = settings.get('aim_circle_visible', 1) == 1
         if aim_circle_visible and 'radius' in settings and settings.get('radius', 0) != 0:
@@ -4169,11 +4267,10 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
     head_hitbox_rendering = settings.get('head_hitbox_rendering', 1) == 1
     bones_rendering = settings.get('Bones', 0) == 1
     nickname_rendering = settings.get('nickname', 0) == 1
-    weapon_rendering = settings.get('weapon', 0) == 1
     
                                                                 
     if not (box_rendering or line_rendering or hp_bar_rendering or head_hitbox_rendering or 
-            bones_rendering or nickname_rendering or weapon_rendering):
+            bones_rendering or nickname_rendering):
         return
     
                                                     
@@ -4196,7 +4293,11 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         return
 
     no_center_x = window_width / 2
-    no_center_y = window_height * 0.9
+    lines_position = settings.get('lines_position', 'Bottom')
+    if lines_position == 'Top':
+        no_center_y = 0  # Top of screen
+    else:
+        no_center_y = window_height  # Very bottom of screen (default)
     entity_list = pm.read_longlong(client + dwEntityList)
     entity_ptr = pm.read_longlong(entity_list + 0x10)
 
@@ -4238,16 +4339,6 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
             if hp_bar_rendering:
                 armor_hp = pm.read_int(entity_pawn_addr + m_ArmorValue)
             
-                                                             
-            weapon_name = ""
-            if weapon_rendering:
-                try:
-                    weapon_pointer = pm.read_longlong(entity_pawn_addr + m_pClippingWeapon)
-                    weapon_index = pm.read_int(weapon_pointer + m_AttributeManager + m_Item + m_iItemDefinitionIndex)
-                    weapon_name = get_weapon_name_by_index(weapon_index)
-                except Exception:
-                    weapon_name = "Unknown"
-
                                       
             color = team_color if entity_team == local_player_team else enemy_color
             
@@ -4274,22 +4365,113 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 
                                         
                 if line_rendering:
-                    bottom_left_x = head_pos[0] - (head_pos[0] - leg_pos[0]) // 2
-                    bottom_y = leg_pos[1]
+                    # Choose connection point based on lines position setting
+                    if lines_position == 'Top':
+                        # Connect to top of ESP box
+                        connection_x = head_pos[0]
+                        connection_y = head_pos[1]  # This is already the top of the ESP box
+                    else:
+                        # Connect to bottom of player (feet) - default behavior
+                        connection_x = head_pos[0] - (head_pos[0] - leg_pos[0]) // 2
+                        connection_y = leg_pos[1]
+                    
                                                               
-                    line_pen = QtGui.QPen(color, 2)                       
+                    line_pen = QtGui.QPen(color, 1.5)                       
                     line_pen.setCapStyle(QtCore.Qt.RoundCap)                                  
-                    line = scene.addLine(bottom_left_x, bottom_y, no_center_x, no_center_y, line_pen)
+                    line = scene.addLine(connection_x, connection_y, no_center_x, no_center_y, line_pen)
                 
                                        
                 if box_rendering:
                                                                      
-                    box_pen = QtGui.QPen(color, 2)                                             
+                    box_pen = QtGui.QPen(color, 0.5)                                             
                     box_pen.setCapStyle(QtCore.Qt.SquareCap)                                  
-                    box_pen.setJoinStyle(QtCore.Qt.MiterJoin)                 
-                    rect = scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
-
-                                          
+                    box_pen.setJoinStyle(QtCore.Qt.MiterJoin)
+                    
+                    # Check box mode setting - force 2D if low CPU mode is enabled
+                    low_cpu_enabled = settings.get('low_cpu', 0) == 1
+                    box_mode = '2D' if low_cpu_enabled else settings.get('box_mode', '2D')
+                    
+                    if box_mode == '3D':
+                        # True 3D bounding box - define player dimensions in game units
+                        player_width = 32.0    # CS2 player width in game units
+                        player_length = 32.0   # CS2 player depth in game units  
+                        player_height = 72.0   # CS2 player height in game units
+                        
+                        # Get player's 3D position
+                        try:
+                            player_origin_addr = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
+                            origin_x = pm.read_float(player_origin_addr + m_vecAbsOrigin)
+                            origin_y = pm.read_float(player_origin_addr + m_vecAbsOrigin + 4)
+                            origin_z = pm.read_float(player_origin_addr + m_vecAbsOrigin + 8)
+                            
+                            # Define 8 corners of 3D bounding box around player
+                            half_width = player_width / 2
+                            half_length = player_length / 2
+                            
+                            # Bottom face corners (at player's feet)
+                            bottom_corners = [
+                                (origin_x - half_width, origin_y - half_length, origin_z),  # Bottom front-left
+                                (origin_x + half_width, origin_y - half_length, origin_z),  # Bottom front-right
+                                (origin_x + half_width, origin_y + half_length, origin_z),  # Bottom back-right
+                                (origin_x - half_width, origin_y + half_length, origin_z),  # Bottom back-left
+                            ]
+                            
+                            # Top face corners (at player's head)
+                            top_corners = [
+                                (origin_x - half_width, origin_y - half_length, origin_z + player_height),  # Top front-left
+                                (origin_x + half_width, origin_y - half_length, origin_z + player_height),  # Top front-right
+                                (origin_x + half_width, origin_y + half_length, origin_z + player_height),  # Top back-right
+                                (origin_x - half_width, origin_y + half_length, origin_z + player_height),  # Top back-left
+                            ]
+                            
+                            # Project all 8 corners to screen coordinates
+                            bottom_screen = []
+                            top_screen = []
+                            
+                            all_corners_valid = True
+                            for corner in bottom_corners:
+                                screen_x, screen_y = w2s(view_matrix, corner[0], corner[1], corner[2], window_width, window_height)
+                                if screen_x == -999:
+                                    all_corners_valid = False
+                                    break
+                                bottom_screen.append((screen_x, screen_y))
+                                
+                            if all_corners_valid:
+                                for corner in top_corners:
+                                    screen_x, screen_y = w2s(view_matrix, corner[0], corner[1], corner[2], window_width, window_height)
+                                    if screen_x == -999:
+                                        all_corners_valid = False
+                                        break
+                                    top_screen.append((screen_x, screen_y))
+                            
+                            # Draw the 3D bounding box if all corners are valid
+                            if all_corners_valid:
+                                # Draw bottom face edges
+                                for i in range(4):
+                                    next_i = (i + 1) % 4
+                                    scene.addLine(bottom_screen[i][0], bottom_screen[i][1], 
+                                                bottom_screen[next_i][0], bottom_screen[next_i][1], box_pen)
+                                
+                                # Draw top face edges  
+                                for i in range(4):
+                                    next_i = (i + 1) % 4
+                                    scene.addLine(top_screen[i][0], top_screen[i][1],
+                                                top_screen[next_i][0], top_screen[next_i][1], box_pen)
+                                
+                                # Draw vertical edges connecting bottom to top
+                                for i in range(4):
+                                    scene.addLine(bottom_screen[i][0], bottom_screen[i][1],
+                                                top_screen[i][0], top_screen[i][1], box_pen)
+                            else:
+                                # Fallback to 2D box if 3D projection fails
+                                scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
+                                
+                        except Exception:
+                            # Fallback to 2D box if 3D calculation fails
+                            scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
+                    else:
+                        # 2D box mode (default)
+                        scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)                                          
                 if hp_bar_rendering:
                     max_hp = 100
                     hp_percentage = min(1.0, max(0.0, entity_hp / max_hp))
@@ -4352,7 +4534,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
 
                                          
                 if bones_rendering:
-                    draw_Bones(scene, pm, bone_matrix, view_matrix, window_width, window_height)
+                    draw_Bones(scene, pm, bone_matrix, view_matrix, window_width, window_height, settings)
 
                                                      
                 if nickname_rendering:
@@ -4414,24 +4596,12 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                             vis_item.setDefaultTextColor(QtGui.QColor(200, 0, 0))
                     except Exception:
                         pass
-                
-                                                   
-                if weapon_rendering and weapon_name:
-                    font_size = max(6, min(18, deltaZ / 25))
-                    font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
-                    font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
-                    weapon_name_text = scene.addText(weapon_name, font)
-                    text_rect = weapon_name_text.boundingRect()
-                    weapon_name_x = head_pos[0] - text_rect.width() / 2
-                    weapon_name_y = head_pos[1] + deltaZ
-                    weapon_name_text.setPos(weapon_name_x, weapon_name_y)
-                    weapon_name_text.setDefaultTextColor(QtGui.QColor(255, 255, 255))
                     
                                                    
-                    weapon_shadow_text = scene.addText(weapon_name, font)
-                    weapon_shadow_text.setPos(weapon_name_x + 1, weapon_name_y + 1)
-                    weapon_shadow_text.setDefaultTextColor(QtGui.QColor(0, 0, 0, 150))
-                    weapon_shadow_text.setZValue(-1)                               
+                    
+                    
+                    
+                    
 
 
             except:
@@ -4439,7 +4609,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         except:
             return
 
-def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height):
+def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height, settings):
     bone_ids = {
         "head": 6,
         "neck": 5,
@@ -4486,16 +4656,33 @@ def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height):
                 bone_positions[bone_name] = bone_pos
         for connection in bone_connections:
             if connection[0] in bone_positions and connection[1] in bone_positions:
+                skeleton_hex = settings.get('skeleton_color', '#FFFFFF')
+                skeleton_color = QtGui.QColor(skeleton_hex)
                 scene.addLine(
                     bone_positions[connection[0]][0], bone_positions[connection[0]][1],
                     bone_positions[connection[1]][0], bone_positions[connection[1]][1],
-                    QtGui.QPen(QtGui.QColor(255, 255, 255, 128), 1)
+                    QtGui.QPen(skeleton_color, 1)
                 )
     except Exception as e:
         pass
 
 def esp_main():
-    settings = load_settings()
+    # Load settings with retry logic to ensure config is ready
+    settings = None
+    for attempt in range(5):  # Try up to 5 times instead of 3
+        settings = load_settings()
+        if settings and len(settings) >= len(DEFAULT_SETTINGS) // 2:  # Basic validation
+            break
+        time.sleep(0.2)  # Longer delay between attempts
+    
+    if not settings:
+        settings = DEFAULT_SETTINGS.copy()
+        # Try to save default settings to ensure config file exists
+        try:
+            save_settings(settings)
+        except Exception:
+            pass
+    
     app = QtWidgets.QApplication(sys.argv)
     
     
@@ -5558,8 +5745,7 @@ def auto_accept_main():
 if __name__ == "__main__":
     
                                                   
-    setup_debug_console()
-    debug_print("Starting Popsicle CS2 application...")
+    print("Starting Popsicle CS2 application...")
     
     try:
         multiprocessing.freeze_support()
@@ -5569,7 +5755,7 @@ if __name__ == "__main__":
                                               
     version_thread = threading.Thread(target=version_check_worker, daemon=True)
     version_thread.start()
-    debug_print("Version check worker started")
+    pass  # Version check worker started
 
                                                         
     if not handle_instance_check():
@@ -5596,25 +5782,25 @@ if __name__ == "__main__":
     
                                      
     if is_cs2_running():
-        debug_print("CS2 is already running - proceeding with startup")
+        pass  # CS2 is already running
                                              
         if STARTUP_ENABLED:
-            debug_print("Startup delays enabled - waiting 4 seconds")
+            pass  # Startup delays enabled
             time.sleep(4)
             
                                      
-            debug_print("Triggering graphics restart")
+            pass  # Triggering graphics restart
             trigger_graphics_restart()
             
                                                               
         pm = None
         try:
             pm = pymem.Pymem("cs2.exe")
-            debug_print("Successfully connected to CS2 process")
+            pass  # Successfully connected to CS2 process
         except Exception:
-            debug_print("Failed to connect to CS2 process initially")
+            pass  # Failed to connect to CS2 process initially
     else:
-        debug_print("CS2 is not running - showing wait dialog")
+        pass  # CS2 is not running - showing wait dialog
                                                    
         app_title = get_app_title()
         result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
@@ -5650,10 +5836,10 @@ if __name__ == "__main__":
         multiprocessing.Process(target=auto_accept_main),
     ]
     
-    debug_print("Starting all processes...")
+    pass  # Starting all processes
     for i, p in enumerate(procs):
         process_names = ["configurator", "esp_main", "triggerbot", "aim", "bhop", "auto_accept_main"]
-        debug_print(f"Starting process: {process_names[i]}")
+        pass  # Starting process
         p.start()
 
     try:
