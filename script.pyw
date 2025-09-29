@@ -325,7 +325,9 @@ CONSOLE_LOCK_FILE = os.path.join(CONFIG_DIR, 'debug_console.lock')
 # Apply commands from commands.txt if it exists (now that COMMANDS_FILE is defined)
 apply_commands()
                        
-RAINBOW_HUE = 0.0
+RAINBOW_HUE_MENU = 0.0
+RAINBOW_HUE_CENTER_DOT = 0.33  # Start at different positions
+RAINBOW_HUE_FOV = 0.66
 TARGET_POSITIONS = {}                                                                      
 TARGET_POSITION_TIMESTAMPS = {}                                         
 BombPlantedTime = 0
@@ -2942,13 +2944,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 self._rainbow_was_enabled = False
                 
             if rainbow_enabled:
-                global RAINBOW_HUE
+                global RAINBOW_HUE_MENU
                                                                                                
-                if (self.settings.get('rainbow_fov', 0) != 1 and 
-                    self.settings.get('rainbow_center_dot', 0) != 1):
-                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                # Menu theme always updates its own hue when enabled
+                RAINBOW_HUE_MENU = (RAINBOW_HUE_MENU + 0.005) % 1.0
                 
-                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_MENU, 1.0, 1.0)]
                 rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
                 
                                                                                           
@@ -3753,10 +3754,10 @@ def render_center_dot(scene, window_width, window_height, settings):
                                        
             if settings.get('rainbow_center_dot', 0) == 1:
                 try:
-                    global RAINBOW_HUE
+                    global RAINBOW_HUE_CENTER_DOT
                                                                     
-                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                    RAINBOW_HUE_CENTER_DOT = (RAINBOW_HUE_CENTER_DOT + 0.005) % 1.0
+                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_CENTER_DOT, 1.0, 1.0)]
                     dot_qcolor = QtGui.QColor(r, g, b)
                 except Exception:
                     dot_hex = settings.get('center_dot_color', '#FFFFFF')
@@ -3793,14 +3794,14 @@ def render_aim_circle(scene, window_width, window_height, settings):
             screen_radius = settings['radius'] / 100.0 * min(center_x, center_y)
             opacity = settings.get("circle_opacity", 16)
             
-            global RAINBOW_HUE
+            global RAINBOW_HUE_FOV
             if settings.get('rainbow_fov', 0) == 1:
                 try:
                                                                                            
                                                                                        
-                    if settings.get('rainbow_center_dot', 0) != 1:
-                        RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                    # FOV always updates its own hue when enabled
+                    RAINBOW_HUE_FOV = (RAINBOW_HUE_FOV + 0.005) % 1.0
+                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_FOV, 1.0, 1.0)]
                     aim_qcolor = QtGui.QColor(r, g, b)
                     aim_qcolor.setAlpha(opacity)
                 except Exception:
