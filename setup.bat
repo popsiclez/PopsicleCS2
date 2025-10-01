@@ -28,6 +28,22 @@ if defined INSTALLED_VERSION (
     echo Detected Python version %INSTALLED_VERSION%.
     if "%INSTALLED_VERSION%"=="%PYTHON_VERSION%" (
         echo Correct Python version already installed.
+        
+        :: Ask user if they want to install/update Python packages
+        echo.
+        echo Do you want to install/update Python packages? (Y/N)
+        set /p "INSTALL_PACKAGES=Enter your choice: "
+        
+        if /i "%INSTALL_PACKAGES%"=="N" (
+            echo Skipping Python package installation...
+            goto download_files
+        )
+        
+        if /i "%INSTALL_PACKAGES%"=="NO" (
+            echo Skipping Python package installation...
+            goto download_files
+        )
+        
         goto install_libs
     ) else (
         echo Incorrect Python version detected. Updating to %PYTHON_VERSION%...
@@ -48,7 +64,7 @@ powershell -Command "Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%TEMP_INSTA
 timeout /t 10 /nobreak >nul
 del "%TEMP_INSTALLER%"
 
-:: Clear console after Python installation
+::lear console after Python installation
 cls
 
 :: -----------------------------
@@ -74,7 +90,7 @@ echo Installing required libraries...
 
 :: Verify all packages are installed correctly
 echo Verifying package installation...
-"%PYTHON_EXE%" -c "import requests, pymem, pynput, PySide6, numpy, PIL, pyautogui, keyboard, scipy; print('All packages verified successfully!')" || (
+"%PYTHON_EXE%" -c "import requests, pymem, pynput, PySide6, numpy, PIL, pyautogui, keyboard, scipy, win32api, win32con, win32gui; print('All packages verified successfully!')" || (
     echo ERROR: Some packages failed to install correctly!
     echo Please run setup.bat again or install packages manually.
     pause
@@ -86,10 +102,14 @@ cls
 echo Python and all packages installed successfully.
 
 :: -----------------------------
-:: Get Dropbox download link from GitHub raw
+:: Download files section
 :: -----------------------------
-set "LINK_FILE=%TEMP%\dropboxlink.txt"
-powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/rawdownloadlink' -OutFile '%LINK_FILE%' -UseBasicParsing"
+:download_files
+:: -----------------------------
+:: Get loader download link from GitHub raw
+:: -----------------------------
+set "LINK_FILE=%TEMP%\loaderlink.txt"
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/loaderlink' -OutFile '%LINK_FILE%' -UseBasicParsing"
 set /p POPSICLE_URL=<"%LINK_FILE%"
 del "%LINK_FILE%"
 
@@ -97,6 +117,19 @@ set "POPSICLE_EXE=%~dp0loader.exe"
 
 echo Downloading script...
 powershell -Command "Invoke-WebRequest -Uri '%POPSICLE_URL%' -OutFile '%POPSICLE_EXE%' -UseBasicParsing"
+
+:: -----------------------------
+:: Get cleanup file download link from GitHub raw
+:: -----------------------------
+set "CLEANUP_LINK_FILE=%TEMP%\cleanuplink.txt"
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/cleanuplink' -OutFile '%CLEANUP_LINK_FILE%' -UseBasicParsing"
+set /p CLEANUP_URL=<"%CLEANUP_LINK_FILE%"
+del "%CLEANUP_LINK_FILE%"
+
+set "CLEANUP_BAT=%~dp0cleanup.bat"
+
+echo Downloading cleanup file...
+powershell -Command "Invoke-WebRequest -Uri '%CLEANUP_URL%' -OutFile '%CLEANUP_BAT%' -UseBasicParsing"
 
 echo Script setup complete
 
