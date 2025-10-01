@@ -497,6 +497,7 @@ DEFAULT_SETTINGS = {
     "aim_lock_target": 0,
     "aim_visibility_check": 0,
     "aim_disable_when_crosshair_on_enemy": 0,
+    "aim_movement_prediction": 0,
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -970,7 +971,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.triggerbot_burst_mode_cb, 
                 self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
                 self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb, 
-                self.lock_target_cb, self.disable_crosshair_cb, self.rainbow_fov_cb, 
+                self.lock_target_cb, self.disable_crosshair_cb, self.movement_prediction_cb, self.rainbow_fov_cb, 
                 self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb, self.auto_accept_cb, 
                 self.low_cpu_cb
             ]
@@ -1619,6 +1620,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.disable_crosshair_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.disable_crosshair_cb)
 
+        # Movement Prediction toggle
+        self.movement_prediction_cb = QtWidgets.QCheckBox("Movement Prediction")
+        self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
+        self.movement_prediction_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.movement_prediction_cb, "Predicts enemy movement and aims ahead of moving targets for more accurate shots.")
+        self.movement_prediction_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        aim_layout.addWidget(self.movement_prediction_cb)
+
         aim_container.setLayout(aim_layout)
         aim_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return aim_container
@@ -2103,6 +2112,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
             self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
             self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
+            self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
             self.radius_slider.setValue(self.settings.get("radius", 50))
             self.opacity_slider.setValue(self.settings.get("circle_opacity", 127))
             self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
@@ -2767,6 +2777,11 @@ class ConfigWindow(QtWidgets.QWidget):
         
         try:
             self.settings["aim_disable_when_crosshair_on_enemy"] = 1 if getattr(self, 'disable_crosshair_cb', None) and self.disable_crosshair_cb.isChecked() else 0
+        except Exception:
+            pass
+        
+        try:
+            self.settings["aim_movement_prediction"] = 1 if getattr(self, 'movement_prediction_cb', None) and self.movement_prediction_cb.isChecked() else 0
         except Exception:
             pass
         
@@ -5909,7 +5924,8 @@ def aim():
          'radius': 20,
          'aim_mode_distance': 1,
          'aim_smoothness': 50,
-         'aim_disable_when_crosshair_on_enemy': 0
+         'aim_disable_when_crosshair_on_enemy': 0,
+         'aim_movement_prediction': 0
      }
     
     def get_window_size(window_name="Counter-Strike 2"):
@@ -6016,12 +6032,22 @@ def aim():
                     deltaZ = abs(head_pos[1] - leg_pos[1]) if head_pos[1] != -999 and leg_pos[1] != -999 else None
 
                     
+                    # Get velocity for movement prediction
+                    try:
+                        velocity_x = pm.read_float(entity_pawn_addr + m_vecVelocity)
+                        velocity_y = pm.read_float(entity_pawn_addr + m_vecVelocity + 4)
+                        velocity_z = pm.read_float(entity_pawn_addr + m_vecVelocity + 8)
+                        velocity = (velocity_x, velocity_y, velocity_z)
+                    except Exception:
+                        velocity = (0, 0, 0)
+                    
                     any_valid = any(p[0] != -999 and p[1] != -999 for p in bone_positions.values())
                     if any_valid:
                         target_list.append({
                             'bone_positions': bone_positions,
                             'deltaZ': deltaZ,
-                            'entity_pawn_addr': entity_pawn_addr
+                            'entity_pawn_addr': entity_pawn_addr,
+                            'velocity': velocity
                         })
                 except Exception as e:
                     pass
@@ -6153,8 +6179,67 @@ def aim():
 
         
 
-                                                                   
+        # Movement prediction logic
+        movement_prediction_enabled = settings.get('aim_movement_prediction', 0) == 1
         target_x, target_y = pos
+        
+        if movement_prediction_enabled and pm and client:
+            try:
+                # Get velocity data for the target entity
+                target_velocity = None
+                target_bone_id = _select_bone_for_entity(ent_addr)
+                
+                for target in target_list:
+                    if target.get('entity_pawn_addr') == ent_addr:
+                        target_velocity = target.get('velocity', (0, 0, 0))
+                        break
+                
+                # Only predict for targets with significant movement (reduced threshold for better accuracy)
+                if target_velocity and (abs(target_velocity[0]) > 30 or abs(target_velocity[1]) > 30):
+                    # Much more conservative prediction time - CS2 is hitscan so we need minimal lead
+                    # Base on 2D screen distance, but keep it very small
+                    distance_to_target = ((pos[0] - center_x)**2 + (pos[1] - center_y)**2)**0.5
+                    
+                    # Very short prediction time: 0.01 to 0.08 seconds max
+                    # This accounts for network latency and minor movement prediction
+                    max_screen_distance = 500  # Reasonable screen distance reference
+                    prediction_time = 0.01 + min(distance_to_target / max_screen_distance, 1.0) * 0.07
+                    
+                    # Get the specific bone position we're targeting, not just world center
+                    try:
+                        # Read the bone matrix for the target
+                        game_scene_node = pm.read_longlong(ent_addr + m_pGameSceneNode)
+                        bone_matrix = pm.read_longlong(game_scene_node + m_modelState + 0x80)
+                        
+                        # Get current bone world position
+                        current_bone_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
+                        current_bone_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
+                        current_bone_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
+                        
+                        # Apply conservative movement prediction to the bone position
+                        predicted_bone_x = current_bone_x + (target_velocity[0] * prediction_time)
+                        predicted_bone_y = current_bone_y + (target_velocity[1] * prediction_time)
+                        predicted_bone_z = current_bone_z + (target_velocity[2] * prediction_time)
+                        
+                        # Get view matrix and convert predicted bone position to screen coordinates
+                        view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
+                        
+                        # Project predicted bone position to screen
+                        screen_width = win32api.GetSystemMetrics(0)
+                        screen_height = win32api.GetSystemMetrics(1)
+                        predicted_screen = w2s(view_matrix, predicted_bone_x, predicted_bone_y, predicted_bone_z, screen_width, screen_height)
+                        
+                        if predicted_screen and predicted_screen[0] != -999 and predicted_screen[1] != -999:
+                            # Use predicted screen position as new target
+                            target_x, target_y = predicted_screen
+                    except Exception:
+                        # If prediction fails, fall back to original position
+                        pass
+            except Exception:
+                # If any part of movement prediction fails, continue with original position
+                pass
+
+        # Calculate final aim adjustments                                                           
         dx = target_x - center_x
         dy = target_y - center_y
 
