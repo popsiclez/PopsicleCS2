@@ -30,8 +30,90 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
 import win32api
 import win32con
 import win32gui
+from datetime import datetime
 
 CONSOLE_CREATED = False  # Global flag to track console creation
+
+# Global logging setup
+LOG_FILE = None
+original_stdout = None
+original_stderr = None
+
+class LogRedirector:
+    """Redirect stdout/stderr to both file and console"""
+    def __init__(self, log_file, original_stream):
+        self.log_file = log_file
+        self.original_stream = original_stream
+        
+    def write(self, text):
+        # Write to original stream (console if available)
+        if self.original_stream:
+            try:
+                self.original_stream.write(text)
+                self.original_stream.flush()
+            except:
+                pass
+        
+        # Write to log file
+        try:
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                f.write(text)
+                f.flush()
+        except:
+            pass
+    
+    def flush(self):
+        if self.original_stream:
+            try:
+                self.original_stream.flush()
+            except:
+                pass
+
+def setup_logging():
+    """Setup logging to redirect all print statements to debug_log.txt"""
+    global original_stdout, original_stderr, LOG_FILE
+    
+    # Only setup if not already setup
+    if LOG_FILE is not None:
+        print("[DEBUG] Logging already setup, skipping")
+        return
+    
+    # Define log file path
+    LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
+    
+    # Store original streams
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
+    # Create log file with timestamp
+    try:
+        with open(LOG_FILE, 'w', encoding='utf-8') as f:
+            f.write(f"=== Popsicle CS2 Debug Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+            f.write("All console output will be logged here\n\n")
+    except:
+        pass
+    
+    # Redirect stdout and stderr to our custom redirector
+    sys.stdout = LogRedirector(LOG_FILE, original_stdout)
+    sys.stderr = LogRedirector(LOG_FILE, original_stderr)
+
+def cleanup_logging():
+    """Restore original stdout/stderr"""
+    global original_stdout, original_stderr, LOG_FILE
+    try:
+        if LOG_FILE:
+            with open(LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(f"\n=== Session ended - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+    except:
+        pass
+    
+    if original_stdout:
+        sys.stdout = original_stdout
+    if original_stderr:
+        sys.stderr = original_stderr
+    
+    # Reset LOG_FILE to None so it can be setup again if needed
+    LOG_FILE = None
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
@@ -62,53 +144,15 @@ def apply_commands():
     commands = load_commands()
     print(f"[DEBUG] Commands loaded: {commands}")  # Always print this
     
-    # Process debug command
-    if "debug" in commands:
-        print("[DEBUG] Debug command found in commands list")  # Always print this
-        
-        # Check if console already created by any process - only allow main process to create console
-        if not CONSOLE_CREATED and not os.path.exists(CONSOLE_LOCK_FILE) and __name__ == "__main__":
-            print("[DEBUG] Creating debug console in main process...")  # Always print this
-            # Force console creation for debug command - but only once globally
-            try:
-                # Create lock file first to prevent other processes
-                with open(CONSOLE_LOCK_FILE, 'w') as f:
-                    f.write(str(os.getpid()))
-                
-                # Try to allocate console
-                result = ctypes.windll.kernel32.AllocConsole()
-                if result != 0:  # Success
-                    # Disable close button
-                    disable_console_close_button()
-                    
-                    import sys
-                    sys.stdout = open('CONOUT$', 'w')
-                    sys.stderr = open('CONOUT$', 'w')
-                    sys.stdin = open('CONIN$', 'r')
-                    ctypes.windll.kernel32.SetConsoleTitleW("Debug Console - Popsicle CS2")
-                    CONSOLE_CREATED = True
-                    print("Debug mode enabled via commands.txt override - Console output active (close disabled)")
-                else:
-                    print("Console allocation failed - may already exist")
-                    # Remove lock file if console creation failed
-                    try:
-                        os.remove(CONSOLE_LOCK_FILE)
-                    except:
-                        pass
-            except Exception as e:
-                print(f"Console creation error: {e}")
-                # Remove lock file if console creation failed
-                try:
-                    os.remove(CONSOLE_LOCK_FILE)
-                except:
-                    pass
-        elif os.path.exists(CONSOLE_LOCK_FILE):
-            print("[DEBUG] Console lock file exists, skipping console creation")
-        elif CONSOLE_CREATED:
-            print("[DEBUG] Console already created in this process, skipping")
+    # Process debuglog command
+    if "debuglog" in commands:
+        print("[DEBUG] Debuglog command found in commands list")  # Always print this
+        # Setup logging only when debuglog command is present
+        setup_logging()
+        print("[DEBUG] Debug logging enabled and writing to debug_log.txt")  # Always print this
         print("Commands processed:", commands)
     else:
-        print("[DEBUG] Debug command NOT found in commands list")  # Always print this
+        print("[DEBUG] Debuglog command NOT found in commands list")  # Always print this
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -225,6 +269,12 @@ m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nB
                     
 m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
 m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
+
+# FOV offset
+try:
+    m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']
+except KeyError:
+    m_iDesiredFOV = 0x194  # Fallback offset if not found in client_dll
                                
 bone_ids = {
     "head": 6,
@@ -322,7 +372,7 @@ KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
 COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
 
-# Apply commands from commands.txt if it exists (now that COMMANDS_FILE is defined)
+# Apply commands from commands.txt if it exists (COMMANDS_FILE is now defined)
 apply_commands()
                        
 RAINBOW_HUE_MENU = 0.0
@@ -540,6 +590,7 @@ DEFAULT_SETTINGS = {
     "rainbow_menu_theme": 0,
     "low_cpu": 0,
     "fps_limit": 60,
+    "game_fov": 90,
 }
 
 def key_str_to_vk(key_str):
@@ -815,6 +866,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.menu_toggle_pressed = False
         self.esp_toggle_pressed = False
         self._manually_hidden = False                                         
+        self._fov_changed_during_runtime = False  # Track if FOV was changed during script execution
+        self._fov_warning_accepted = False  # Track if user accepted FOV change warning
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -918,6 +971,8 @@ class ConfigWindow(QtWidgets.QWidget):
                                              
         self.apply_rounded_corners()
 
+
+
                                               
         self.keybind_cooldowns = {}                                        
 
@@ -987,7 +1042,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.triggerbot_burst_shots_slider, self.head_triggerbot_delay_slider, 
                 self.head_triggerbot_first_shot_delay_slider, self.head_triggerbot_burst_shots_slider,
                 self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
-                self.fps_limit_slider
+                self.fps_limit_slider, self.game_fov_slider
             ]
             
             for slider in sliders:
@@ -1799,6 +1854,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.auto_accept_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.auto_accept_cb)
 
+
+
         self.low_cpu_cb = QtWidgets.QCheckBox("Low CPU Mode (Performance Mode)")
         self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
         self.low_cpu_cb.stateChanged.connect(self.on_low_cpu_changed)
@@ -1820,6 +1877,21 @@ class ConfigWindow(QtWidgets.QWidget):
         self.fps_limit_slider.setMinimumHeight(18)
         self.fps_limit_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.fps_limit_slider)
+
+                              
+        self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
+        self.lbl_game_fov.setMinimumHeight(16)
+        misc_layout.addWidget(self.lbl_game_fov)
+        
+        self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.game_fov_slider.setMinimum(60)
+        self.game_fov_slider.setMaximum(160)
+        self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+        self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
+        self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 120 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
+        self.game_fov_slider.setMinimumHeight(18)
+        self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.game_fov_slider)
 
                              
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
@@ -2140,10 +2212,15 @@ class ConfigWindow(QtWidgets.QWidget):
             
             # Misc settings
             self.auto_accept_cb.setChecked(self.settings.get("auto_accept_enabled", 0) == 1)
+
             self.low_cpu_cb.setChecked(self.settings.get("low_cpu", 0) == 1)
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
             self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
             self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
+            # Temporarily disconnect to prevent auto-application during config loading
+            self.game_fov_slider.valueChanged.disconnect()
+            self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
+            self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
             self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
             
             # Keybind buttons
@@ -2175,6 +2252,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_radar_size_label()
             self.update_radar_scale_label()
             self.update_fps_limit_label()
+            self.update_game_fov_label_only()
             
             # Update menu theme styling based on imported color
             theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -2231,6 +2309,8 @@ class ConfigWindow(QtWidgets.QWidget):
             save_settings(self.settings)
         except Exception:
             pass
+
+
 
     def handle_keybind_mouse_event(self, event, key_name, btn):
         if event.button() == QtCore.Qt.RightButton:
@@ -2345,10 +2425,19 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowFlags(flags)
         self.show()
 
+
+
     def on_terminate_clicked(self):
         """Terminate the application without confirmation"""
         try:
             self.pause_rainbow_timer()
+            
+            # Reset FOV to default (90) before terminating (only if changed)
+            self.reset_fov_to_default()
+            
+            # Give FOV reset time to complete before terminating
+            import time
+            time.sleep(0.2)
             
             try:
                 # Create terminate signal file
@@ -2362,13 +2451,14 @@ class ConfigWindow(QtWidgets.QWidget):
                     os.remove(KEYBIND_COOLDOWNS_FILE)
             except Exception:
                 pass
+            
             try:
-                # Clean shutdown
-                app = QtWidgets.QApplication.instance()
-                if app is not None:
-                    app.quit()
-                else:
-                    self.close()
+                # Write final log entry
+                print("[DEBUG] Application terminating - check debug_log.txt for full output")
+                
+                # Force immediate termination of all processes
+                import os
+                os._exit(0)
             except Exception:
                 pass
         except Exception:
@@ -3565,7 +3655,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if self._escape_hold_start == 0:
                     self._escape_hold_start = time.time()
                 else:
-                    if time.time() - self._escape_hold_start >= 1.20:
+                    if time.time() - self._escape_hold_start >= 2.0:
                         
                         try:
                             self.on_terminate_clicked()
@@ -3742,6 +3832,198 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
         except Exception:
             pass
+
+    def update_game_fov_label(self):
+        try:
+            val = self.game_fov_slider.value()
+            self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+            self.settings['game_fov'] = val
+            self.save_settings()
+            # Only apply FOV when manually changed by user
+            if getattr(self, '_fov_manual_change', False):
+                self.apply_fov_change(val)
+                self._fov_manual_change = False
+        except Exception:
+            pass
+
+    def update_game_fov_label_only(self):
+        """Update FOV label without applying FOV change - used during config reload"""
+        try:
+            val = self.game_fov_slider.value()
+            self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+        except Exception:
+            pass
+
+    def on_fov_slider_changed(self):
+        """Handle manual FOV slider changes by user"""
+        try:
+            # Show warning dialog on first FOV change attempt
+            if not self._fov_warning_accepted:
+                # Pause rainbow timer during dialog
+                self.pause_rainbow_timer()
+                
+                # Show confirmation dialog
+                msg_box = QtWidgets.QMessageBox(self)
+                msg_box.setWindowTitle("FOV Change Warning")
+                msg_box.setText("Changing values can result in VAC ban. Change FOV?")
+                msg_box.setIcon(QtWidgets.QMessageBox.Warning)
+                
+                # Create custom buttons
+                yes_button = msg_box.addButton("Yes", QtWidgets.QMessageBox.YesRole)
+                cancel_button = msg_box.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
+                msg_box.setDefaultButton(cancel_button)
+                
+                # Set dialog flags to stay on top
+                msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint)
+                
+                # Show dialog and get result
+                msg_box.exec()
+                clicked_button = msg_box.clickedButton()
+                
+                # Resume rainbow timer
+                self.resume_rainbow_timer()
+                
+                if clicked_button == yes_button:
+                    self._fov_warning_accepted = True
+                    # Apply FOV change
+                    self._fov_manual_change = True
+                    self.update_game_fov_label()
+                else:
+                    # User cancelled - reset slider to current setting without triggering signals
+                    self.fov_slider.blockSignals(True)
+                    self.fov_slider.setValue(self.settings.get('game_fov', 90))
+                    self.fov_slider.blockSignals(False)
+                    return
+            else:
+                # Warning already accepted, apply change directly
+                self._fov_manual_change = True
+                self.update_game_fov_label()
+        except Exception:
+            pass
+
+    def apply_fov_change(self, fov_value):
+        """Apply FOV change to the game"""
+        try:
+            # Try to connect to CS2 process and apply FOV change
+            import pymem
+            pm = None
+            client = None
+            
+            try:
+                pm = pymem.Pymem("cs2.exe")
+                client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                
+                if pm and client:
+                    # Read local player controller
+                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                    if local_player_controller:
+                        # Write FOV value to the player controller
+                        pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
+                        # Mark that FOV was changed during runtime
+                        self._fov_changed_during_runtime = True
+                        print(f"[DEBUG] FOV changed to {fov_value}, flag set to True")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def reset_fov_to_default(self, force=False):
+        """Reset FOV to default value (90) when terminating, but only if FOV was changed during runtime"""
+        print(f"[DEBUG] reset_fov_to_default called: force={force}, _fov_changed_during_runtime={self._fov_changed_during_runtime}")
+        
+        if not force and not self._fov_changed_during_runtime:
+            print("[DEBUG] FOV reset skipped - not changed during runtime")
+            return  # Don't reset if FOV wasn't changed during script execution
+            
+        print("[DEBUG] Attempting FOV reset to 90...")
+        try:
+            # Reset FOV to 90 (default FOV) directly without setting the tracking flag
+            import pymem
+            
+            # Use global offsets that were loaded at startup
+            global dwLocalPlayerController, m_iDesiredFOV
+            
+            try:
+                pm = pymem.Pymem("cs2.exe")
+                client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                
+                if pm and client:
+                    print(f"[DEBUG] Using dwLocalPlayerController offset: {dwLocalPlayerController}")
+                    print(f"[DEBUG] Using m_iDesiredFOV offset: {m_iDesiredFOV}")
+                    
+                    # Read local player controller
+                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                    if local_player_controller:
+                        print(f"[DEBUG] Local player controller found at: 0x{local_player_controller:X}")
+                        
+                        # Read current FOV to verify
+                        current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                        print(f"[DEBUG] Current FOV before reset: {current_fov}")
+                        
+                        # Try multiple reset attempts with different approaches
+                        reset_success = False
+                        
+                        # Method 1: Direct write with multiple attempts
+                        for attempt in range(3):
+                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
+                            time.sleep(0.02)  # Small delay between attempts
+                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                            print(f"[DEBUG] Reset attempt {attempt + 1}: FOV now shows {verify_fov}")
+                            if verify_fov == 90:
+                                reset_success = True
+                                break
+                        
+                        # Method 2: Try writing 0 first, then 90 (sometimes helps bypass game protection)
+                        if not reset_success:
+                            print("[DEBUG] Trying alternative reset method...")
+                            pm.write_int(local_player_controller + m_iDesiredFOV, 0)
+                            time.sleep(0.05)
+                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
+                            time.sleep(0.05)
+                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                            print(f"[DEBUG] Alternative method result: FOV now shows {verify_fov}")
+                            if verify_fov == 90:
+                                reset_success = True
+                        
+                        # Method 3: Try updating the UI slider value as well
+                        if not reset_success:
+                            print("[DEBUG] Trying UI slider sync method...")
+                            # Update our internal tracking
+                            self.settings['game_fov'] = 90
+                            if hasattr(self, 'game_fov_slider'):
+                                self.game_fov_slider.setValue(90)
+                            if hasattr(self, 'update_game_fov_label_only'):
+                                self.update_game_fov_label_only()
+                            
+                            # Try the memory write again
+                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
+                            time.sleep(0.1)
+                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                            print(f"[DEBUG] UI sync method result: FOV now shows {verify_fov}")
+                            if verify_fov == 90:
+                                reset_success = True
+                        
+                        # Final verification
+                        final_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                        print(f"[DEBUG] Final FOV check: {final_fov}")
+                        
+                        if reset_success or final_fov == 90:
+                            print("[DEBUG] FOV successfully reset to 90")
+                        else:
+                            print(f"[DEBUG] FOV reset failed - CS2 may be preventing FOV changes. Final value: {final_fov}")
+                            print("[DEBUG] Note: You may need to manually reset FOV in-game or restart CS2")
+                    else:
+                        print("[DEBUG] Failed to get local player controller")
+                else:
+                    print("[DEBUG] Failed to connect to CS2 process")
+            except Exception as e:
+                print(f"[DEBUG] Exception in FOV reset: {e}")
+                import traceback
+                print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+        except Exception as e:
+            print(f"[DEBUG] Outer exception in FOV reset: {e}")
+            import traceback
+            print(f"[DEBUG] Outer traceback: {traceback.format_exc()}")
     
     def setup_config_folder_watcher(self):
         """Setup file system watcher for the configs folder"""
@@ -4027,6 +4309,8 @@ class ESPWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
+
+
     
 
     
@@ -4090,6 +4374,8 @@ class ESPWindow(QtWidgets.QWidget):
             self.apply_low_cpu_mode()
         except Exception:
             pass
+        
+
 
     def apply_low_cpu_mode(self):
         """Adjust internal timers/intervals for low CPU mode and FPS limit.
@@ -4147,6 +4433,8 @@ class ESPWindow(QtWidgets.QWidget):
                 
         except Exception:
             pass
+
+
 
     def check_and_update_window_size(self):
         """Check for CS2 window size and position changes and update overlay accordingly."""
@@ -5820,6 +6108,20 @@ def bhop():
         except Exception:
             time.sleep(duration)
     
+    def press_space():
+        """Press and hold space key"""
+        try:
+            keyboard.press("space")
+        except Exception:
+            pass
+    
+    def release_space():
+        """Release space key"""
+        try:
+            keyboard.release("space")
+        except Exception:
+            pass
+    
     try:
         keyboard.add_hotkey(exit_key, lambda: exit())
     except Exception:
@@ -5856,38 +6158,68 @@ def bhop():
     def main(settings):
         nonlocal toggle
         
+        bhop_key_pressed = False
+        space_pressed = False
+        last_jump_time = 0
+        
         while True:
             try:
                 bhop_enabled = settings.get("bhop_enabled", 0)
                 
                 if bhop_enabled == 1 and is_cs2_window_active():
-                                                                                                
                     bhop_key_setting = settings.get("BhopKey", "SPACE")
                     activation_key = convert_key_to_keyboard_format(bhop_key_setting)
                     
-                                                                        
+                    # Fallback key validation
                     try:
                         keyboard.is_pressed(activation_key)
                     except:
                         activation_key = "space"
                     
-                    if keyboard.is_pressed(activation_key):
-                        if toggle:
+                    key_currently_pressed = keyboard.is_pressed(activation_key)
+                    current_time = time.time()
+                    
+                    if key_currently_pressed and toggle:
+                        if not bhop_key_pressed:
+                            # Key just pressed - start bhop
+                            bhop_key_pressed = True
                             send_space(TICK_64_MS * 1.5)
-                            
-                            while keyboard.is_pressed(activation_key) and is_cs2_window_active():
+                            last_jump_time = current_time
+                        else:
+                            # Key held down - continue bhop timing
+                            if current_time - last_jump_time >= TICK_64_MS * 3:
                                 send_space(TICK_64_MS * 3)
-                    elif keyboard.is_pressed(toggle_key):
+                                last_jump_time = current_time
+                    else:
+                        if bhop_key_pressed:
+                            # Key just released - ensure space is released
+                            bhop_key_pressed = False
+                            release_space()
+                            time.sleep(0.001)  # Small delay to ensure release is processed
+                    
+                    # Handle toggle key
+                    if keyboard.is_pressed(toggle_key):
                         toggle = not toggle
                         time.sleep(0.2)
-                    else:
-                        time.sleep(0.001)
+                    
+                    time.sleep(0.001)  # Small sleep to prevent excessive CPU usage
                 else:
+                    # Bhop disabled or not in CS2 - ensure space is released
+                    if bhop_key_pressed:
+                        bhop_key_pressed = False
+                        release_space()
                     time.sleep(0.1)
                     
             except KeyboardInterrupt:
+                # Ensure space is released on exit
+                if bhop_key_pressed:
+                    release_space()
                 break
             except Exception:
+                # Ensure space is released on error
+                if bhop_key_pressed:
+                    bhop_key_pressed = False
+                    release_space()
                 time.sleep(1)
 
     def start_main_thread(settings):
@@ -6055,6 +6387,22 @@ def aim():
                 return
         return target_list
 
+    def apply_fov_change(self, fov_value):
+        """Apply FOV change to the game"""
+        try:
+            if hasattr(self, 'cheat_loop') and self.cheat_loop and hasattr(self.cheat_loop, 'pm') and self.cheat_loop.pm:
+                pm = self.cheat_loop.pm
+                client = self.cheat_loop.client
+                
+                if pm and client:
+                    # Read local player controller
+                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                    if local_player_controller:
+                        # Write FOV value to the player controller
+                        pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
+        except Exception:
+            pass
+
     def aimbot(target_list, radius, aim_mode_distance, smoothness, pm=None, client=None, offsets=None, client_dll=None):
         """Select a target and move the mouse toward it applying smoothing.
 
@@ -6073,6 +6421,19 @@ def aim():
 
         center_x = win32api.GetSystemMetrics(0) // 2
         center_y = win32api.GetSystemMetrics(1) // 2
+
+        # Get current FOV for compensation calculations
+        current_fov = 90  # Default FOV
+        try:
+            if pm and client:
+                local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                if local_player_controller:
+                    current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
+                    # Clamp FOV to reasonable values
+                    if current_fov < 60 or current_fov > 150:
+                        current_fov = 90
+        except Exception:
+            pass
 
         aim_bone_target_idx = int(settings.get('aim_bone_target', 1)) if settings.get('aim_bone_target') is not None else 1                   
         
@@ -6109,7 +6470,13 @@ def aim():
                     closest = (pos, ent_addr)
                     closest_dist = dist
         else:
-            screen_radius = radius / 100.0 * min(center_x, center_y)
+            # Apply FOV compensation to radius calculation
+            # Higher FOV = wider view = targets appear smaller/further = need larger effective radius
+            # Lower FOV = narrower view = targets appear larger/closer = need smaller effective radius
+            fov_scale = current_fov / 90.0  # Normalize to default FOV
+            adjusted_radius = radius * fov_scale
+            
+            screen_radius = adjusted_radius / 100.0 * min(center_x, center_y)
             if aim_mode_distance == 1:
                 
                 target_with_max_deltaZ = None
@@ -6239,9 +6606,20 @@ def aim():
                 # If any part of movement prediction fails, continue with original position
                 pass
 
-        # Calculate final aim adjustments                                                           
+        # Calculate final aim adjustments with FOV compensation                                                           
         dx = target_x - center_x
         dy = target_y - center_y
+
+        # Apply FOV compensation to mouse movement
+        # In CS2, FOV affects the angular relationship between screen pixels and world angles
+        # Higher FOV = more world space visible in same screen space = need less mouse movement per pixel
+        # Lower FOV = less world space visible in same screen space = need more mouse movement per pixel
+        # This is an inverse relationship for mouse sensitivity compensation
+        fov_compensation = 90.0 / current_fov  # Inverse relationship for angular sensitivity
+        
+        # Apply FOV compensation to the deltas
+        dx *= fov_compensation
+        dy *= fov_compensation
 
                                       
         if smoothness is None:
@@ -6326,6 +6704,15 @@ def aim():
         while True:
             target_list = []
             target_list = esp(pm, client, settings, target_list, window_size)
+            
+            # Apply FOV setting
+            try:
+                game_fov = settings.get('game_fov', 90)
+                local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                if local_player_controller:
+                    pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
+            except Exception:
+                pass
             
                            
             try:
@@ -6581,4 +6968,7 @@ if __name__ == "__main__":
                 os.remove(KEYBIND_COOLDOWNS_FILE)
         except Exception:
             pass
+        
+        # Cleanup logging before exit
+        cleanup_logging()
         sys.exit(0)
