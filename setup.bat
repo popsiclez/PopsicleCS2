@@ -31,19 +31,16 @@ if defined INSTALLED_VERSION (
         
         :: Ask user if they want to install/update Python packages
         echo.
-        echo Do you want to install/update Python packages? (Y/N)
-        set /p "INSTALL_PACKAGES=Enter your choice: "
+        echo Do you want to install/update Python packages? Y/N
+        choice /c YN /n /m "Press Y for Yes or N for No: "
         
-        if /i "%INSTALL_PACKAGES%"=="N" (
+        if errorlevel 2 (
             echo Skipping Python package installation...
+            cls
             goto download_files
         )
         
-        if /i "%INSTALL_PACKAGES%"=="NO" (
-            echo Skipping Python package installation...
-            goto download_files
-        )
-        
+        cls
         goto install_libs
     ) else (
         echo Incorrect Python version detected. Updating to %PYTHON_VERSION%...
@@ -66,6 +63,9 @@ del "%TEMP_INSTALLER%"
 
 ::lear console after Python installation
 cls
+
+:: Go directly to package installation after Python install
+goto install_libs
 
 :: -----------------------------
 :: Install Python libraries
