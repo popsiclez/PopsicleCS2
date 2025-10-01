@@ -314,13 +314,13 @@ def trigger_graphics_restart():
     except Exception:
         pass
           
-CONFIG_DIR = os.getcwd()
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
-TERMINATE_SIGNAL_FILE = os.path.join(CONFIG_DIR, 'terminate_now.signal')
-LOCK_FILE = os.path.join(CONFIG_DIR, 'script_running.lock')
-KEYBIND_COOLDOWNS_FILE = os.path.join(CONFIG_DIR, 'keybind_cooldowns.json')
-COMMANDS_FILE = os.path.join(CONFIG_DIR, 'commands.txt')
-CONSOLE_LOCK_FILE = os.path.join(CONFIG_DIR, 'debug_console.lock')
+CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
+TERMINATE_SIGNAL_FILE = os.path.join(os.getcwd(), 'terminate_now.signal')
+LOCK_FILE = os.path.join(os.getcwd(), 'script_running.lock')
+KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
+COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
+CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
 
 # Apply commands from commands.txt if it exists (now that COMMANDS_FILE is defined)
 apply_commands()
@@ -845,6 +845,7 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_container = self.create_trigger_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
+        config_container = self.create_config_container()
 
         
         tabs = QtWidgets.QTabWidget()
@@ -853,6 +854,7 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs.addTab(trigger_container, "Trigger")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Misc")
+        tabs.addTab(config_container, "Config")
         tabs.setTabPosition(QtWidgets.QTabWidget.North)
         tabs.setMovable(False)
         
@@ -909,7 +911,8 @@ class ConfigWindow(QtWidgets.QWidget):
                 pass
 
                                                                                
-        self.setFixedWidth(450)
+        self.setMinimumWidth(480)
+        self.setMaximumWidth(480)
         
                                              
         self.apply_rounded_corners()
@@ -935,6 +938,20 @@ class ConfigWindow(QtWidgets.QWidget):
 
         # Disable focus for all UI elements to prevent keyboard interaction
         self.disable_ui_focus()
+
+    def pause_rainbow_timer(self):
+        """Pause rainbow timer during dialogs to prevent interference"""
+        if hasattr(self, '_rainbow_menu_timer') and self._rainbow_menu_timer.isActive():
+            self._rainbow_menu_timer.stop()
+            self._rainbow_timer_was_active = True
+        else:
+            self._rainbow_timer_was_active = False
+
+    def resume_rainbow_timer(self):
+        """Resume rainbow timer after dialogs"""
+        if hasattr(self, '_rainbow_timer_was_active') and self._rainbow_timer_was_active:
+            if hasattr(self, '_rainbow_menu_timer'):
+                self._rainbow_menu_timer.start(50)
 
     def set_tooltip_if_enabled(self, widget, tooltip_text):
         """Set tooltip only if tooltips are enabled via commands.txt"""
@@ -981,7 +998,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.esp_toggle_key_btn, self.trigger_key_btn, self.head_trigger_key_btn,
                 self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
                 self.enemy_color_btn, self.skeleton_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
-                self.menu_theme_color_btn, self.terminate_btn, self.reset_btn
+                self.menu_theme_color_btn, self.reset_btn
             ]
             
             for btn in buttons:
@@ -1751,7 +1768,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(misc_label)
 
         # Targeting Option
-        targeting_label = QtWidgets.QLabel("Targeting Option:")
+        targeting_label = QtWidgets.QLabel("Targeting Type:")
         targeting_label.setAlignment(QtCore.Qt.AlignLeft)
         misc_layout.addWidget(targeting_label)
         
@@ -1845,24 +1862,350 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        self.terminate_btn = QtWidgets.QPushButton("Exit Script (Hold ESC or click here)")
-        self.set_tooltip_if_enabled(self.terminate_btn, "Close the entire script and all its processes. You can also hold ESC for 3 seconds to exit.")
-        self.terminate_btn.clicked.connect(self.on_terminate_clicked)
-        self.terminate_btn.setMinimumHeight(22)
-        self.terminate_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-
-        self.reset_btn = QtWidgets.QPushButton("Reset Config")
-        self.set_tooltip_if_enabled(self.reset_btn, "Reset all settings to their default values. This will restore the original configuration and cannot be undone.")
-        self.reset_btn.clicked.connect(self.on_reset_clicked)
-        self.reset_btn.setMinimumHeight(22)
-        self.reset_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.reset_btn)
-
-        misc_layout.addWidget(self.terminate_btn)
+        # Note: Reset and Terminate buttons moved to Config tab
 
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return misc_container
+
+    def create_config_container(self):
+        config_container = QtWidgets.QWidget()
+        config_layout = QtWidgets.QVBoxLayout()
+        config_layout.setSpacing(6)
+        config_layout.setContentsMargins(6, 6, 6, 6)
+        config_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        config_label = QtWidgets.QLabel("Configuration")
+        config_label.setAlignment(QtCore.Qt.AlignCenter)
+        config_label.setMinimumHeight(20)
+        config_layout.addWidget(config_label)
+
+        # Config files dropdown
+        config_files_label = QtWidgets.QLabel("Config Files (select to import):")
+        config_layout.addWidget(config_files_label)
+        self.config_files_combo = QtWidgets.QComboBox()
+        self.config_files_combo.setMinimumHeight(22)
+        self.config_files_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.set_tooltip_if_enabled(self.config_files_combo, "Select a config file to automatically import its settings. Files are loaded from the configs folder.")
+        self.config_files_combo.currentTextChanged.connect(self.on_config_file_selected)
+        config_layout.addWidget(self.config_files_combo)
+        
+        # Initialize dropdown state management before first update
+        self._dropdown_updating = False
+        self._dropdown_update_timer = QtCore.QTimer(self)
+        self._dropdown_update_timer.setSingleShot(True)
+        self._dropdown_update_timer.timeout.connect(self._perform_dropdown_update)
+        
+        # Populate dropdown and setup file watcher
+        self.update_config_files_dropdown()
+        self.setup_config_folder_watcher()
+
+        # Export/Import section
+        export_btn = QtWidgets.QPushButton("Export Config")
+        export_btn.clicked.connect(self.on_export_config_clicked)
+        export_btn.setMinimumHeight(22)
+        export_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.set_tooltip_if_enabled(export_btn, "Export current configuration to a chosen location.")
+        config_layout.addWidget(export_btn)
+
+        # Separator
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        config_layout.addWidget(separator)
+
+        # Reset and Exit buttons (moved from Misc)
+        self.reset_btn = QtWidgets.QPushButton("Reset Config to Default")
+        self.set_tooltip_if_enabled(self.reset_btn, "Reset all settings to their default values. This will restore the original configuration and cannot be undone.")
+        self.reset_btn.clicked.connect(self.on_reset_clicked)
+        self.reset_btn.setMinimumHeight(22)
+        self.reset_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        config_layout.addWidget(self.reset_btn)
+
+        # Exit script instruction label
+        self.exit_script_label = QtWidgets.QLabel("Hold ESC to Exit Script")
+        self.exit_script_label.setObjectName("exit_script_label")
+        self.exit_script_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.exit_script_label.setMinimumHeight(22)
+        self.exit_script_label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.set_tooltip_if_enabled(self.exit_script_label, "Hold ESC for 3 seconds to safely exit the script and close all processes.")
+        config_layout.addWidget(self.exit_script_label)
+
+        config_container.setLayout(config_layout)
+        config_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
+        return config_container
+
+    def on_export_config_clicked(self):
+        """Export current configuration to chosen location"""
+        try:
+            self.pause_rainbow_timer()
+            from PySide6.QtWidgets import QFileDialog
+            default_path = os.path.join(CONFIG_DIR, "exportconfig.json")
+            file_path, _ = QFileDialog.getSaveFileName(self, "Export Config", default_path, "JSON files (*.json)")
+            if file_path:
+                import shutil
+                shutil.copy2(CONFIG_FILE, file_path)
+                QtWidgets.QMessageBox.information(self, "Export Complete", f"Configuration exported to:\n{file_path}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Export Error", f"Failed to export configuration:\n{str(e)}")
+        finally:
+            self.resume_rainbow_timer()
+
+    def on_import_config_clicked(self):
+        """Import configuration from external file"""
+        try:
+            self.pause_rainbow_timer()
+            from PySide6.QtWidgets import QFileDialog
+            file_path, _ = QFileDialog.getOpenFileName(self, "Import Config File", "", "JSON files (*.json)")
+            if file_path:
+                import shutil
+                shutil.copy2(file_path, CONFIG_FILE)
+                self.settings = load_settings()
+                self.reload_all_ui_from_settings()
+                QtWidgets.QMessageBox.information(self, "Import Complete", "Configuration imported successfully!")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Import Error", f"Failed to import configuration:\n{str(e)}")
+        finally:
+            self.resume_rainbow_timer()
+
+    def on_config_file_selected(self, filename):
+        """Handle config file selection from dropdown"""
+        if not filename or not filename.endswith('.json') or filename == "-- Select config to import --":
+            return
+            
+        try:
+            self.pause_rainbow_timer()
+            config_path = os.path.join(CONFIG_DIR, filename)
+            
+            if os.path.exists(config_path):
+                import shutil
+                # Backup current config before importing
+                backup_path = CONFIG_FILE + '.backup'
+                if os.path.exists(CONFIG_FILE):
+                    shutil.copy2(CONFIG_FILE, backup_path)
+                
+                # Import the selected config
+                shutil.copy2(config_path, CONFIG_FILE)
+                self.settings = load_settings()
+                self.reload_all_ui_from_settings()
+                
+                # Show success message
+                QtWidgets.QMessageBox.information(self, "Config Loaded", f"Successfully loaded config: {filename}")
+                
+                # Reset dropdown to placeholder after successful import
+                if hasattr(self, 'config_files_combo'):
+                    self.config_files_combo.setCurrentIndex(0)
+        except Exception as e:
+            # If import fails, try to restore backup
+            try:
+                backup_path = CONFIG_FILE + '.backup'
+                if os.path.exists(backup_path):
+                    shutil.copy2(backup_path, CONFIG_FILE)
+                    self.settings = load_settings()
+                    self.reload_all_ui_from_settings()
+            except Exception:
+                pass
+        finally:
+            self.resume_rainbow_timer()
+
+    def reload_all_ui_from_settings(self):
+        """Reload all UI elements from current settings"""
+        try:
+            # Block all signals to prevent triggering save_settings during reload
+            self.blockSignals(True)
+            
+            # Also block signals for all child widgets
+            widgets_to_block = [
+                # ESP widgets
+                self.esp_rendering_cb, self.line_rendering_cb, self.hp_bar_rendering_cb,
+                self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
+                self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb, self.radar_cb,
+                self.lines_position_combo, self.box_mode_combo, self.radar_position_combo,
+                self.radar_size_slider, self.radar_scale_slider,
+                
+                # Trigger Bot widgets
+                self.trigger_bot_active_cb, self.triggerbot_burst_mode_cb,
+                self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
+                self.triggerbot_burst_shots_slider,
+                
+                # Head Trigger Bot widgets
+                self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
+                self.head_triggerbot_delay_slider, self.head_triggerbot_first_shot_delay_slider,
+                self.head_triggerbot_burst_shots_slider,
+                
+                # Aim widgets
+                self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb,
+                self.lock_target_cb, self.disable_crosshair_cb, self.radius_slider,
+                self.opacity_slider, self.thickness_slider, self.smooth_slider,
+                self.aim_mode_cb, self.aim_mode_distance_cb,
+                
+                # Rainbow widgets
+                self.rainbow_fov_cb, self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb,
+                
+                # Misc widgets
+                self.auto_accept_cb, self.low_cpu_cb, self.center_dot_cb, self.bhop_cb,
+                self.fps_limit_slider, self.center_dot_size_slider
+            ]
+            
+            for widget in widgets_to_block:
+                if widget is not None:
+                    widget.blockSignals(True)
+            
+            # ESP settings
+            self.esp_rendering_cb.setChecked(self.settings.get("esp_rendering", 1) == 1)
+            self.line_rendering_cb.setChecked(self.settings.get("line_rendering", 1) == 1)
+            self.hp_bar_rendering_cb.setChecked(self.settings.get("hp_bar_rendering", 1) == 1)
+            self.head_hitbox_rendering_cb.setChecked(self.settings.get("head_hitbox_rendering", 1) == 1)
+            self.box_rendering_cb.setChecked(self.settings.get("box_rendering", 1) == 1)
+            self.Bones_cb.setChecked(self.settings.get("Bones", 1) == 1)
+            self.nickname_cb.setChecked(self.settings.get("nickname", 1) == 1)
+            self.show_visibility_cb.setChecked(self.settings.get("show_visibility", 1) == 1)
+            self.bomb_esp_cb.setChecked(self.settings.get("bomb_esp", 1) == 1)
+            self.radar_cb.setChecked(self.settings.get("radar_enabled", 0) == 1)
+            
+            # ESP combo boxes
+            current_lines_position = self.settings.get('lines_position', 'Bottom')
+            index = self.lines_position_combo.findText(current_lines_position)
+            if index >= 0:
+                self.lines_position_combo.setCurrentIndex(index)
+            
+            current_box_mode = self.settings.get('box_mode', '2D')
+            index = self.box_mode_combo.findText(current_box_mode)
+            if index >= 0:
+                self.box_mode_combo.setCurrentIndex(index)
+            
+            current_radar_position = self.settings.get('radar_position', 'Top Right')
+            index = self.radar_position_combo.findText(current_radar_position)
+            if index >= 0:
+                self.radar_position_combo.setCurrentIndex(index)
+            
+            # ESP sliders
+            self.radar_size_slider.setValue(self.settings.get('radar_size', 200))
+            self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
+            
+            # Trigger Bot settings
+            self.trigger_bot_active_cb.setChecked(self.settings.get("trigger_bot_active", 0) == 1)
+            self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
+            self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
+            self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
+            self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
+            
+            # Head Trigger Bot settings
+            self.head_trigger_bot_active_cb.setChecked(self.settings.get("head_triggerbot_active", 0) == 1)
+            self.head_triggerbot_burst_mode_cb.setChecked(self.settings.get("head_triggerbot_burst_mode", 0) == 1)
+            self.head_triggerbot_delay_slider.setValue(self.settings.get("head_triggerbot_between_shots_delay", 30))
+            self.head_triggerbot_first_shot_delay_slider.setValue(self.settings.get("head_triggerbot_first_shot_delay", 0))
+            self.head_triggerbot_burst_shots_slider.setValue(self.settings.get("head_triggerbot_burst_shots", 3))
+            
+            # Aim settings
+            self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1)
+            self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
+            self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
+            self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
+            self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
+            self.radius_slider.setValue(self.settings.get("radius", 50))
+            self.opacity_slider.setValue(self.settings.get("circle_opacity", 127))
+            self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
+            self.smooth_slider.setValue(self.settings.get("aim_smoothness", 0))
+            
+            # Aim combo boxes
+            aim_bone_target = self.settings.get('aim_bone_target', 1)
+            self.aim_mode_cb.setCurrentIndex(aim_bone_target)
+            
+            aim_mode_distance = self.settings.get('aim_mode_distance', 0)
+            self.aim_mode_distance_cb.setCurrentIndex(aim_mode_distance)
+            
+            # Colors - update color button styles
+            self.update_color_button_style(self.team_color_btn, self.settings.get('team_color', '#47A76A'))
+            self.update_color_button_style(self.enemy_color_btn, self.settings.get('enemy_color', '#C41E3A'))
+            self.update_color_button_style(self.skeleton_color_btn, self.settings.get('skeleton_color', '#FFFFFF'))
+            self.update_color_button_style(self.aim_circle_color_btn, self.settings.get('aim_circle_color', '#FF0000'))
+            self.update_color_button_style(self.center_dot_color_btn, self.settings.get('center_dot_color', '#FFFFFF'))
+            self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
+            
+            # Rainbow settings
+            self.rainbow_fov_cb.setChecked(self.settings.get("rainbow_fov", 0) == 1)
+            self.rainbow_center_dot_cb.setChecked(self.settings.get("rainbow_center_dot", 0) == 1)
+            self.rainbow_menu_theme_cb.setChecked(self.settings.get("rainbow_menu_theme", 0) == 1)
+            
+            # Misc settings
+            self.auto_accept_cb.setChecked(self.settings.get("auto_accept_enabled", 0) == 1)
+            self.low_cpu_cb.setChecked(self.settings.get("low_cpu", 0) == 1)
+            self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
+            self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
+            self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
+            self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
+            
+            # Keybind buttons
+            self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
+            self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+            self.head_trigger_key_btn.setText(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
+            self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
+            self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+            self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
+            
+            # Restore signals before updating labels and other operations
+            for widget in widgets_to_block:
+                if widget is not None:
+                    widget.blockSignals(False)
+            self.blockSignals(False)
+            
+            # Update all labels to reflect new values
+            self.update_radius_label()
+            self.update_triggerbot_delay_label()
+            self.update_triggerbot_first_shot_delay_label()
+            self.update_triggerbot_burst_shots_label()
+            self.update_head_triggerbot_delay_label()
+            self.update_head_triggerbot_first_shot_delay_label()
+            self.update_head_triggerbot_burst_shots_label()
+            self.update_center_dot_size_label()
+            self.update_opacity_label()
+            self.update_thickness_label()
+            self.update_smooth_label()
+            self.update_radar_size_label()
+            self.update_radar_scale_label()
+            self.update_fps_limit_label()
+            
+            # Update menu theme styling based on imported color
+            theme_color = self.settings.get('menu_theme_color', '#FF0000')
+            self.update_menu_theme_styling(theme_color)
+            self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 16px;")
+            
+            # Update box mode dropdown state based on low CPU mode
+            self.update_box_mode_dropdown_state()
+            
+            # Update FPS slider state based on low CPU mode
+            self.initialize_fps_slider_state()
+            
+            # Apply topmost setting
+            topmost_enabled = self.settings.get('topmost', 1) == 1
+            if topmost_enabled:
+                self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+            else:
+                self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
+            self.show()
+            
+            # Save settings to apply changes (this should now have the correct imported values)
+            self.save_settings()
+            
+        except Exception as e:
+            # Make sure to restore signals even if there's an error
+            try:
+                for widget in widgets_to_block:
+                    if widget is not None:
+                        widget.blockSignals(False)
+                self.blockSignals(False)
+            except:
+                pass
+            QtWidgets.QMessageBox.critical(self, "Reload Error", f"Failed to reload UI from settings:\n{str(e)}")
+
+    def update_color_button_style(self, button, color):
+        """Update color button style to show the color"""
+        try:
+            contrasting_color = self.get_contrasting_text_color(color)
+            button.setStyleSheet(f"QPushButton {{ background-color: {color}; color: {contrasting_color}; border: 1px solid #555; }}")
+        except Exception:
+            pass
 
     def on_auto_accept_changed(self):
         try:
@@ -1993,27 +2336,37 @@ class ConfigWindow(QtWidgets.QWidget):
         self.show()
 
     def on_terminate_clicked(self):
+        """Terminate the application without confirmation"""
         try:
+            self.pause_rainbow_timer()
             
-            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
-                f.write('terminate')
+            try:
+                # Create terminate signal file
+                with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                    f.write('terminate')
+            except Exception:
+                pass
+            try:
+                # Clean up keybind cooldowns file
+                if os.path.exists(KEYBIND_COOLDOWNS_FILE):
+                    os.remove(KEYBIND_COOLDOWNS_FILE)
+            except Exception:
+                pass
+            try:
+                # Clean shutdown
+                app = QtWidgets.QApplication.instance()
+                if app is not None:
+                    app.quit()
+                else:
+                    self.close()
+            except Exception:
+                pass
         except Exception:
-            pass
-        try:
-                                             
-            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                os.remove(KEYBIND_COOLDOWNS_FILE)
-        except Exception:
-            pass
-        try:
-            
-            app = QtWidgets.QApplication.instance()
-            if app is not None:
-                app.quit()
-            else:
-                self.close()
-        except Exception:
-            pass
+            # Emergency exit if anything fails
+            import os
+            os._exit(0)
+        finally:
+            self.resume_rainbow_timer()
 
     def update_box_mode_dropdown_state(self):
         """Update box mode dropdown state based on low CPU mode setting"""
@@ -2036,198 +2389,199 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
     def on_reset_clicked(self):
-        """Restore DEFAULT_SETTINGS and update every configurable UI element in one atomic operation.
-
-        This blocks widget signals while values are applied to avoid incremental saves
-        or partial state, persists the new config once, applies the topmost
-        setting, then unblocks signals and persists again as a final confirmation.
-        """
-        
-        widget_names = [
-            'esp_rendering_cb', 'esp_mode_cb', 'line_rendering_cb', 'lines_position_combo', 'hp_bar_rendering_cb',
-            'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 'show_visibility_cb', 'bomb_esp_cb',
-            'center_dot_cb', 'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb', 'radius_slider', 'opacity_slider', 'thickness_slider',
-            'smooth_slider', 'center_dot_size_slider',
-            'aim_visibility_cb', 'lock_target_cb', 'aim_mode_cb', 'aim_key_btn', 'trigger_key_btn', 'menu_key_btn', 'bhop_key_btn',
-            'team_color_btn', 'enemy_color_btn', 'skeleton_color_btn', 'aim_circle_color_btn', 'center_dot_color_btn', 'menu_theme_color_btn', 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb',
-            'low_cpu_cb', 'fps_limit_slider', 'radar_position_combo'
-        ]
-        widgets = [getattr(self, name, None) for name in widget_names]
-
+        """Reset all settings to defaults with confirmation"""
         try:
+            self.pause_rainbow_timer()
             
+            # Create confirmation dialog
+            reply = QtWidgets.QMessageBox.question(
+                self, 
+                'Reset Configuration', 
+                'Are you sure you want to reset all settings to default values?\n\nThis action cannot be undone.',
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No
+            )
+            
+            if reply != QtWidgets.QMessageBox.Yes:
+                return
+            
+            # Reset settings
             self.settings = DEFAULT_SETTINGS.copy()
             save_settings(self.settings)
-
             
-            for w in widgets:
-                try:
+            # Update all UI elements
+            try:
+                # Block signals during update
+                widget_names = [
+                    'esp_rendering_cb', 'line_rendering_cb', 'hp_bar_rendering_cb',
+                    'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 
+                    'show_visibility_cb', 'bomb_esp_cb', 'radar_cb', 'center_dot_cb',
+                    'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb',
+                    'auto_accept_cb', 'bhop_cb', 'topmost_cb', 'low_cpu_cb',
+                    'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb'
+                ]
+                
+                widgets = [getattr(self, name, None) for name in widget_names if hasattr(self, name)]
+                
+                # Block signals
+                for w in widgets:
                     if w is not None:
                         w.blockSignals(True)
-                except Exception:
-                    pass
-
-            
-            try:
-                if getattr(self, 'esp_rendering_cb', None) is not None:
+                
+                # Update checkboxes
+                if hasattr(self, 'esp_rendering_cb'):
                     self.esp_rendering_cb.setChecked(self.settings.get('esp_rendering', 1) == 1)
-                if getattr(self, 'esp_mode_cb', None) is not None:
-                    self.esp_mode_cb.setCurrentIndex(self.settings.get('esp_mode', 1))
-
+                if hasattr(self, 'line_rendering_cb'):
+                    self.line_rendering_cb.setChecked(self.settings.get('line_rendering', 1) == 1)
+                if hasattr(self, 'hp_bar_rendering_cb'):
+                    self.hp_bar_rendering_cb.setChecked(self.settings.get('hp_bar_rendering', 1) == 1)
+                if hasattr(self, 'head_hitbox_rendering_cb'):
+                    self.head_hitbox_rendering_cb.setChecked(self.settings.get('head_hitbox_rendering', 1) == 1)
+                if hasattr(self, 'box_rendering_cb'):
+                    self.box_rendering_cb.setChecked(self.settings.get('box_rendering', 1) == 1)
+                if hasattr(self, 'Bones_cb'):
+                    self.Bones_cb.setChecked(self.settings.get('Bones', 1) == 1)
+                if hasattr(self, 'nickname_cb'):
+                    self.nickname_cb.setChecked(self.settings.get('nickname', 1) == 1)
+                if hasattr(self, 'show_visibility_cb'):
+                    self.show_visibility_cb.setChecked(self.settings.get('show_visibility', 1) == 1)
+                if hasattr(self, 'bomb_esp_cb'):
+                    self.bomb_esp_cb.setChecked(self.settings.get('bomb_esp', 1) == 1)
+                if hasattr(self, 'radar_cb'):
+                    self.radar_cb.setChecked(self.settings.get('radar_enabled', 0) == 1)
+                if hasattr(self, 'center_dot_cb'):
+                    self.center_dot_cb.setChecked(self.settings.get('center_dot', 0) == 1)
+                if hasattr(self, 'trigger_bot_active_cb'):
+                    self.trigger_bot_active_cb.setChecked(self.settings.get('trigger_bot_active', 0) == 1)
+                if hasattr(self, 'aim_active_cb'):
+                    self.aim_active_cb.setChecked(self.settings.get('aim_active', 0) == 1)
+                if hasattr(self, 'aim_circle_visible_cb'):
+                    self.aim_circle_visible_cb.setChecked(self.settings.get('aim_circle_visible', 1) == 1)
+                if hasattr(self, 'auto_accept_cb'):
+                    self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
+                if hasattr(self, 'bhop_cb'):
+                    self.bhop_cb.setChecked(self.settings.get('bhop_enabled', 0) == 1)
+                if hasattr(self, 'topmost_cb'):
+                    self.topmost_cb.setChecked(self.settings.get('topmost', 1) == 1)
+                if hasattr(self, 'low_cpu_cb'):
+                    self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
+                if hasattr(self, 'rainbow_fov_cb'):
+                    self.rainbow_fov_cb.setChecked(self.settings.get('rainbow_fov', 0) == 1)
+                if hasattr(self, 'rainbow_center_dot_cb'):
+                    self.rainbow_center_dot_cb.setChecked(self.settings.get('rainbow_center_dot', 0) == 1)
+                if hasattr(self, 'rainbow_menu_theme_cb'):
+                    self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
                 
-                mapping = {
-                    'line_rendering_cb': 'line_rendering',
-                    'hp_bar_rendering_cb': 'hp_bar_rendering',
-                    'head_hitbox_rendering_cb': 'head_hitbox_rendering',
-                    'box_rendering_cb': 'box_rendering',
-                    'Bones_cb': 'Bones',
-                    'nickname_cb': 'nickname',
-                    'show_visibility_cb': 'show_visibility',
-                    'aim_visibility_cb': 'aim_visibility_check',
-                    'radar_cb': 'radar_enabled',
-                    'trigger_bot_active_cb': 'trigger_bot_active',
-                    'aim_active_cb': 'aim_active',
-                    'aim_circle_visible_cb': 'aim_circle_visible',
-                    'rainbow_fov_cb': 'rainbow_fov', 'rainbow_center_dot_cb': 'rainbow_center_dot', 'rainbow_menu_theme_cb': 'rainbow_menu_theme', 'low_cpu_cb': 'low_cpu'
-                }
-                for cb_name, key in mapping.items():
-                    cb = getattr(self, cb_name, None)
-                    if cb is not None:
-                        cb.setChecked(self.settings.get(key, 0) == 1)
-
-                
-                if getattr(self, 'radius_slider', None) is not None:
+                # Update sliders
+                if hasattr(self, 'radius_slider'):
                     self.radius_slider.setValue(self.settings.get('radius', 50))
-                if getattr(self, 'opacity_slider', None) is not None:
-                    self.opacity_slider.setValue(self.settings.get('circle_opacity', 16))
-                if getattr(self, 'thickness_slider', None) is not None:
+                if hasattr(self, 'opacity_slider'):
+                    self.opacity_slider.setValue(self.settings.get('circle_opacity', 127))
+                if hasattr(self, 'thickness_slider'):
                     self.thickness_slider.setValue(self.settings.get('circle_thickness', 2))
-                if getattr(self, 'smooth_slider', None) is not None:
-                    self.smooth_slider.setValue(self.settings.get('aim_smoothness', 50))
-                if getattr(self, 'triggerbot_delay_slider', None) is not None:
-                    self.triggerbot_delay_slider.setValue(self.settings.get('triggerbot_delay', 30))
-                
-                               
-                if getattr(self, 'radar_size_slider', None) is not None:
+                if hasattr(self, 'smooth_slider'):
+                    self.smooth_slider.setValue(self.settings.get('aim_smoothness', 0))
+                if hasattr(self, 'center_dot_size_slider'):
+                    self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
+                if hasattr(self, 'fps_limit_slider'):
+                    self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
+                if hasattr(self, 'radar_size_slider'):
                     self.radar_size_slider.setValue(self.settings.get('radar_size', 200))
-                if getattr(self, 'radar_scale_slider', None) is not None:
+                if hasattr(self, 'radar_scale_slider'):
                     self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
-                if getattr(self, 'radar_position_combo', None) is not None:
+                
+                # Update dropdowns
+                if hasattr(self, 'lines_position_combo'):
+                    position = self.settings.get('lines_position', 'Bottom')
+                    index = self.lines_position_combo.findText(position)
+                    if index >= 0:
+                        self.lines_position_combo.setCurrentIndex(index)
+                
+                if hasattr(self, 'radar_position_combo'):
                     position = self.settings.get('radar_position', 'Top Right')
                     index = self.radar_position_combo.findText(position)
                     if index >= 0:
                         self.radar_position_combo.setCurrentIndex(index)
-                if getattr(self, 'box_mode_combo', None) is not None:
+                
+                if hasattr(self, 'box_mode_combo'):
                     box_mode = self.settings.get('box_mode', '2D')
                     index = self.box_mode_combo.findText(box_mode)
                     if index >= 0:
                         self.box_mode_combo.setCurrentIndex(index)
-                if getattr(self, 'triggerbot_first_shot_delay_slider', None) is not None:
-                    self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
-                if getattr(self, 'center_dot_size_slider', None) is not None:
-                    self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
-
-                                                               
-                try:
-                    if hasattr(self, 'update_radius_label'):
-                        self.update_radius_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_opacity_label'):
-                        self.update_opacity_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_thickness_label'):
-                        self.update_thickness_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_smooth_label'):
-                        self.update_smooth_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_triggerbot_delay_label'):
-                        self.update_triggerbot_delay_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_triggerbot_first_shot_delay_label'):
-                        self.update_triggerbot_first_shot_delay_label()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(self, 'update_center_dot_size_label'):
-                        self.update_center_dot_size_label()
-                except Exception:
-                    pass
-
                 
-                if getattr(self, 'aim_key_btn', None) is not None:
-                    self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
-                if getattr(self, 'trigger_key_btn', None) is not None:
-                    self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
-                if getattr(self, 'menu_key_btn', None) is not None:
-                    self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
-                if getattr(self, 'bhop_key_btn', None) is not None:
-                    self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
-                if getattr(self, 'head_trigger_key_btn', None) is not None:
-                    self.head_trigger_key_btn.setText(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
-
-                if getattr(self, 'esp_toggle_key_btn', None) is not None:
+                # Update keybind buttons
+                if hasattr(self, 'esp_toggle_key_btn'):
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
-
-                                                                
-                if getattr(self, 'aim_mode_cb', None) is not None:
-                    self.aim_mode_cb.setCurrentIndex(self.settings.get('aim_bone_target', DEFAULT_SETTINGS.get('aim_bone_target', 1)))
-
+                if hasattr(self, 'aim_key_btn'):
+                    self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
+                if hasattr(self, 'trigger_key_btn'):
+                    self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+                if hasattr(self, 'bhop_key_btn'):
+                    self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+                if hasattr(self, 'menu_key_btn'):
+                    self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
                 
-                try:
-                    if getattr(self, 'team_color_btn', None) is not None:
-                        team_hex = self.settings.get('team_color', DEFAULT_SETTINGS.get('team_color'))
-                        self.team_color_btn.setStyleSheet(f'background-color: {team_hex}; color: white;')
-                    if getattr(self, 'enemy_color_btn', None) is not None:
-                        enemy_hex = self.settings.get('enemy_color', DEFAULT_SETTINGS.get('enemy_color'))
-                        self.enemy_color_btn.setStyleSheet(f'background-color: {enemy_hex}; color: white;')
-                    if getattr(self, 'skeleton_color_btn', None) is not None:
-                        skeleton_hex = self.settings.get('skeleton_color', DEFAULT_SETTINGS.get('skeleton_color'))
-                        self.skeleton_color_btn.setStyleSheet(f'background-color: {skeleton_hex}; color: black;')
-                    if getattr(self, 'aim_circle_color_btn', None) is not None:
-                        aim_hex = self.settings.get('aim_circle_color', DEFAULT_SETTINGS.get('aim_circle_color'))
-                        self.aim_circle_color_btn.setStyleSheet(f'background-color: {aim_hex}; color: white;')
-                    if getattr(self, 'menu_theme_color_btn', None) is not None:
-                        menu_theme_hex = self.settings.get('menu_theme_color', DEFAULT_SETTINGS.get('menu_theme_color'))
-                        self.menu_theme_color_btn.setStyleSheet(f'background-color: {menu_theme_hex}; color: white;')
-                        self.update_menu_theme_styling(menu_theme_hex)
-                except Exception:
-                    pass
-
-                                                                    
-                try:
+                # Update color buttons
+                if hasattr(self, 'team_color_btn'):
+                    color = self.settings.get('team_color', '#47A76A')
+                    self.team_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
+                if hasattr(self, 'enemy_color_btn'):
+                    color = self.settings.get('enemy_color', '#C41E3A')
+                    self.enemy_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
+                if hasattr(self, 'skeleton_color_btn'):
+                    color = self.settings.get('skeleton_color', '#FFFFFF')
+                    self.skeleton_color_btn.setStyleSheet(f'background-color: {color}; color: black;')
+                if hasattr(self, 'aim_circle_color_btn'):
+                    color = self.settings.get('aim_circle_color', '#FF0000')
+                    self.aim_circle_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
+                if hasattr(self, 'center_dot_color_btn'):
+                    color = self.settings.get('center_dot_color', '#FFFFFF')
+                    self.center_dot_color_btn.setStyleSheet(f'background-color: {color}; color: black;')
+                if hasattr(self, 'menu_theme_color_btn'):
+                    color = self.settings.get('menu_theme_color', '#FF0000')
+                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
+                    self.update_menu_theme_styling(color)
+                
+                # Update labels
+                if hasattr(self, 'update_radius_label'):
+                    self.update_radius_label()
+                if hasattr(self, 'update_opacity_label'):
+                    self.update_opacity_label()
+                if hasattr(self, 'update_thickness_label'):
+                    self.update_thickness_label()
+                if hasattr(self, 'update_smooth_label'):
+                    self.update_smooth_label()
+                if hasattr(self, 'update_center_dot_size_label'):
+                    self.update_center_dot_size_label()
+                if hasattr(self, 'update_fps_limit_label'):
+                    self.update_fps_limit_label()
+                if hasattr(self, 'update_radar_size_label'):
+                    self.update_radar_size_label()
+                if hasattr(self, 'update_radar_scale_label'):
+                    self.update_radar_scale_label()
+                
+                # Apply settings
+                if hasattr(self, 'apply_topmost'):
                     self.apply_topmost()
-                except Exception:
-                    pass
-
-            except Exception as e:
-                pass
-        finally:
-            
-            for w in widgets:
-                try:
+                if hasattr(self, 'initialize_fps_slider_state'):
+                    self.initialize_fps_slider_state()
+                if hasattr(self, 'update_box_mode_dropdown_state'):
+                    self.update_box_mode_dropdown_state()
+                
+                # Unblock signals
+                for w in widgets:
                     if w is not None:
                         w.blockSignals(False)
-                except Exception:
-                    pass
-            try:
-                                                         
-                self.initialize_fps_slider_state()
-                # Update box mode dropdown state after reset
-                self.update_box_mode_dropdown_state()
-                save_settings(self.settings)
-            except Exception:
-                pass
+                
+                QtWidgets.QMessageBox.information(self, "Reset Complete", "All settings have been reset to default values.")
+                
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Reset Error", f"Settings were reset but UI update failed:\n{str(e)}")
+                
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Reset Error", f"Failed to reset settings:\n{str(e)}")
+        finally:
+            self.resume_rainbow_timer()
 
     def save_settings(self):
         
@@ -2735,6 +3089,25 @@ class ConfigWindow(QtWidgets.QWidget):
                 border-radius: 15px;
             }}
             
+            QLabel {{
+                color: white;
+                font-family: "MS PGothic";
+                font-weight: normal;
+                font-size: 12px;
+            }}
+            
+            /* Special styling for exit script label */
+            QLabel[objectName="exit_script_label"] {{
+                color: {theme_color};
+                font-family: "MS PGothic";
+                font-weight: bold;
+                font-size: 13px;
+                border: 1px solid {theme_color};
+                border-radius: 4px;
+                padding: 6px 12px;
+                background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 0.1);
+            }}
+            
             QCheckBox {{
                 color: white;
                 font-family: "MS PGothic";
@@ -2924,6 +3297,116 @@ class ConfigWindow(QtWidgets.QWidget):
             QTabBar::tab:hover {{
                 background-color: #4a4a4a;
                 color: {theme_color};
+            }}
+            
+            /* Ensure message boxes and dialogs have proper styling */
+            QMessageBox {{
+                background-color: #020203;
+                color: white;
+                font-family: "MS PGothic";
+            }}
+            
+            QMessageBox QPushButton {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                min-width: 60px;
+                min-height: 20px;
+            }}
+            
+            QMessageBox QPushButton:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QMessageBox QPushButton:pressed {{
+                background-color: #2a2a2a;
+                border: 1px solid {theme_color};
+            }}
+            
+            QFileDialog {{
+                background-color: #020203;
+                color: white;
+                font-family: "MS PGothic";
+            }}
+            
+            QFileDialog QPushButton {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                min-width: 60px;
+                min-height: 20px;
+            }}
+            
+            QFileDialog QPushButton:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QFileDialog QPushButton:pressed {{
+                background-color: #2a2a2a;
+                border: 1px solid {theme_color};
+            }}
+            
+            /* Ensure message boxes and dialogs have proper styling */
+            QMessageBox {{
+                background-color: #020203;
+                color: white;
+                font-family: "MS PGothic";
+            }}
+            
+            QMessageBox QPushButton {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                min-width: 60px;
+                min-height: 20px;
+            }}
+            
+            QMessageBox QPushButton:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QMessageBox QPushButton:pressed {{
+                background-color: #2a2a2a;
+                border: 1px solid {theme_color};
+            }}
+            
+            QFileDialog {{
+                background-color: #020203;
+                color: white;
+                font-family: "MS PGothic";
+            }}
+            
+            QFileDialog QPushButton {{
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: white;
+                font-family: "MS PGothic";
+                min-width: 60px;
+                min-height: 20px;
+            }}
+            
+            QFileDialog QPushButton:hover {{
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }}
+            
+            QFileDialog QPushButton:pressed {{
+                background-color: #2a2a2a;
+                border: 1px solid {theme_color};
             }}
         """)
         
@@ -3244,6 +3727,94 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
         except Exception:
             pass
+    
+    def setup_config_folder_watcher(self):
+        """Setup file system watcher for the configs folder"""
+        try:
+            self.config_folder_watcher = QFileSystemWatcher()
+            if os.path.exists(CONFIG_DIR):
+                self.config_folder_watcher.addPath(CONFIG_DIR)
+                self.config_folder_watcher.directoryChanged.connect(self.on_config_folder_changed)
+        except Exception:
+            pass
+    
+    def on_config_folder_changed(self):
+        """Handle changes in the config folder with debounce"""
+        # Don't update if we're already updating or if user is interacting with dropdown
+        if self._dropdown_updating or (hasattr(self, 'config_files_combo') and self.config_files_combo.view().isVisible()):
+            return
+        
+        # Use debounce timer to prevent rapid updates
+        self._dropdown_update_timer.stop()
+        self._dropdown_update_timer.start(500)  # 500ms debounce
+    
+    def _perform_dropdown_update(self):
+        """Perform the actual dropdown update after debounce"""
+        self.update_config_files_dropdown()
+    
+    def update_config_files_dropdown(self):
+        """Update the config files dropdown with current JSON files"""
+        try:
+            if not hasattr(self, 'config_files_combo'):
+                return
+            
+            # Initialize dropdown updating flag if it doesn't exist
+            if not hasattr(self, '_dropdown_updating'):
+                self._dropdown_updating = False
+                
+            if self._dropdown_updating:
+                return
+            
+            # Don't update if dropdown is currently open/visible
+            if self.config_files_combo.view().isVisible():
+                return
+                
+            self._dropdown_updating = True
+                
+            # Temporarily disconnect signal to prevent triggering import during population
+            try:
+                self.config_files_combo.currentTextChanged.disconnect()
+            except:
+                pass
+            
+            # Store current selection
+            current_text = self.config_files_combo.currentText()
+            
+            # Get current file list
+            new_files = []
+            if os.path.exists(CONFIG_DIR):
+                new_files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.json') and f != 'autosave.json']
+                new_files.sort()  # Sort alphabetically
+            
+            # Check if files have actually changed
+            current_items = []
+            for i in range(1, self.config_files_combo.count()):  # Skip placeholder item
+                current_items.append(self.config_files_combo.itemText(i))
+            
+            # Only update if the file list has changed
+            if current_items != new_files:
+                # Clear and repopulate
+                self.config_files_combo.clear()
+                
+                # Add placeholder item
+                self.config_files_combo.addItem("-- Select config to import --")
+                
+                for json_file in new_files:
+                    self.config_files_combo.addItem(json_file)
+                
+                # Only restore selection if it's not the placeholder and still exists
+                if current_text and current_text != "-- Select config to import --":
+                    index = self.config_files_combo.findText(current_text)
+                    if index >= 0:
+                        self.config_files_combo.setCurrentIndex(index)
+            
+            # Reconnect the signal
+            self.config_files_combo.currentTextChanged.connect(self.on_config_file_selected)
+            
+        except Exception:
+            pass
+        finally:
+            self._dropdown_updating = False
 
 def configurator():
                                                                             
@@ -3277,11 +3848,15 @@ def configurator():
 class ESPWindow(QtWidgets.QWidget):
     def __init__(self, settings, window_width=None, window_height=None):
         super().__init__()
-        # Ensure settings are properly merged with defaults
+        # Ensure settings are properly merged with defaults BEFORE any rendering
         merged_settings = DEFAULT_SETTINGS.copy()
-        if settings:
+        if settings and isinstance(settings, dict):
             merged_settings.update(settings)
         self.settings = merged_settings
+        
+        # Mark initialization as complete to prevent settings reloading during render
+        self._initialization_complete = True
+        
         self.setWindowTitle('ESP Overlay')
         
         if window_width is not None and window_height is not None:
@@ -3444,7 +4019,7 @@ class ESPWindow(QtWidgets.QWidget):
     
 
     def reload_settings(self):
-        # Load new settings with validation
+        # Load new settings with validation - prevent partial updates during load
         try:
             new_settings = load_settings()
         except Exception:
@@ -3453,15 +4028,30 @@ class ESPWindow(QtWidgets.QWidget):
         
         # Only update if settings actually changed and are valid
         if new_settings and isinstance(new_settings, dict) and len(new_settings) > 0:
-            if new_settings != self.settings:
-                self.settings = new_settings
+            # Atomic settings update - merge with defaults to ensure completeness
+            merged_settings = DEFAULT_SETTINGS.copy()
+            merged_settings.update(new_settings)
+            
+            if merged_settings != self.settings:
+                # Temporarily pause updates during settings change
+                old_settings = self.settings
+                self.settings = merged_settings
+                
+                # If settings update fails, rollback
+                try:
+                    self._perform_settings_dependent_updates()
+                except Exception:
+                    self.settings = old_settings
+                    return
             else:
                 return  # No change, skip the rest of reload
         else:
             # Invalid settings loaded, skip update
             return
-        
-                                                                           
+
+    def _perform_settings_dependent_updates(self):
+        """Perform all updates that depend on settings in a safe manner"""
+        # Update window geometry based on current CS2 window
         current_x, current_y, current_width, current_height = get_window_client_rect("Counter-Strike 2")
         if current_width is not None and current_height is not None:
             self.window_x = current_x
@@ -3479,9 +4069,9 @@ class ESPWindow(QtWidgets.QWidget):
             except Exception as view_error:
                 pass
         
+        # Update scene and apply low CPU mode settings
         self.update_scene()
         try:
-            
             self.apply_low_cpu_mode()
         except Exception:
             pass
@@ -3620,9 +4210,8 @@ class ESPWindow(QtWidgets.QWidget):
     def update_scene(self):
         # Early validation: ensure settings are properly loaded
         if not hasattr(self, 'settings') or not self.settings:
-            # Only load default settings on first initialization, not during normal operation
+            # Only load settings on first initialization, not during normal operation
             if not hasattr(self, '_initialization_complete'):
-                self.settings = load_settings()
                 self._initialization_complete = True
             return  # Skip this frame to prevent settings issues
                                                                  
@@ -3649,6 +4238,10 @@ class ESPWindow(QtWidgets.QWidget):
 
                                                                                       
         size_or_position_changed = self.check_and_update_window_size()
+
+        # Final safety check: ensure settings are complete before rendering
+        if not self.settings or not isinstance(self.settings, dict) or len(self.settings) == 0:
+            return
 
                                        
         if hasattr(self, 'scene'):
@@ -3745,6 +4338,10 @@ class ESPWindow(QtWidgets.QWidget):
 def render_center_dot(scene, window_width, window_height, settings):
     """Render center dot independently of ESP settings"""
     try:
+        # Safety check: ensure settings are valid and complete
+        if not settings or not isinstance(settings, dict):
+            return
+            
         center_dot_enabled = settings.get('center_dot', 0) == 1
         if center_dot_enabled:
             center_x = window_width / 2
@@ -3787,6 +4384,10 @@ def render_center_dot(scene, window_width, window_height, settings):
 def render_aim_circle(scene, window_width, window_height, settings):
     """Render Aim Radius independently of ESP settings"""
     try:
+        # Safety check: ensure settings are valid and complete
+        if not settings or not isinstance(settings, dict):
+            return
+            
         aim_circle_visible = settings.get('aim_circle_visible', 1) == 1
         if aim_circle_visible and 'radius' in settings and settings.get('radius', 0) != 0:
             center_x = window_width / 2
@@ -3833,6 +4434,10 @@ def render_aim_circle(scene, window_width, window_height, settings):
 def render_radar(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
     """Render radar showing enemy positions"""
     try:
+        # Safety check: ensure settings are valid and complete
+        if not settings or not isinstance(settings, dict):
+            return
+            
         if not settings.get('radar_enabled', 0):
             return
             
@@ -4162,6 +4767,10 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
 def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
     """Render bomb ESP independently of main ESP"""
     try:
+        # Safety check: ensure settings are valid and complete
+        if not settings or not isinstance(settings, dict):
+            return
+            
         bomb_esp_enabled = settings.get('bomb_esp', 0) == 1
         if not bomb_esp_enabled:
             return
@@ -4254,6 +4863,9 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
         pass
 
 def esp(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
+    # Safety check: ensure settings are valid and complete
+    if not settings or not isinstance(settings, dict):
+        return
                                    
     if settings.get('esp_rendering', 1) == 0:
         return
@@ -4671,9 +5283,17 @@ def esp_main():
     # Load settings with retry logic to ensure config is ready
     settings = None
     for attempt in range(5):  # Try up to 5 times instead of 3
-        settings = load_settings()
-        if settings and len(settings) >= len(DEFAULT_SETTINGS) // 2:  # Basic validation
-            break
+        try:
+            settings = load_settings()
+            # Validate that settings are complete and valid
+            if settings and isinstance(settings, dict) and len(settings) >= len(DEFAULT_SETTINGS) // 2:
+                # Ensure all critical settings exist by merging with defaults
+                complete_settings = DEFAULT_SETTINGS.copy()
+                complete_settings.update(settings)
+                settings = complete_settings
+                break
+        except Exception:
+            settings = None
         time.sleep(0.2)  # Longer delay between attempts
     
     if not settings:
