@@ -121,8 +121,11 @@ def load_commands():
     try:
         print(f"[DEBUG] Checking for commands file at: {COMMANDS_FILE}")  # Always print this
         if os.path.exists(COMMANDS_FILE):
-            with open(COMMANDS_FILE, 'r') as f:
+            with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
+                # Remove BOM character if present
+                if content.startswith('\ufeff'):
+                    content = content[1:]
                 print(f"[DEBUG] Commands file content: '{content}'")  # Always print this
                 if content:
                     # Parse commands separated by commas
@@ -869,6 +872,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False  # Track if FOV was changed during script execution
         self._fov_warning_accepted = False  # Track if user accepted FOV change warning
+        self._fov_dialog_showing = False  # Track if FOV warning dialog is currently showing
+        self._pending_fov_value = None  # Store pending FOV value for delayed popup
         self._is_initializing = True  # Track if we're in initialization phase
         
                                                               
@@ -885,6 +890,9 @@ class ConfigWindow(QtWidgets.QWidget):
         
         # Check if tooltips command is enabled
         self.tooltips_enabled = "tooltips" in load_commands()
+        
+        # Check if FOV command is enabled
+        self.fov_enabled = "fov" in load_commands()
         
         self.header_label = QtWidgets.QLabel(app_title)
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -937,7 +945,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_opacity_label()
         self.update_thickness_label()
         self.update_smooth_label()
-        self.update_game_fov_label_only()  # Initialize FOV label without applying to game
+        # Only initialize FOV label if FOV is enabled
+        if self.fov_enabled:
+            self.update_game_fov_label_only()  # Initialize FOV label without applying to game
 
                                                            
         self.initialize_fps_slider_state()
@@ -1048,8 +1058,11 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.triggerbot_burst_shots_slider, self.head_triggerbot_delay_slider, 
                 self.head_triggerbot_first_shot_delay_slider, self.head_triggerbot_burst_shots_slider,
                 self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
-                self.fps_limit_slider, self.game_fov_slider
+                self.fps_limit_slider
             ]
+            # Add FOV slider only if it exists
+            if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                sliders.append(self.game_fov_slider)
             
             for slider in sliders:
                 if hasattr(self, slider.objectName()) or slider:
@@ -1885,21 +1898,28 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.fps_limit_slider)
 
                               
-        self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
-        self.lbl_game_fov.setMinimumHeight(16)
-        misc_layout.addWidget(self.lbl_game_fov)
-        
-        self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.game_fov_slider.setMinimum(60)
-        self.game_fov_slider.setMaximum(160)
-        # Set slider value without connecting signal during initialization
-        self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
-        # Connect signal after value is set
-        self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
-        self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 120 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
-        self.game_fov_slider.setMinimumHeight(18)
-        self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.game_fov_slider)
+        # Only create FOV controls if FOV command is enabled
+        if self.fov_enabled:
+            self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
+            self.lbl_game_fov.setMinimumHeight(16)
+            misc_layout.addWidget(self.lbl_game_fov)
+            
+            self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+            self.game_fov_slider.setMinimum(60)
+            self.game_fov_slider.setMaximum(160)
+            # Set slider value without connecting signal during initialization
+            self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+            # Connect to valueChanged for immediate label updates and sliderReleased for popup logic
+            self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
+            self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
+            self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
+            self.game_fov_slider.setMinimumHeight(18)
+            self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+            misc_layout.addWidget(self.game_fov_slider)
+        else:
+            # Set attributes to None if FOV is not enabled
+            self.lbl_game_fov = None
+            self.game_fov_slider = None
 
                              
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
@@ -2076,6 +2096,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 # Import the selected config
                 shutil.copy2(config_path, CONFIG_FILE)
                 self.settings = load_settings()
+                # Note: We preserve _fov_warning_accepted status to avoid requiring re-acceptance
                 self.reload_all_ui_from_settings()
                 
                 # Show success message
@@ -2100,6 +2121,9 @@ class ConfigWindow(QtWidgets.QWidget):
     def reload_all_ui_from_settings(self):
         """Reload all UI elements from current settings"""
         try:
+            # Set loading flag to prevent FOV application during config loading
+            self._loading_config = True
+            
             # Block all signals to prevent triggering save_settings during reload
             self.blockSignals(True)
             
@@ -2131,10 +2155,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 # Rainbow widgets
                 self.rainbow_fov_cb, self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb,
                 
-                # Misc widgets
+                # Misc widgets (including FOV slider if it exists)
                 self.auto_accept_cb, self.low_cpu_cb, self.center_dot_cb, self.bhop_cb,
                 self.fps_limit_slider, self.center_dot_size_slider
             ]
+            
+            # Add FOV slider if it exists
+            if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                widgets_to_block.append(self.game_fov_slider)
             
             for widget in widgets_to_block:
                 if widget is not None:
@@ -2225,12 +2253,9 @@ class ConfigWindow(QtWidgets.QWidget):
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
             self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
             self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
-            # Temporarily disconnect to prevent auto-application during config loading
-            self.game_fov_slider.valueChanged.disconnect()
-            self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
-            # Update label without applying FOV to game
-            self.update_game_fov_label_only()
-            self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
+            # Only update FOV slider if it exists (signals already blocked via widgets_to_block list)
+            if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
             self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
             
             # Keybind buttons
@@ -2246,6 +2271,13 @@ class ConfigWindow(QtWidgets.QWidget):
                 if widget is not None:
                     widget.blockSignals(False)
             self.blockSignals(False)
+            
+            # Clear loading flag to allow normal FOV operations
+            self._loading_config = False
+            
+            # CRITICAL: Reset auto_apply_fov to 0 after config loading to prevent automatic FOV application
+            # This ensures that FOV is only applied when user manually changes it and accepts the warning
+            self.settings['auto_apply_fov'] = 0
             
             # Update all labels to reflect new values
             self.update_radius_label()
@@ -2287,12 +2319,14 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
             
         except Exception as e:
-            # Make sure to restore signals even if there's an error
+            # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
             try:
                 for widget in widgets_to_block:
                     if widget is not None:
                         widget.blockSignals(False)
                 self.blockSignals(False)
+                self._loading_config = False
+                self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
             except:
                 pass
             QtWidgets.QMessageBox.critical(self, "Reload Error", f"Failed to reload UI from settings:\n{str(e)}")
@@ -2515,9 +2549,15 @@ class ConfigWindow(QtWidgets.QWidget):
             if reply != QtWidgets.QMessageBox.Yes:
                 return
             
+            # Set loading flag to prevent FOV application during reset
+            self._loading_config = True
+            
             # Reset settings
             self.settings = DEFAULT_SETTINGS.copy()
             save_settings(self.settings)
+            
+            # Note: We don't reset _fov_warning_accepted here to preserve user's acceptance status
+            # This ensures that if user already accepted FOV warning once, they don't need to accept it again
             
             # Update all UI elements
             try:
@@ -2600,6 +2640,10 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'radar_scale_slider'):
                     self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
                 
+                # Handle FOV slider reset - block signals to prevent auto-application
+                if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                    self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+                
                 # Update dropdowns
                 if hasattr(self, 'lines_position_combo'):
                     position = self.settings.get('lines_position', 'Bottom')
@@ -2669,6 +2713,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.update_radar_size_label()
                 if hasattr(self, 'update_radar_scale_label'):
                     self.update_radar_scale_label()
+                if hasattr(self, 'update_game_fov_label_only') and hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                    self.update_game_fov_label_only()
                 
                 # Apply settings
                 if hasattr(self, 'apply_topmost'):
@@ -2683,12 +2729,24 @@ class ConfigWindow(QtWidgets.QWidget):
                     if w is not None:
                         w.blockSignals(False)
                 
+                # Clear loading flag to allow normal FOV operations
+                self._loading_config = False
+                
+                # CRITICAL: Reset auto_apply_fov to 0 after reset to prevent automatic FOV application
+                self.settings['auto_apply_fov'] = 0
+                
                 QtWidgets.QMessageBox.information(self, "Reset Complete", "All settings have been reset to default values.")
                 
             except Exception as e:
+                # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
+                self._loading_config = False
+                self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
                 QtWidgets.QMessageBox.critical(self, "Reset Error", f"Settings were reset but UI update failed:\n{str(e)}")
                 
         except Exception as e:
+            # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
+            self._loading_config = False
+            self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
             QtWidgets.QMessageBox.critical(self, "Reset Error", f"Failed to reset settings:\n{str(e)}")
         finally:
             self.resume_rainbow_timer()
@@ -3845,50 +3903,156 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_game_fov_label(self):
         try:
-            val = self.game_fov_slider.value()
-            self.lbl_game_fov.setText(f"Camera FOV: ({val})")
-            self.settings['game_fov'] = val
-            self.save_settings()
-            # Only apply FOV when manually changed by user
-            if getattr(self, '_fov_manual_change', False):
-                self.apply_fov_change(val)
-                self._fov_manual_change = False
+            if hasattr(self, 'game_fov_slider') and self.game_fov_slider and hasattr(self, 'lbl_game_fov') and self.lbl_game_fov:
+                val = self.game_fov_slider.value()
+                self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+                self.settings['game_fov'] = val
+                self.save_settings()
+                # Only apply FOV when manually changed by user
+                if getattr(self, '_fov_manual_change', False):
+                    self.apply_fov_change(val)
+                    self._fov_manual_change = False
         except Exception:
             pass
 
     def update_game_fov_label_only(self):
-        """Update FOV label and save setting without applying FOV change - used during config reload and initialization"""
+        """Update FOV label without applying FOV change or updating settings - used during config reload and initialization"""
         try:
-            val = self.game_fov_slider.value()
-            self.lbl_game_fov.setText(f"Camera FOV: ({val})")
-            # Save setting to config but don't apply to game
-            self.settings['game_fov'] = val
-            self.save_settings()
+            if hasattr(self, 'game_fov_slider') and self.game_fov_slider and hasattr(self, 'lbl_game_fov') and self.lbl_game_fov:
+                val = self.game_fov_slider.value()
+                self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+                # Don't update settings during config loading/initialization
+                # Settings should only be updated when user manually changes values
         except Exception:
             pass
 
-    def on_fov_slider_changed(self):
-        """Handle manual FOV slider changes by user"""
+    def on_fov_slider_value_changed(self):
+        """Handle FOV slider value changes for immediate label updates"""
+        print(f"[DEBUG] FOV slider value changed: {self.game_fov_slider.value()}")  # Debug
         try:
-            # Don't apply FOV during initialization
-            if getattr(self, '_is_initializing', False):
-                # Just update the label during initialization
-                self.update_game_fov_label_only()
+            # Check if FOV controls are available
+            if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
+                print("[DEBUG] FOV controls not available")  # Debug
                 return
                 
-            # Show warning dialog on first FOV change attempt
-            if not self._fov_warning_accepted:
-                # Pause rainbow timer during dialog
-                self.pause_rainbow_timer()
+            # Don't apply FOV during initialization or config loading
+            if getattr(self, '_is_initializing', False) or getattr(self, '_loading_config', False):
+                print("[DEBUG] Initializing or loading config, updating label only")  # Debug
+                # Just update the label during initialization or config loading
+                self.update_game_fov_label_only()
+                return
+            
+            # Track original value when slider interaction starts
+            if not hasattr(self, '_fov_original_value'):
+                # Use the actual current FOV value from the slider, not from settings
+                # This ensures we compare against what was actually displayed before user interaction
+                self._fov_original_value = self.game_fov_slider.value()
+                print(f"[DEBUG] Storing original FOV value: {self._fov_original_value}")  # Debug
                 
+            # If warning already accepted, apply change immediately
+            if self._fov_warning_accepted:
+                print("[DEBUG] Warning accepted, applying change immediately")  # Debug
+                # Update settings and apply
+                new_value = self.game_fov_slider.value()
+                self.settings['game_fov'] = new_value
+                self.settings['auto_apply_fov'] = 1
+                self.save_settings()
+                self._fov_manual_change = True
+                self.update_game_fov_label()
+                return
+            
+            print("[DEBUG] Updating label only (warning not accepted)")  # Debug
+            # Just update the label to show current value while dragging
+            # Also update settings so they're saved when user accepts
+            new_value = self.game_fov_slider.value()
+            self.settings['game_fov'] = new_value
+            self.save_settings()
+            self.update_game_fov_label_only()
+            
+        except Exception as e:
+            print(f"[DEBUG] Exception in on_fov_slider_value_changed: {e}")  # Debug
+            pass
+
+    def on_fov_slider_released(self):
+        """Handle FOV slider release - this is when we show the popup"""
+        print("[DEBUG] FOV slider released")  # Debug
+        try:
+            # Check if FOV controls are available
+            if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
+                print("[DEBUG] FOV controls not available on release")  # Debug
+                return
+                
+            # Don't show popup during initialization
+            if getattr(self, '_is_initializing', False):
+                print("[DEBUG] Still initializing, ignoring release")  # Debug
+                return
+                
+            # If dialog is currently showing, ignore
+            if getattr(self, '_fov_dialog_showing', False):
+                print("[DEBUG] Dialog already showing, ignoring release")  # Debug
+                return
+                
+            # If warning already accepted, no need for popup
+            if self._fov_warning_accepted:
+                print("[DEBUG] Warning already accepted, no popup needed")  # Debug
+                # Clear the original value tracker
+                if hasattr(self, '_fov_original_value'):
+                    delattr(self, '_fov_original_value')
+                return
+            
+            current_value = self.game_fov_slider.value()
+            original_value = getattr(self, '_fov_original_value', 90)
+            print(f"[DEBUG] Current: {current_value}, Original: {original_value}")  # Debug
+            
+            # Only show popup if value actually changed from original
+            if current_value != original_value:
+                print("[DEBUG] Value changed, showing popup")  # Debug
+                self._pending_fov_value = current_value
+                # Small delay to ensure slider is fully released
+                QtCore.QTimer.singleShot(50, self._show_delayed_fov_popup)
+            else:
+                print("[DEBUG] Value unchanged, no popup needed")  # Debug
+                # Clear the original value tracker
+                if hasattr(self, '_fov_original_value'):
+                    delattr(self, '_fov_original_value')
+                # Clear the original value tracker
+                if hasattr(self, '_fov_original_value'):
+                    delattr(self, '_fov_original_value')
+            
+        except Exception as e:
+            print(f"[DEBUG] Exception in on_fov_slider_released: {e}")  # Debug
+            pass
+
+    def _show_delayed_fov_popup(self):
+        """Show FOV warning popup after slider is released"""
+        try:
+            # Check if we have a pending FOV value and warning hasn't been accepted
+            if self._pending_fov_value is None or self._fov_warning_accepted:
+                return
+                
+            # Check if dialog is already showing
+            if getattr(self, '_fov_dialog_showing', False):
+                return
+                
+            # Set flag to prevent multiple dialogs
+            self._fov_dialog_showing = True
+            
+            # Store the values
+            new_fov_value = self._pending_fov_value
+            original_fov_value = self.settings.get('game_fov', 90)
+            
+            # Pause rainbow timer during dialog
+            self.pause_rainbow_timer()
+            
+            try:
                 # Show confirmation dialog
                 msg_box = QtWidgets.QMessageBox(self)
                 msg_box.setWindowTitle("FOV Change Warning")
-                msg_box.setText("Changing values can result in VAC ban. Change FOV?")
+                msg_box.setText("Changing FOV can cause VAC ban. Change FOV?")
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
                 
                 # Create custom buttons
-                yes_button = msg_box.addButton("Yes", QtWidgets.QMessageBox.YesRole)
+                yes_button = msg_box.addButton("Yes, Apply FOV", QtWidgets.QMessageBox.YesRole)
                 cancel_button = msg_box.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
                 msg_box.setDefaultButton(cancel_button)
                 
@@ -3899,30 +4063,38 @@ class ConfigWindow(QtWidgets.QWidget):
                 msg_box.exec()
                 clicked_button = msg_box.clickedButton()
                 
-                # Resume rainbow timer
-                self.resume_rainbow_timer()
-                
                 if clicked_button == yes_button:
+                    # User accepted - apply the FOV change
                     self._fov_warning_accepted = True
-                    # Enable auto-apply FOV since user manually changed it
                     self.settings['auto_apply_fov'] = 1
+                    self.settings['game_fov'] = new_fov_value
                     self.save_settings()
-                    # Apply FOV change
                     self._fov_manual_change = True
                     self.update_game_fov_label()
                 else:
-                    # User cancelled - reset slider to current setting without triggering signals
+                    # User cancelled - reset slider to original value
+                    original_value = getattr(self, '_fov_original_value', 90)
                     self.game_fov_slider.blockSignals(True)
-                    self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+                    self.game_fov_slider.setValue(original_value)
                     self.game_fov_slider.blockSignals(False)
-                    return
-            else:
-                # Warning already accepted, enable auto-apply and apply change directly
-                self.settings['auto_apply_fov'] = 1
-                self.save_settings()
-                self._fov_manual_change = True
-                self.update_game_fov_label()
+                    self.update_game_fov_label_only()
+                    # Reset settings to original value
+                    self.settings['game_fov'] = original_value
+                    self.save_settings()
+                    
+            finally:
+                # Clear pending value and flags
+                self._pending_fov_value = None
+                self._fov_dialog_showing = False
+                # Clear the original value tracker
+                if hasattr(self, '_fov_original_value'):
+                    delattr(self, '_fov_original_value')
+                self.resume_rainbow_timer()
+                
         except Exception:
+            # Make sure flags are cleared even if an exception occurs
+            self._pending_fov_value = None
+            self._fov_dialog_showing = False
             pass
 
     def apply_fov_change(self, fov_value):
@@ -4014,7 +4186,7 @@ class ConfigWindow(QtWidgets.QWidget):
                             print("[DEBUG] Trying UI slider sync method...")
                             # Update our internal tracking
                             self.settings['game_fov'] = 90
-                            if hasattr(self, 'game_fov_slider'):
+                            if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                                 self.game_fov_slider.setValue(90)
                             if hasattr(self, 'update_game_fov_label_only'):
                                 self.update_game_fov_label_only()
@@ -4054,12 +4226,31 @@ class ConfigWindow(QtWidgets.QWidget):
             print(f"[DEBUG] Outer traceback: {traceback.format_exc()}")
     
     def setup_config_folder_watcher(self):
-        """Setup file system watcher for the configs folder"""
+        """Setup file system watcher for the configs folder and commands.txt"""
         try:
             self.config_folder_watcher = QFileSystemWatcher()
             if os.path.exists(CONFIG_DIR):
                 self.config_folder_watcher.addPath(CONFIG_DIR)
                 self.config_folder_watcher.directoryChanged.connect(self.on_config_folder_changed)
+            
+            # Also watch commands.txt for FOV availability changes
+            commands_file = os.path.join(os.getcwd(), 'commands.txt')
+            if os.path.exists(commands_file):
+                self.config_folder_watcher.fileChanged.connect(self.on_commands_file_changed)
+                self.config_folder_watcher.addPath(commands_file)
+        except Exception:
+            pass
+    
+    def on_commands_file_changed(self):
+        """Handle changes to commands.txt file"""
+        try:
+            # Check if FOV command availability changed
+            new_fov_enabled = "fov" in load_commands()
+            if hasattr(self, 'fov_enabled') and new_fov_enabled != self.fov_enabled:
+                print(f"[DEBUG] FOV command availability changed: {self.fov_enabled} -> {new_fov_enabled}")
+                # Note: Dynamic FOV control creation/removal would require rebuilding UI
+                # For now, just update the flag - user needs to restart for full effect
+                self.fov_enabled = new_fov_enabled
         except Exception:
             pass
     
