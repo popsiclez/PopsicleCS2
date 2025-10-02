@@ -591,6 +591,7 @@ DEFAULT_SETTINGS = {
     "low_cpu": 0,
     "fps_limit": 60,
     "game_fov": 90,
+    "auto_apply_fov": 0,  # 0 = don't auto-apply FOV, 1 = auto-apply FOV
 }
 
 def key_str_to_vk(key_str):
@@ -868,6 +869,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False  # Track if FOV was changed during script execution
         self._fov_warning_accepted = False  # Track if user accepted FOV change warning
+        self._is_initializing = True  # Track if we're in initialization phase
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -935,6 +937,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_opacity_label()
         self.update_thickness_label()
         self.update_smooth_label()
+        self.update_game_fov_label_only()  # Initialize FOV label without applying to game
 
                                                            
         self.initialize_fps_slider_state()
@@ -994,6 +997,9 @@ class ConfigWindow(QtWidgets.QWidget):
 
         # Disable focus for all UI elements to prevent keyboard interaction
         self.disable_ui_focus()
+        
+        # Mark initialization as complete
+        self._is_initializing = False
 
     def pause_rainbow_timer(self):
         """Pause rainbow timer during dialogs to prevent interference"""
@@ -1886,7 +1892,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.game_fov_slider.setMinimum(60)
         self.game_fov_slider.setMaximum(160)
+        # Set slider value without connecting signal during initialization
         self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+        # Connect signal after value is set
         self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
         self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 120 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
         self.game_fov_slider.setMinimumHeight(18)
@@ -2220,6 +2228,8 @@ class ConfigWindow(QtWidgets.QWidget):
             # Temporarily disconnect to prevent auto-application during config loading
             self.game_fov_slider.valueChanged.disconnect()
             self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
+            # Update label without applying FOV to game
+            self.update_game_fov_label_only()
             self.game_fov_slider.valueChanged.connect(self.on_fov_slider_changed)
             self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
             
@@ -3847,16 +3857,25 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
     def update_game_fov_label_only(self):
-        """Update FOV label without applying FOV change - used during config reload"""
+        """Update FOV label and save setting without applying FOV change - used during config reload and initialization"""
         try:
             val = self.game_fov_slider.value()
             self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+            # Save setting to config but don't apply to game
+            self.settings['game_fov'] = val
+            self.save_settings()
         except Exception:
             pass
 
     def on_fov_slider_changed(self):
         """Handle manual FOV slider changes by user"""
         try:
+            # Don't apply FOV during initialization
+            if getattr(self, '_is_initializing', False):
+                # Just update the label during initialization
+                self.update_game_fov_label_only()
+                return
+                
             # Show warning dialog on first FOV change attempt
             if not self._fov_warning_accepted:
                 # Pause rainbow timer during dialog
@@ -3885,17 +3904,22 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 if clicked_button == yes_button:
                     self._fov_warning_accepted = True
+                    # Enable auto-apply FOV since user manually changed it
+                    self.settings['auto_apply_fov'] = 1
+                    self.save_settings()
                     # Apply FOV change
                     self._fov_manual_change = True
                     self.update_game_fov_label()
                 else:
                     # User cancelled - reset slider to current setting without triggering signals
-                    self.fov_slider.blockSignals(True)
-                    self.fov_slider.setValue(self.settings.get('game_fov', 90))
-                    self.fov_slider.blockSignals(False)
+                    self.game_fov_slider.blockSignals(True)
+                    self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+                    self.game_fov_slider.blockSignals(False)
                     return
             else:
-                # Warning already accepted, apply change directly
+                # Warning already accepted, enable auto-apply and apply change directly
+                self.settings['auto_apply_fov'] = 1
+                self.save_settings()
                 self._fov_manual_change = True
                 self.update_game_fov_label()
         except Exception:
@@ -4009,6 +4033,10 @@ class ConfigWindow(QtWidgets.QWidget):
                         
                         if reset_success or final_fov == 90:
                             print("[DEBUG] FOV successfully reset to 90")
+                            # Disable auto-apply FOV when resetting to default
+                            self.settings['auto_apply_fov'] = 0
+                            self.save_settings()
+                            print("[DEBUG] Auto-apply FOV disabled")
                         else:
                             print(f"[DEBUG] FOV reset failed - CS2 may be preventing FOV changes. Final value: {final_fov}")
                             print("[DEBUG] Note: You may need to manually reset FOV in-game or restart CS2")
@@ -6257,7 +6285,8 @@ def aim():
          'aim_mode_distance': 1,
          'aim_smoothness': 50,
          'aim_disable_when_crosshair_on_enemy': 0,
-         'aim_movement_prediction': 0
+         'aim_movement_prediction': 0,
+         'auto_apply_fov': 0
      }
     
     def get_window_size(window_name="Counter-Strike 2"):
@@ -6705,12 +6734,13 @@ def aim():
             target_list = []
             target_list = esp(pm, client, settings, target_list, window_size)
             
-            # Apply FOV setting
+            # Apply FOV setting only if auto-apply is enabled
             try:
-                game_fov = settings.get('game_fov', 90)
-                local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                if local_player_controller:
-                    pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
+                if settings.get('auto_apply_fov', 0) == 1:
+                    game_fov = settings.get('game_fov', 90)
+                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                    if local_player_controller:
+                        pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
             except Exception:
                 pass
             
