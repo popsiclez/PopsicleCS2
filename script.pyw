@@ -6649,8 +6649,8 @@ def aim():
                 local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                 if local_player_controller:
                     current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                    # Clamp FOV to reasonable values
-                    if current_fov < 60 or current_fov > 150:
+                    # Clamp FOV to actual game values (60-160)
+                    if current_fov < 60 or current_fov > 160:
                         current_fov = 90
         except Exception:
             pass
@@ -6691,9 +6691,11 @@ def aim():
                     closest_dist = dist
         else:
             # Apply FOV compensation to radius calculation
-            # Higher FOV = wider view = targets appear smaller/further = need larger effective radius
-            # Lower FOV = narrower view = targets appear larger/closer = need smaller effective radius
-            fov_scale = current_fov / 90.0  # Normalize to default FOV
+            # Use the same angular compensation as mouse movement for consistency
+            import math
+            fov_rad_current = math.radians(current_fov / 2.0)
+            fov_rad_default = math.radians(90.0 / 2.0)
+            fov_scale = math.tan(fov_rad_current) / math.tan(fov_rad_default)
             adjusted_radius = radius * fov_scale
             
             screen_radius = adjusted_radius / 100.0 * min(center_x, center_y)
@@ -6831,11 +6833,14 @@ def aim():
         dy = target_y - center_y
 
         # Apply FOV compensation to mouse movement
-        # In CS2, FOV affects the angular relationship between screen pixels and world angles
-        # Higher FOV = more world space visible in same screen space = need less mouse movement per pixel
-        # Lower FOV = less world space visible in same screen space = need more mouse movement per pixel
-        # This is an inverse relationship for mouse sensitivity compensation
-        fov_compensation = 90.0 / current_fov  # Inverse relationship for angular sensitivity
+        # In CS2, mouse sensitivity is inversely related to FOV for maintaining consistent angular movement
+        # Higher FOV = wider view = need MORE mouse movement to achieve same angular rotation
+        # Lower FOV = narrower view = need LESS mouse movement to achieve same angular rotation
+        # Formula: compensation = tan(current_fov/2) / tan(90/2) for proper angular scaling
+        import math
+        fov_rad_current = math.radians(current_fov / 2.0)
+        fov_rad_default = math.radians(90.0 / 2.0)
+        fov_compensation = math.tan(fov_rad_current) / math.tan(fov_rad_default)
         
         # Apply FOV compensation to the deltas
         dx *= fov_compensation
