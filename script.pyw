@@ -1,4 +1,4 @@
-VERSION = "2"
+VERSION = "3"
 STARTUP_ENABLED = False
             
 import threading
@@ -551,6 +551,7 @@ DEFAULT_SETTINGS = {
     "aim_visibility_check": 0,
     "aim_disable_when_crosshair_on_enemy": 0,
     "aim_movement_prediction": 0,
+    "require_aimkey": 1,
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -1564,6 +1565,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.aim_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.aim_active_cb)
 
+        self.require_aimkey_cb = QtWidgets.QCheckBox("Require Aimkey")
+        self.require_aimkey_cb.setChecked(self.settings.get("require_aimkey", 1) == 1)
+        self.require_aimkey_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.require_aimkey_cb, "When enabled, you must hold the aimkey for aimbot to work. When disabled, aimbot works automatically on valid targets.")
+        self.require_aimkey_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        aim_layout.addWidget(self.require_aimkey_cb)
+
         
         self.radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.radius_slider.setMinimum(0)
@@ -2160,6 +2168,10 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.fps_limit_slider, self.center_dot_size_slider
             ]
             
+            # Add require_aimkey_cb if it exists
+            if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
+                widgets_to_block.append(self.require_aimkey_cb)
+            
             # Add FOV slider if it exists
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 widgets_to_block.append(self.game_fov_slider)
@@ -2216,6 +2228,8 @@ class ConfigWindow(QtWidgets.QWidget):
             
             # Aim settings
             self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1)
+            if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
+                self.require_aimkey_cb.setChecked(self.settings.get("require_aimkey", 1) == 1)
             self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
             self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
             self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
@@ -2805,6 +2819,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self.settings["bomb_esp"] = 1 if self.bomb_esp_cb.isChecked() else 0
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
         self.settings["aim_active"] = 1 if self.aim_active_cb.isChecked() else 0
+        
+        # Save require_aimkey setting
+        try:
+            self.settings["require_aimkey"] = 1 if getattr(self, 'require_aimkey_cb', None) and self.require_aimkey_cb.isChecked() else 0
+        except Exception:
+            self.settings["require_aimkey"] = 1  # Default to requiring aimkey
         
                                        
         try:
@@ -6966,7 +6986,20 @@ def aim():
                 client = None
                 time.sleep(1)
         window_size = get_window_size()
+        
+        # Counter for periodic settings reload
+        loop_counter = 0
+        
         while True:
+            # Reload settings every 10 loops to pick up changes
+            if loop_counter % 10 == 0:
+                try:
+                    new_settings = load_settings()
+                    settings.update(new_settings)
+                except Exception:
+                    pass
+            loop_counter += 1
+            
             target_list = []
             target_list = esp(pm, client, settings, target_list, window_size)
             
@@ -7007,7 +7040,11 @@ def aim():
             except Exception:
                 pass
 
-            if pressed:
+            # Check if aimkey is required or if it's pressed
+            require_aimkey = settings.get('require_aimkey', 1) == 1
+            should_aim = pressed if require_aimkey else True
+            
+            if should_aim:
                                                 
                 smoothness = settings.get('aim_smoothness', 0)
                 aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
