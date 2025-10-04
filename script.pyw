@@ -1,5 +1,5 @@
 VERSION = "2"
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
             
 import threading
 import keyboard
@@ -4333,33 +4333,43 @@ class ConfigWindow(QtWidgets.QWidget):
             self._dropdown_updating = False
 
 def configurator():
-                                                                            
-    import os
-    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-    os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-    os.environ["QT_SCALE_FACTOR"] = "1"
-    
-                              
-    os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
-    
-    app = QtWidgets.QApplication(sys.argv)
-    
-                                                
     try:
-        app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-        app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
-    except Exception:
-        pass
-    
-    pass  # Using default Qt styling
-    
-    window = ConfigWindow()
-    
+                                                                            
+        import os
+        os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+        os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+        os.environ["QT_SCALE_FACTOR"] = "1"
+        
+                              
+        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
+        
+        app = QtWidgets.QApplication(sys.argv)
+        
+                                                
+        try:
+            app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+            app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+        except Exception:
+            pass
+        
+        pass  # Using default Qt styling
+        
+        window = ConfigWindow()
+        
                                                                 
-    if window.is_game_window_active():
-        window.show()
-    
-    sys.exit(app.exec())
+        if window.is_game_window_active():
+            window.show()
+        
+        sys.exit(app.exec())
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
 
 class ESPWindow(QtWidgets.QWidget):
     def __init__(self, settings, window_width=None, window_height=None):
@@ -5802,76 +5812,86 @@ def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height, settings):
         pass
 
 def esp_main():
-    # Load settings with retry logic to ensure config is ready
-    settings = None
-    for attempt in range(5):  # Try up to 5 times instead of 3
-        try:
-            settings = load_settings()
-            # Validate that settings are complete and valid
-            if settings and isinstance(settings, dict) and len(settings) >= len(DEFAULT_SETTINGS) // 2:
-                # Ensure all critical settings exist by merging with defaults
-                complete_settings = DEFAULT_SETTINGS.copy()
-                complete_settings.update(settings)
-                settings = complete_settings
-                break
-        except Exception:
-            settings = None
-        time.sleep(0.2)  # Longer delay between attempts
-    
-    if not settings:
-        settings = DEFAULT_SETTINGS.copy()
-        # Try to save default settings to ensure config file exists
-        try:
-            save_settings(settings)
-        except Exception:
-            pass
-    
-    app = QtWidgets.QApplication(sys.argv)
-    
-    
-    window_width = None
-    window_height = None
-    pm = None
-    client = None
-    while True:
-        
-        w, h = get_window_size("Counter-Strike 2")
-        if w is not None and h is not None:
-            window_width, window_height = w, h
-        
-                                                 
-        if is_cs2_running():
-            try:
-                pm = pymem.Pymem("cs2.exe")
-                try:
-                    client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
-                except Exception:
-                    client = None
-            except Exception:
-                pm = None
-        else:
-            pm = None
-            client = None
-
-        
-        if window_width and window_height and pm is not None and client is not None:
-            break
-        time.sleep(1)
-
-    
-    window = ESPWindow(settings, window_width=window_width, window_height=window_height)
-    
     try:
-                                           
-        window.offsets = offsets
-        window.client_dll = client_dll
-        window.pm = pm
-        window.client = client
-    except Exception:
-               pass
+        # Load settings with retry logic to ensure config is ready
+        settings = None
+        for attempt in range(5):  # Try up to 5 times instead of 3
+            try:
+                settings = load_settings()
+                # Validate that settings are complete and valid
+                if settings and isinstance(settings, dict) and len(settings) >= len(DEFAULT_SETTINGS) // 2:
+                    # Ensure all critical settings exist by merging with defaults
+                    complete_settings = DEFAULT_SETTINGS.copy()
+                    complete_settings.update(settings)
+                    settings = complete_settings
+                    break
+            except Exception:
+                settings = None
+            time.sleep(0.2)  # Longer delay between attempts
+        
+        if not settings:
+            settings = DEFAULT_SETTINGS.copy()
+            # Try to save default settings to ensure config file exists
+            try:
+                save_settings(settings)
+            except Exception:
+                pass
+        
+        app = QtWidgets.QApplication(sys.argv)
+        
+        
+        window_width = None
+        window_height = None
+        pm = None
+        client = None
+        while True:
+            
+            w, h = get_window_size("Counter-Strike 2")
+            if w is not None and h is not None:
+                window_width, window_height = w, h
+            
+                                                     
+            if is_cs2_running():
+                try:
+                    pm = pymem.Pymem("cs2.exe")
+                    try:
+                        client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                    except Exception:
+                        client = None
+                except Exception:
+                    pm = None
+            else:
+                pm = None
+                client = None
+        
+            
+            if window_width and window_height and pm is not None and client is not None:
+                break
+            time.sleep(1)
 
-    window.show()
-    sys.exit(app.exec())
+        
+        window = ESPWindow(settings, window_width=window_width, window_height=window_height)
+        
+        try:
+                                               
+            window.offsets = offsets
+            window.client_dll = client_dll
+            window.pm = pm
+            window.client = client
+        except Exception:
+                   pass
+
+        window.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
 
 def triggerbot():
     from pynput.mouse import Controller, Button
@@ -6231,7 +6251,17 @@ def triggerbot():
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
-    main_program()
+    try:
+        main_program()
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
 
 def bhop():
     """Bunny hop function with configurable keybind"""
@@ -6463,7 +6493,17 @@ def bhop():
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
-    main_program()
+    try:
+        main_program()
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
 
 def aim():
     default_settings = {
@@ -6992,7 +7032,17 @@ def aim():
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
-    main_program()
+    try:
+        main_program()
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
 
 def wait_for_cs2_startup():
     """Wait for CS2 to start and then wait additional 6 seconds"""
@@ -7173,6 +7223,30 @@ if __name__ == "__main__":
             if not is_cs2_running():
                 pass
                 break
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        if 'procs' in locals():
+            for p in procs:
+                try:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join(1)
+                except Exception:
+                    pass
+        remove_lock_file()
+        try:
+            if os.path.exists(TERMINATE_SIGNAL_FILE):
+                os.remove(TERMINATE_SIGNAL_FILE)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
+                os.remove(KEYBIND_COOLDOWNS_FILE)
+        except Exception:
+            pass
+        cleanup_logging()
+        sys.exit(0)
     finally:
         for p in procs:
             try:
