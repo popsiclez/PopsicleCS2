@@ -1,4 +1,4 @@
-#6
+#7
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -7796,18 +7796,25 @@ def aim():
                     smoothness_value = settings.get('camera_lock_smoothness', 5)
                     if smoothness_value <= 0:
                         smoothness_value = 1
-                    # Calculate smoothness factor: 1=0.95 (almost instant), 20=1.0 (full movement)
-                    # Use exponential curve for better feel: base + (value-1) * increment
-                    smoothness_factor = 0.95 + (smoothness_value - 1) * 0.00263  # 0.95 to 1.0 range
-                    move_y = int(dy * smoothness_factor)  # Apply smoothness factor
+                    # Use a different approach: smoothness controls how much we move per frame
+                    # Lower values = faster (more movement), higher values = slower (less movement)
+                    # Map 1-50 to movement speeds that are actually noticeable
+                    smoothness_value = max(1, min(50, smoothness_value))
                     
-                    # Limit maximum movement to prevent jerky camera
-                    if move_y > 8:
-                        move_y = 8
-                    elif move_y < -8:
-                        move_y = -8
+                    if smoothness_value == 1:
+                        # Instant snap - move the full distance
+                        move_y = dy
+                    else:
+                        # Gradual movement - move a fraction of the distance each frame
+                        # Higher smoothness = smaller fraction = slower movement
+                        movement_fraction = 1.0 / smoothness_value
+                        move_y = int(dy * movement_fraction)
                         
-                    # Apply the camera adjustment
+                        # Ensure we always move at least 1 pixel if there's any distance
+                        if dy != 0 and move_y == 0:
+                            move_y = 1 if dy > 0 else -1
+
+                    # Apply the camera adjustment directly
                     win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, move_y, 0, 0)
                     
         except Exception:
