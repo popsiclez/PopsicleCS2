@@ -24,7 +24,7 @@ if exist "%VERSION_FILE%" (
         echo Latest version:  !REMOTE_VERSION!
         echo.
         echo This setup file is outdated. Please download
-        echo the latest version to ensure compatibility.
+        echo the latest version.
         echo.
         echo Press any key to exit...
         pause >nul
