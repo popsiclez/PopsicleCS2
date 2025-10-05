@@ -1,4 +1,3 @@
-#1
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -543,15 +542,36 @@ def load_selected_mode():
         if os.path.exists(MODE_FILE):
             with open(MODE_FILE, 'r') as f:
                 mode = f.read().strip().lower()
+                print(f"[DEBUG] Mode loaded from file: {mode}")
                 if mode in ['legit', 'full']:
                     return mode
-    except Exception:
-        pass
-    return 'full'
+        else:
+            print(f"[DEBUG] Mode file not found: {MODE_FILE}")
+            # Only allow running without mode file if STARTUP_ENABLED is False
+            if not STARTUP_ENABLED:
+                print("[DEBUG] STARTUP_ENABLED is False, defaulting to 'full' mode")
+                return 'full'
+            else:
+                print("[DEBUG] STARTUP_ENABLED is True, mode file required")
+                return None
+    except Exception as e:
+        print(f"[DEBUG] Error loading mode: {e}")
+        # Only allow fallback if STARTUP_ENABLED is False
+        if not STARTUP_ENABLED:
+            return 'full'
+        else:
+            return None
+    
+    # If we reach here, mode file exists but contains invalid mode
+    print("[DEBUG] Invalid mode in file, using fallback")
+    if not STARTUP_ENABLED:
+        return 'full'
+    else:
+        return None
 
 SELECTED_MODE = load_selected_mode()
 
-
+# Apply commands after mode is loaded
 apply_commands()
                        
 RAINBOW_HUE = 0.0
@@ -7623,6 +7643,23 @@ if __name__ == "__main__":
     register_cleanup_handlers()
     
     print("Starting Popsicle CS2 application...")
+    
+    # Check if we have a valid mode selection
+    if SELECTED_MODE is None:
+        app_title = get_app_title()
+        print("[ERROR] No mode selected and STARTUP_ENABLED is True. Script requires mode selection via loader.")
+        try:
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "No mode selected, run updated loader",
+                f"{app_title} - Mode Required",
+                0x00000010 | 0x00010000 | 0x00040000  # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST
+            )
+        except Exception:
+            pass
+        sys.exit(1)
+    
+    print(f"[DEBUG] Running in {SELECTED_MODE.upper()} mode")
     
     try:
         multiprocessing.freeze_support()
