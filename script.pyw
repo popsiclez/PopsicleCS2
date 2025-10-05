@@ -1,5 +1,5 @@
 VERSION = "3"
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
             
 import threading
 import keyboard
@@ -32,9 +32,9 @@ import win32con
 import win32gui
 from datetime import datetime
 
-CONSOLE_CREATED = False  # Global flag to track console creation
+CONSOLE_CREATED = False
 
-# Global logging setup
+
 LOG_FILE = None
 original_stdout = None
 original_stderr = None
@@ -46,7 +46,7 @@ class LogRedirector:
         self.original_stream = original_stream
         
     def write(self, text):
-        # Write to original stream (console if available)
+
         if self.original_stream:
             try:
                 self.original_stream.write(text)
@@ -54,7 +54,7 @@ class LogRedirector:
             except:
                 pass
         
-        # Write to log file
+
         try:
             with open(self.log_file, 'a', encoding='utf-8') as f:
                 f.write(text)
@@ -73,19 +73,19 @@ def setup_logging():
     """Setup logging to redirect all print statements to debug_log.txt"""
     global original_stdout, original_stderr, LOG_FILE
     
-    # Only setup if not already setup
+
     if LOG_FILE is not None:
         print("[DEBUG] Logging already setup, skipping")
         return
     
-    # Define log file path
+
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
     
-    # Store original streams
+
     original_stdout = sys.stdout
     original_stderr = sys.stderr
     
-    # Create log file with timestamp
+
     try:
         with open(LOG_FILE, 'w', encoding='utf-8') as f:
             f.write(f"=== Popsicle CS2 Debug Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
@@ -93,7 +93,7 @@ def setup_logging():
     except:
         pass
     
-    # Redirect stdout and stderr to our custom redirector
+
     sys.stdout = LogRedirector(LOG_FILE, original_stdout)
     sys.stderr = LogRedirector(LOG_FILE, original_stderr)
 
@@ -112,50 +112,50 @@ def cleanup_logging():
     if original_stderr:
         sys.stderr = original_stderr
     
-    # Reset LOG_FILE to None so it can be setup again if needed
+
     LOG_FILE = None
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
     commands = []
     try:
-        print(f"[DEBUG] Checking for commands file at: {COMMANDS_FILE}")  # Always print this
+        print(f"[DEBUG] Checking for commands file at: {COMMANDS_FILE}")
         if os.path.exists(COMMANDS_FILE):
             with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
-                # Remove BOM character if present
+
                 if content.startswith('\ufeff'):
                     content = content[1:]
-                print(f"[DEBUG] Commands file content: '{content}'")  # Always print this
+                print(f"[DEBUG] Commands file content: '{content}'")
                 if content:
-                    # Parse commands separated by commas
+
                     commands = [cmd.strip().lower() for cmd in content.split(',') if cmd.strip()]
-                    print(f"[DEBUG] Parsed commands: {commands}")  # Always print this
-                    pass  # Commands loaded
+                    print(f"[DEBUG] Parsed commands: {commands}")
+                    pass
         else:
-            print(f"[DEBUG] No commands file found at {COMMANDS_FILE}")  # Always print this
-            pass  # No commands file found
+            print(f"[DEBUG] No commands file found at {COMMANDS_FILE}")
+            pass
     except Exception as e:
-        print(f"[DEBUG] Error reading commands file: {e}")  # Always print this
-        pass  # Error reading commands file
+        print(f"[DEBUG] Error reading commands file: {e}")
+        pass
     return commands
 
 def apply_commands():
     """Apply commands from commands.txt file"""
     global CONSOLE_CREATED
-    print("[DEBUG] apply_commands() called")  # Always print this
+    print("[DEBUG] apply_commands() called")
     commands = load_commands()
-    print(f"[DEBUG] Commands loaded: {commands}")  # Always print this
+    print(f"[DEBUG] Commands loaded: {commands}")
     
-    # Process debuglog command
+
     if "debuglog" in commands:
-        print("[DEBUG] Debuglog command found in commands list")  # Always print this
-        # Setup logging only when debuglog command is present
+        print("[DEBUG] Debuglog command found in commands list")
+
         setup_logging()
-        print("[DEBUG] Debug logging enabled and writing to debug_log.txt")  # Always print this
+        print("[DEBUG] Debug logging enabled and writing to debug_log.txt")
         print("Commands processed:", commands)
     else:
-        print("[DEBUG] Debuglog command NOT found in commands list")  # Always print this
+        print("[DEBUG] Debuglog command NOT found in commands list")
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -163,10 +163,10 @@ def get_app_title():
         response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt', timeout=5)
         if response.status_code == 200:
             title = response.text.strip()
-            pass  # Title fetched from GitHub
+            pass
             return title
     except Exception as e:
-        pass  # Failed to fetch title from GitHub
+        pass
     
                     
     return "Popsicle - CS2"
@@ -177,10 +177,10 @@ def check_version():
         response = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/version.txt', timeout=5)
         if response.status_code == 200:
             remote_version = response.text.strip()
-            pass  # Version comparison
+            pass
             return VERSION == remote_version
     except Exception as e:
-        pass  # Failed to check version
+        pass
     
                                              
     return True
@@ -190,7 +190,7 @@ def version_check_worker():
     while True:
         try:
             if not check_version():
-                pass  # Version mismatch detected
+                pass
                                                                       
                 app_title = get_app_title()
                 ctypes.windll.user32.MessageBoxW(
@@ -200,7 +200,7 @@ def version_check_worker():
                     0x00000000 | 0x00010000 | 0x00040000 | 0x00001000                                                          
                 )
                 
-                pass  # User dismissed update notification
+                pass
                                                 
                 remove_lock_file()
                                                                    
@@ -222,7 +222,7 @@ def version_check_worker():
                                     
             time.sleep(30)
         except Exception as e:
-            pass  # Version check error
+            pass
             time.sleep(30)
                                      
 offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
@@ -273,11 +273,11 @@ m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nB
 m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
 m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
 
-# FOV offset
+
 try:
     m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']
 except KeyError:
-    m_iDesiredFOV = 0x194  # Fallback offset if not found in client_dll
+    m_iDesiredFOV = 0x194
                                
 bone_ids = {
     "head": 6,
@@ -375,11 +375,11 @@ KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
 COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
 
-# Apply commands from commands.txt if it exists (COMMANDS_FILE is now defined)
+
 apply_commands()
                        
 RAINBOW_HUE_MENU = 0.0
-RAINBOW_HUE_CENTER_DOT = 0.33  # Start at different positions
+RAINBOW_HUE_CENTER_DOT = 0.33
 RAINBOW_HUE_FOV = 0.66
 TARGET_POSITIONS = {}                                                                      
 TARGET_POSITION_TIMESTAMPS = {}                                         
@@ -410,15 +410,11 @@ def disable_console_close_button():
         import ctypes
         from ctypes import wintypes
         
-        # Get console window handle
         console_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
         if console_hwnd:
-            # Get system menu handle
             hmenu = ctypes.windll.user32.GetSystemMenu(console_hwnd, False)
             if hmenu:
-                # Remove close button (SC_CLOSE = 0xF060)
                 ctypes.windll.user32.RemoveMenu(hmenu, 0xF060, 0x0)
-                # Redraw the menu bar
                 ctypes.windll.user32.DrawMenuBar(console_hwnd)
     except Exception as e:
         pass
@@ -429,15 +425,11 @@ def disable_console_close_button():
         import ctypes
         from ctypes import wintypes
         
-        # Get console window handle
         console_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
         if console_hwnd:
-            # Get system menu handle
             hmenu = ctypes.windll.user32.GetSystemMenu(console_hwnd, False)
             if hmenu:
-                # Remove close button (SC_CLOSE = 0xF060)
                 ctypes.windll.user32.RemoveMenu(hmenu, 0xF060, 0x0)
-                # Redraw the menu bar
                 ctypes.windll.user32.DrawMenuBar(console_hwnd)
     except Exception as e:
         pass
@@ -447,7 +439,7 @@ def remove_lock_file():
     try:
         if os.path.exists(LOCK_FILE):
             os.remove(LOCK_FILE)
-        # Also remove console lock file
+
         if os.path.exists(CONSOLE_LOCK_FILE):
             os.remove(CONSOLE_LOCK_FILE)
     except Exception:
@@ -552,6 +544,11 @@ DEFAULT_SETTINGS = {
     "aim_disable_when_crosshair_on_enemy": 0,
     "aim_movement_prediction": 0,
     "require_aimkey": 1,
+    "camera_lock_enabled": 0,
+    "camera_lock_smoothness": 30,
+    "camera_lock_tolerance": 5,
+    "camera_lock_target_bone": 1,
+    "camera_lock_key": "V",
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -560,18 +557,11 @@ DEFAULT_SETTINGS = {
                           
     "trigger_bot_active": 0,
     "TriggerKey": "X", 
-    "triggerbot_between_shots_delay": 30,  # Renamed from triggerbot_delay
+    "triggerbot_between_shots_delay": 30,
     "triggerbot_first_shot_delay": 0,
-    "triggerbot_burst_mode": 0,  # Burst mode toggle
-    "triggerbot_burst_shots": 3,  # Number of shots per burst (2-5)
-    
-    # Head-only triggerbot settings
-    "head_triggerbot_active": 0,
-    "HeadTriggerKey": "Z",
-    "head_triggerbot_between_shots_delay": 30,
-    "head_triggerbot_first_shot_delay": 0,
-    "head_triggerbot_burst_mode": 0,
-    "head_triggerbot_burst_shots": 3,
+    "triggerbot_burst_mode": 0,
+    "triggerbot_burst_shots": 3,
+    "triggerbot_head_only": 0,
     
                    
     "bhop_enabled": 0,
@@ -595,7 +585,7 @@ DEFAULT_SETTINGS = {
     "low_cpu": 0,
     "fps_limit": 60,
     "game_fov": 90,
-    "auto_apply_fov": 0,  # 0 = don't auto-apply FOV, 1 = auto-apply FOV
+    "auto_apply_fov": 0,
 }
 
 def key_str_to_vk(key_str):
@@ -836,7 +826,7 @@ def load_settings():
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
     
-    # Always start with default settings as base
+
     merged_settings = DEFAULT_SETTINGS.copy()
     
     if not os.path.exists(CONFIG_FILE):
@@ -847,11 +837,11 @@ def load_settings():
     try:
         with open(CONFIG_FILE, "r") as f:
             loaded_settings = json.load(f)
-            # Merge loaded settings with defaults to ensure all keys exist
+
             merged_settings.update(loaded_settings)
             return merged_settings
     except (json.JSONDecodeError, FileNotFoundError, PermissionError):
-        # Return defaults on any file read error
+
         return merged_settings
 
 def save_settings(settings: dict):
@@ -871,11 +861,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self.menu_toggle_pressed = False
         self.esp_toggle_pressed = False
         self._manually_hidden = False                                         
-        self._fov_changed_during_runtime = False  # Track if FOV was changed during script execution
-        self._fov_warning_accepted = False  # Track if user accepted FOV change warning
-        self._fov_dialog_showing = False  # Track if FOV warning dialog is currently showing
-        self._pending_fov_value = None  # Store pending FOV value for delayed popup
-        self._is_initializing = True  # Track if we're in initialization phase
+        self._fov_changed_during_runtime = False
+        self._fov_warning_accepted = False
+        self._fov_dialog_showing = False
+        self._pending_fov_value = None
+        self._is_initializing = True
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -889,10 +879,10 @@ class ConfigWindow(QtWidgets.QWidget):
                                
         app_title = get_app_title()
         
-        # Check if tooltips command is enabled
+
         self.tooltips_enabled = "tooltips" in load_commands()
         
-        # Check if FOV command is enabled
+
         self.fov_enabled = "fov" in load_commands()
         
         self.header_label = QtWidgets.QLabel(app_title)
@@ -939,16 +929,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_radius_label()
         self.update_triggerbot_delay_label()
         self.update_triggerbot_burst_shots_label()
-        self.update_head_triggerbot_delay_label()
-        self.update_head_triggerbot_first_shot_delay_label()
-        self.update_head_triggerbot_burst_shots_label()
         self.update_center_dot_size_label()
         self.update_opacity_label()
         self.update_thickness_label()
         self.update_smooth_label()
-        # Only initialize FOV label if FOV is enabled
+
         if self.fov_enabled:
-            self.update_game_fov_label_only()  # Initialize FOV label without applying to game
+            self.update_game_fov_label_only()
 
                                                            
         self.initialize_fps_slider_state()
@@ -1006,10 +993,9 @@ class ConfigWindow(QtWidgets.QWidget):
         if not self.is_game_window_active():
             self._was_visible = False
 
-        # Disable focus for all UI elements to prevent keyboard interaction
+
         self.disable_ui_focus()
         
-        # Mark initialization as complete
         self._is_initializing = False
 
     def pause_rainbow_timer(self):
@@ -1034,14 +1020,13 @@ class ConfigWindow(QtWidgets.QWidget):
     def disable_ui_focus(self):
         """Disable focus for all interactive UI elements to prevent keyboard shortcuts"""
         try:
-            # Disable focus for all checkboxes
+
             checkboxes = [
                 self.esp_rendering_cb, self.line_rendering_cb, self.hp_bar_rendering_cb,
                 self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
                 self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb,
                 self.radar_cb, self.center_dot_cb, self.trigger_bot_active_cb,
-                self.triggerbot_burst_mode_cb, 
-                self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
+                self.triggerbot_burst_mode_cb, self.triggerbot_head_only_cb,
                 self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb, 
                 self.lock_target_cb, self.disable_crosshair_cb, self.movement_prediction_cb, self.rainbow_fov_cb, 
                 self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb, self.auto_accept_cb, 
@@ -1052,16 +1037,15 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, cb.objectName()) or cb:
                     cb.setFocusPolicy(QtCore.Qt.NoFocus)
             
-            # Disable focus for all sliders
+
             sliders = [
                 self.radius_slider, self.opacity_slider, self.thickness_slider,
                 self.smooth_slider, self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
-                self.triggerbot_burst_shots_slider, self.head_triggerbot_delay_slider, 
-                self.head_triggerbot_first_shot_delay_slider, self.head_triggerbot_burst_shots_slider,
+                self.triggerbot_burst_shots_slider, 
                 self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
                 self.fps_limit_slider
             ]
-            # Add FOV slider only if it exists
+
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 sliders.append(self.game_fov_slider)
             
@@ -1069,9 +1053,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, slider.objectName()) or slider:
                     slider.setFocusPolicy(QtCore.Qt.NoFocus)
             
-            # Disable focus for all buttons
+
             buttons = [
-                self.esp_toggle_key_btn, self.trigger_key_btn, self.head_trigger_key_btn,
+                self.esp_toggle_key_btn, self.trigger_key_btn,
                 self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
                 self.enemy_color_btn, self.skeleton_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
                 self.menu_theme_color_btn, self.reset_btn
@@ -1081,7 +1065,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, btn.objectName()) or btn:
                     btn.setFocusPolicy(QtCore.Qt.NoFocus)
             
-            # Disable focus for combo boxes
+
             comboboxes = [
                 self.esp_mode_cb, self.lines_position_combo, self.aim_mode_cb, self.aim_mode_distance_cb,
                 self.radar_position_combo
@@ -1092,7 +1076,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     combo.setFocusPolicy(QtCore.Qt.NoFocus)
                     
         except Exception:
-            pass  # Silently ignore any missing widgets
+            pass
 
     def is_game_window_active(self):
         """Check if CS2 or ESP overlay is the currently active window"""
@@ -1238,7 +1222,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.line_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.line_rendering_cb)
 
-        # Lines Position dropdown
+
         self.lines_position_label = QtWidgets.QLabel("Lines Position:")
         esp_layout.addWidget(self.lines_position_label)
         self.lines_position_combo = QtWidgets.QComboBox()
@@ -1274,7 +1258,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.box_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.box_rendering_cb)
 
-        # Box Mode dropdown
+
         self.box_mode_label = QtWidgets.QLabel("Box Mode:")
         esp_layout.addWidget(self.box_mode_label)
         self.box_mode_combo = QtWidgets.QComboBox()
@@ -1288,7 +1272,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.box_mode_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.box_mode_combo)
         
-        # Initialize dropdown state based on low CPU mode
+
         self.update_box_mode_dropdown_state()
 
         self.Bones_cb = QtWidgets.QCheckBox("Draw Bones")
@@ -1392,7 +1376,7 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_layout.setContentsMargins(6, 6, 6, 6)
         trigger_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        trigger_label = QtWidgets.QLabel("Trigger Bot Settings")
+        trigger_label = QtWidgets.QLabel("TriggerBot")
         trigger_label.setAlignment(QtCore.Qt.AlignCenter)
         trigger_label.setMinimumHeight(18)
         trigger_layout.addWidget(trigger_label)
@@ -1404,7 +1388,15 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-        # Burst Mode Toggle
+
+        self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Head-Only Mode")
+        self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
+        self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.triggerbot_head_only_cb, "When enabled, triggerbot will only shoot when crosshair is precisely on enemy heads.")
+        self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.triggerbot_head_only_cb)
+
+
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
         self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
         self.triggerbot_burst_mode_cb.stateChanged.connect(self.save_settings)
@@ -1412,7 +1404,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_mode_cb)
 
-        # Burst Shots Slider
+
         self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_burst_shots_slider.setMinimum(2)
         self.triggerbot_burst_shots_slider.setMaximum(5)
@@ -1426,7 +1418,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_burst_shots_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_shots_slider)
         
-        # Between Shots Delay (renamed from Triggerbot Delay)
+
         self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_delay_slider.setMinimum(0)
         self.triggerbot_delay_slider.setMaximum(1000)
@@ -1440,7 +1432,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_delay_slider)
 
-                                 
+
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_first_shot_delay_slider.setMinimum(0)
         self.triggerbot_first_shot_delay_slider.setMaximum(1000)
@@ -1454,93 +1446,64 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_first_shot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_first_shot_delay_slider)
 
-        
+
+        self.camera_lock_cb = QtWidgets.QCheckBox("Camera Lock")
+        self.camera_lock_cb.setChecked(self.settings.get("camera_lock_enabled", 0) == 1)
+        self.camera_lock_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_cb, "Automatically keeps your camera aligned with the selected body part when the triggerbot key is held. Uses the same key as triggerbot.")
+        self.camera_lock_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_cb)
+
+
+        self.camera_lock_target_label = QtWidgets.QLabel("Camera Lock Target:")
+        trigger_layout.addWidget(self.camera_lock_target_label)
+        self.camera_lock_target_combo = QtWidgets.QComboBox()
+        for mode_id, mode_info in BONE_TARGET_MODES.items():
+            self.camera_lock_target_combo.addItem(mode_info["name"])
+        current_target = self.settings.get('camera_lock_target_bone', 1)
+        self.camera_lock_target_combo.setCurrentIndex(current_target)
+        self.camera_lock_target_combo.currentIndexChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_target_combo, "Choose which body part the camera lock should target when active.")
+        self.camera_lock_target_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_target_combo)
+
+
+        self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.camera_lock_smoothness_slider.setMinimum(1)
+        self.camera_lock_smoothness_slider.setMaximum(100)
+        self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 30))
+        self.camera_lock_smoothness_slider.valueChanged.connect(self.update_camera_lock_smoothness_label)
+        self.set_tooltip_if_enabled(self.camera_lock_smoothness_slider, "Controls how aggressively camera lock adjusts to head level. Lower = smoother/slower, higher = more aggressive/faster.")
+        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({self.settings.get('camera_lock_smoothness', 30)}%)")
+        self.lbl_camera_lock_smoothness.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_camera_lock_smoothness)
+        self.camera_lock_smoothness_slider.setMinimumHeight(18)
+        self.camera_lock_smoothness_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_smoothness_slider)
+
+
+        self.camera_lock_tolerance_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.camera_lock_tolerance_slider.setMinimum(1)
+        self.camera_lock_tolerance_slider.setMaximum(50)
+        self.camera_lock_tolerance_slider.setValue(self.settings.get("camera_lock_tolerance", 5))
+        self.camera_lock_tolerance_slider.valueChanged.connect(self.update_camera_lock_tolerance_label)
+        self.set_tooltip_if_enabled(self.camera_lock_tolerance_slider, "Controls the dead zone in pixels. Camera lock only activates when you're more than this many pixels off target. Lower = more sensitive, higher = less sensitive.")
+        self.lbl_camera_lock_tolerance = QtWidgets.QLabel(f"Camera Lock Deadzone: ({self.settings.get('camera_lock_tolerance', 5)}px)")
+        self.lbl_camera_lock_tolerance.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_camera_lock_tolerance)
+        self.camera_lock_tolerance_slider.setMinimumHeight(18)
+        self.camera_lock_tolerance_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_tolerance_slider)
+
+
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
-        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot. Hold this key while aiming at enemies to auto-shoot.")
+        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot and camera lock. Hold this key while aiming at enemies to auto-shoot and maintain head level.")
         self.trigger_key_btn.setMinimumHeight(22)
         self.trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_key_btn)
         self.trigger_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'TriggerKey', self.trigger_key_btn)
-
-        # Separator for head-only triggerbot
-        separator = QtWidgets.QFrame()
-        separator.setFrameShape(QtWidgets.QFrame.HLine)
-        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
-        trigger_layout.addWidget(separator)
-        
-        head_trigger_label = QtWidgets.QLabel("Head-Only Trigger Bot")
-        head_trigger_label.setAlignment(QtCore.Qt.AlignCenter)
-        head_trigger_label.setMinimumHeight(18)
-        trigger_layout.addWidget(head_trigger_label)
-
-        self.head_trigger_bot_active_cb = QtWidgets.QCheckBox("Enable Head-Only Trigger Bot")
-        self.head_trigger_bot_active_cb.setChecked(self.settings.get("head_triggerbot_active", 0) == 1)
-        self.head_trigger_bot_active_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.head_trigger_bot_active_cb, "Automatically shoots when crosshair is on enemy head while holding the head trigger key.")
-        self.head_trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_trigger_bot_active_cb)
-
-        # Head Trigger Bot Burst Mode Toggle
-        self.head_triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Head Burst Mode")
-        self.head_triggerbot_burst_mode_cb.setChecked(self.settings.get("head_triggerbot_burst_mode", 0) == 1)
-        self.head_triggerbot_burst_mode_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.head_triggerbot_burst_mode_cb, "Fires limited shots in bursts for head-only triggerbot instead of continuous shooting.")
-        self.head_triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_triggerbot_burst_mode_cb)
-
-        # Head Trigger Bot Burst Shots Slider
-        self.head_triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.head_triggerbot_burst_shots_slider.setMinimum(2)
-        self.head_triggerbot_burst_shots_slider.setMaximum(5)
-        self.head_triggerbot_burst_shots_slider.setValue(self.settings.get("head_triggerbot_burst_shots", 3))
-        self.head_triggerbot_burst_shots_slider.valueChanged.connect(self.update_head_triggerbot_burst_shots_label)
-        self.set_tooltip_if_enabled(self.head_triggerbot_burst_shots_slider, "Number of shots per burst for head-only triggerbot when burst mode is enabled.")
-        self.lbl_head_burst_shots = QtWidgets.QLabel(f"Head Burst Shots: ({self.settings.get('head_triggerbot_burst_shots', 3)})")
-        self.lbl_head_burst_shots.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_head_burst_shots)
-        self.head_triggerbot_burst_shots_slider.setMinimumHeight(18)
-        self.head_triggerbot_burst_shots_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_triggerbot_burst_shots_slider)
-        
-        # Head Trigger Bot Between Shots Delay
-        self.head_triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.head_triggerbot_delay_slider.setMinimum(0)
-        self.head_triggerbot_delay_slider.setMaximum(1000)
-        self.head_triggerbot_delay_slider.setValue(self.settings.get("head_triggerbot_between_shots_delay", 30))
-        self.head_triggerbot_delay_slider.valueChanged.connect(self.update_head_triggerbot_delay_label)
-        self.set_tooltip_if_enabled(self.head_triggerbot_delay_slider, "Delay in milliseconds between each shot for head-only triggerbot.")
-        self.lbl_head_delay = QtWidgets.QLabel(f"Head Between Shots Delay (ms): ({self.settings.get('head_triggerbot_between_shots_delay', 30)})")
-        self.lbl_head_delay.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_head_delay)
-        self.head_triggerbot_delay_slider.setMinimumHeight(18)
-        self.head_triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_triggerbot_delay_slider)
-
-        # Head Trigger Bot First Shot Delay
-        self.head_triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.head_triggerbot_first_shot_delay_slider.setMinimum(0)
-        self.head_triggerbot_first_shot_delay_slider.setMaximum(1000)
-        self.head_triggerbot_first_shot_delay_slider.setValue(self.settings.get("head_triggerbot_first_shot_delay", 0))
-        self.head_triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_head_triggerbot_first_shot_delay_label)
-        self.set_tooltip_if_enabled(self.head_triggerbot_first_shot_delay_slider, "Delay before first shot for head-only triggerbot when trigger key is pressed.")
-        self.lbl_head_first_shot_delay = QtWidgets.QLabel(f"Head First Shot Delay (ms): ({self.settings.get('head_triggerbot_first_shot_delay', 0)})")
-        self.lbl_head_first_shot_delay.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_head_first_shot_delay)
-        self.head_triggerbot_first_shot_delay_slider.setMinimumHeight(18)
-        self.head_triggerbot_first_shot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_triggerbot_first_shot_delay_slider)
-
-        # Head Trigger Key Button
-        self.head_trigger_key_btn = QtWidgets.QPushButton(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
-        self.head_trigger_key_btn.setObjectName("keybind_button")
-        self.head_trigger_key_btn.clicked.connect(lambda: self.record_key('HeadTriggerKey', self.head_trigger_key_btn))
-        self.set_tooltip_if_enabled(self.head_trigger_key_btn, "Click to set the key for head-only triggerbot. Hold this key while aiming at enemy heads.")
-        self.head_trigger_key_btn.setMinimumHeight(22)
-        self.head_trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.head_trigger_key_btn)
-        self.head_trigger_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'HeadTriggerKey', self.head_trigger_key_btn)
 
         trigger_container.setLayout(trigger_layout)
         trigger_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
@@ -1702,7 +1665,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.disable_crosshair_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.disable_crosshair_cb)
 
-        # Movement Prediction toggle
+
         self.movement_prediction_cb = QtWidgets.QCheckBox("Movement Prediction")
         self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
         self.movement_prediction_cb.stateChanged.connect(self.save_settings)
@@ -1726,12 +1689,12 @@ class ConfigWindow(QtWidgets.QWidget):
         colors_label.setMinimumHeight(18)
         colors_layout.addWidget(colors_label)
 
-        # ESP Colors Section
+
         esp_colors_label = QtWidgets.QLabel("ESP Colors")
         esp_colors_label.setAlignment(QtCore.Qt.AlignLeft)
         colors_layout.addWidget(esp_colors_label)
 
-        # Create horizontal layout for ESP colors
+
         esp_colors_layout = QtWidgets.QHBoxLayout()
         esp_colors_layout.setSpacing(8)
 
@@ -1767,12 +1730,12 @@ class ConfigWindow(QtWidgets.QWidget):
 
         colors_layout.addLayout(esp_colors_layout)
 
-        # Crosshair Colors Section
+
         crosshair_colors_label = QtWidgets.QLabel("Crosshair Colors")
         crosshair_colors_label.setAlignment(QtCore.Qt.AlignLeft)
         colors_layout.addWidget(crosshair_colors_label)
 
-        # Create horizontal layout for crosshair colors
+
         crosshair_colors_layout = QtWidgets.QHBoxLayout()
         crosshair_colors_layout.setSpacing(8)
 
@@ -1798,7 +1761,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         colors_layout.addLayout(crosshair_colors_layout)
 
-        # Interface Colors Section
+
         interface_colors_label = QtWidgets.QLabel("Interface Colors")
         interface_colors_label.setAlignment(QtCore.Qt.AlignLeft)
         colors_layout.addWidget(interface_colors_label)
@@ -1813,7 +1776,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.menu_theme_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         colors_layout.addWidget(self.menu_theme_color_btn)
 
-        # Rainbow Effects Section
+
         rainbow_effects_label = QtWidgets.QLabel("Rainbow Effects")
         rainbow_effects_label.setAlignment(QtCore.Qt.AlignLeft)
         colors_layout.addWidget(rainbow_effects_label)
@@ -1858,7 +1821,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
 
-        # Targeting Option
+
         targeting_label = QtWidgets.QLabel("Targeting Type:")
         targeting_label.setAlignment(QtCore.Qt.AlignLeft)
         misc_layout.addWidget(targeting_label)
@@ -1906,7 +1869,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.fps_limit_slider)
 
                               
-        # Only create FOV controls if FOV command is enabled
+
         if self.fov_enabled:
             self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
             self.lbl_game_fov.setMinimumHeight(16)
@@ -1915,9 +1878,9 @@ class ConfigWindow(QtWidgets.QWidget):
             self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
             self.game_fov_slider.setMinimum(60)
             self.game_fov_slider.setMaximum(160)
-            # Set slider value without connecting signal during initialization
+
             self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
-            # Connect to valueChanged for immediate label updates and sliderReleased for popup logic
+
             self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
             self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
             self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
@@ -1925,7 +1888,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
             misc_layout.addWidget(self.game_fov_slider)
         else:
-            # Set attributes to None if FOV is not enabled
+
             self.lbl_game_fov = None
             self.game_fov_slider = None
 
@@ -1979,7 +1942,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        # Note: Reset and Terminate buttons moved to Config tab
+
 
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
@@ -1997,7 +1960,7 @@ class ConfigWindow(QtWidgets.QWidget):
         config_label.setMinimumHeight(20)
         config_layout.addWidget(config_label)
 
-        # Config files dropdown
+
         config_files_label = QtWidgets.QLabel("Config Files (select to import):")
         config_layout.addWidget(config_files_label)
         self.config_files_combo = QtWidgets.QComboBox()
@@ -2007,17 +1970,17 @@ class ConfigWindow(QtWidgets.QWidget):
         self.config_files_combo.currentTextChanged.connect(self.on_config_file_selected)
         config_layout.addWidget(self.config_files_combo)
         
-        # Initialize dropdown state management before first update
+
         self._dropdown_updating = False
         self._dropdown_update_timer = QtCore.QTimer(self)
         self._dropdown_update_timer.setSingleShot(True)
         self._dropdown_update_timer.timeout.connect(self._perform_dropdown_update)
         
-        # Populate dropdown and setup file watcher
+
         self.update_config_files_dropdown()
         self.setup_config_folder_watcher()
 
-        # Export/Import section
+
         export_btn = QtWidgets.QPushButton("Export Config")
         export_btn.clicked.connect(self.on_export_config_clicked)
         export_btn.setMinimumHeight(22)
@@ -2025,13 +1988,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(export_btn, "Export current configuration to a chosen location.")
         config_layout.addWidget(export_btn)
 
-        # Separator
+
         separator = QtWidgets.QFrame()
         separator.setFrameShape(QtWidgets.QFrame.HLine)
         separator.setFrameShadow(QtWidgets.QFrame.Sunken)
         config_layout.addWidget(separator)
 
-        # Reset and Exit buttons (moved from Misc)
+
         self.reset_btn = QtWidgets.QPushButton("Reset Config to Default")
         self.set_tooltip_if_enabled(self.reset_btn, "Reset all settings to their default values. This will restore the original configuration and cannot be undone.")
         self.reset_btn.clicked.connect(self.on_reset_clicked)
@@ -2039,7 +2002,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.reset_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         config_layout.addWidget(self.reset_btn)
 
-        # Exit script instruction label
+
         self.exit_script_label = QtWidgets.QLabel("Hold ESC to Exit Script")
         self.exit_script_label.setObjectName("exit_script_label")
         self.exit_script_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -2096,25 +2059,25 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if os.path.exists(config_path):
                 import shutil
-                # Backup current config before importing
+
                 backup_path = CONFIG_FILE + '.backup'
                 if os.path.exists(CONFIG_FILE):
                     shutil.copy2(CONFIG_FILE, backup_path)
                 
-                # Import the selected config
+
                 shutil.copy2(config_path, CONFIG_FILE)
                 self.settings = load_settings()
-                # Note: We preserve _fov_warning_accepted status to avoid requiring re-acceptance
+
                 self.reload_all_ui_from_settings()
                 
-                # Show success message
+
                 QtWidgets.QMessageBox.information(self, "Config Loaded", f"Successfully loaded config: {filename}")
                 
-                # Reset dropdown to placeholder after successful import
+
                 if hasattr(self, 'config_files_combo'):
                     self.config_files_combo.setCurrentIndex(0)
         except Exception as e:
-            # If import fails, try to restore backup
+
             try:
                 backup_path = CONFIG_FILE + '.backup'
                 if os.path.exists(backup_path):
@@ -2129,50 +2092,53 @@ class ConfigWindow(QtWidgets.QWidget):
     def reload_all_ui_from_settings(self):
         """Reload all UI elements from current settings"""
         try:
-            # Set loading flag to prevent FOV application during config loading
+
             self._loading_config = True
             
-            # Block all signals to prevent triggering save_settings during reload
+
             self.blockSignals(True)
             
-            # Also block signals for all child widgets
+
             widgets_to_block = [
-                # ESP widgets
+
                 self.esp_rendering_cb, self.line_rendering_cb, self.hp_bar_rendering_cb,
                 self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
                 self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb, self.radar_cb,
                 self.lines_position_combo, self.box_mode_combo, self.radar_position_combo,
                 self.radar_size_slider, self.radar_scale_slider,
                 
-                # Trigger Bot widgets
-                self.trigger_bot_active_cb, self.triggerbot_burst_mode_cb,
+
+                self.trigger_bot_active_cb, self.triggerbot_head_only_cb, self.triggerbot_burst_mode_cb,
                 self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
                 self.triggerbot_burst_shots_slider,
                 
-                # Head Trigger Bot widgets
-                self.head_trigger_bot_active_cb, self.head_triggerbot_burst_mode_cb,
-                self.head_triggerbot_delay_slider, self.head_triggerbot_first_shot_delay_slider,
-                self.head_triggerbot_burst_shots_slider,
-                
-                # Aim widgets
+
                 self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb,
                 self.lock_target_cb, self.disable_crosshair_cb, self.radius_slider,
                 self.opacity_slider, self.thickness_slider, self.smooth_slider,
                 self.aim_mode_cb, self.aim_mode_distance_cb,
                 
-                # Rainbow widgets
+
                 self.rainbow_fov_cb, self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb,
                 
-                # Misc widgets (including FOV slider if it exists)
+
                 self.auto_accept_cb, self.low_cpu_cb, self.center_dot_cb, self.bhop_cb,
                 self.fps_limit_slider, self.center_dot_size_slider
             ]
             
-            # Add require_aimkey_cb if it exists
+
             if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
                 widgets_to_block.append(self.require_aimkey_cb)
             
-            # Add FOV slider if it exists
+
+            if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
+                widgets_to_block.append(self.camera_lock_cb)
+            
+
+            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
+                widgets_to_block.append(self.camera_lock_smoothness_slider)
+            
+
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 widgets_to_block.append(self.game_fov_slider)
             
@@ -2180,7 +2146,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if widget is not None:
                     widget.blockSignals(True)
             
-            # ESP settings
+
             self.esp_rendering_cb.setChecked(self.settings.get("esp_rendering", 1) == 1)
             self.line_rendering_cb.setChecked(self.settings.get("line_rendering", 1) == 1)
             self.hp_bar_rendering_cb.setChecked(self.settings.get("hp_bar_rendering", 1) == 1)
@@ -2192,7 +2158,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.bomb_esp_cb.setChecked(self.settings.get("bomb_esp", 1) == 1)
             self.radar_cb.setChecked(self.settings.get("radar_enabled", 0) == 1)
             
-            # ESP combo boxes
+
             current_lines_position = self.settings.get('lines_position', 'Bottom')
             index = self.lines_position_combo.findText(current_lines_position)
             if index >= 0:
@@ -2208,28 +2174,30 @@ class ConfigWindow(QtWidgets.QWidget):
             if index >= 0:
                 self.radar_position_combo.setCurrentIndex(index)
             
-            # ESP sliders
+
             self.radar_size_slider.setValue(self.settings.get('radar_size', 200))
             self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
             
-            # Trigger Bot settings
+
             self.trigger_bot_active_cb.setChecked(self.settings.get("trigger_bot_active", 0) == 1)
+            self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
             self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
             self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
             self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
             self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
             
-            # Head Trigger Bot settings
-            self.head_trigger_bot_active_cb.setChecked(self.settings.get("head_triggerbot_active", 0) == 1)
-            self.head_triggerbot_burst_mode_cb.setChecked(self.settings.get("head_triggerbot_burst_mode", 0) == 1)
-            self.head_triggerbot_delay_slider.setValue(self.settings.get("head_triggerbot_between_shots_delay", 30))
-            self.head_triggerbot_first_shot_delay_slider.setValue(self.settings.get("head_triggerbot_first_shot_delay", 0))
-            self.head_triggerbot_burst_shots_slider.setValue(self.settings.get("head_triggerbot_burst_shots", 3))
-            
-            # Aim settings
+
             self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1)
             if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
                 self.require_aimkey_cb.setChecked(self.settings.get("require_aimkey", 1) == 1)
+            if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
+                self.camera_lock_cb.setChecked(self.settings.get("camera_lock_enabled", 0) == 1)
+            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
+                self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 30))
+            if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
+                self.camera_lock_tolerance_slider.setValue(self.settings.get("camera_lock_tolerance", 5))
+            if hasattr(self, 'camera_lock_target_combo') and self.camera_lock_target_combo:
+                self.camera_lock_target_combo.setCurrentIndex(self.settings.get("camera_lock_target_bone", 1))
             self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
             self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
             self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
@@ -2240,14 +2208,14 @@ class ConfigWindow(QtWidgets.QWidget):
             self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
             self.smooth_slider.setValue(self.settings.get("aim_smoothness", 0))
             
-            # Aim combo boxes
+
             aim_bone_target = self.settings.get('aim_bone_target', 1)
             self.aim_mode_cb.setCurrentIndex(aim_bone_target)
             
             aim_mode_distance = self.settings.get('aim_mode_distance', 0)
             self.aim_mode_distance_cb.setCurrentIndex(aim_mode_distance)
             
-            # Colors - update color button styles
+
             self.update_color_button_style(self.team_color_btn, self.settings.get('team_color', '#47A76A'))
             self.update_color_button_style(self.enemy_color_btn, self.settings.get('enemy_color', '#C41E3A'))
             self.update_color_button_style(self.skeleton_color_btn, self.settings.get('skeleton_color', '#FFFFFF'))
@@ -2255,32 +2223,31 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_color_button_style(self.center_dot_color_btn, self.settings.get('center_dot_color', '#FFFFFF'))
             self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
             
-            # Rainbow settings
+
             self.rainbow_fov_cb.setChecked(self.settings.get("rainbow_fov", 0) == 1)
             self.rainbow_center_dot_cb.setChecked(self.settings.get("rainbow_center_dot", 0) == 1)
             self.rainbow_menu_theme_cb.setChecked(self.settings.get("rainbow_menu_theme", 0) == 1)
             
-            # Misc settings
+
             self.auto_accept_cb.setChecked(self.settings.get("auto_accept_enabled", 0) == 1)
 
             self.low_cpu_cb.setChecked(self.settings.get("low_cpu", 0) == 1)
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
             self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
             self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
-            # Only update FOV slider if it exists (signals already blocked via widgets_to_block list)
+
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
             self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
             
-            # Keybind buttons
+
             self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
             self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
-            self.head_trigger_key_btn.setText(f"Head TriggerKey: {self.settings.get('HeadTriggerKey', 'Z')}")
             self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
             self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
             self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
             
-            # Restore signals before updating labels and other operations
+
             for widget in widgets_to_block:
                 if widget is not None:
                     widget.blockSignals(False)
@@ -2289,18 +2256,15 @@ class ConfigWindow(QtWidgets.QWidget):
             # Clear loading flag to allow normal FOV operations
             self._loading_config = False
             
-            # CRITICAL: Reset auto_apply_fov to 0 after config loading to prevent automatic FOV application
-            # This ensures that FOV is only applied when user manually changes it and accepts the warning
+
+
             self.settings['auto_apply_fov'] = 0
             
-            # Update all labels to reflect new values
+
             self.update_radius_label()
             self.update_triggerbot_delay_label()
             self.update_triggerbot_first_shot_delay_label()
             self.update_triggerbot_burst_shots_label()
-            self.update_head_triggerbot_delay_label()
-            self.update_head_triggerbot_first_shot_delay_label()
-            self.update_head_triggerbot_burst_shots_label()
             self.update_center_dot_size_label()
             self.update_opacity_label()
             self.update_thickness_label()
@@ -2309,19 +2273,23 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_radar_scale_label()
             self.update_fps_limit_label()
             self.update_game_fov_label_only()
+            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
+                self.update_camera_lock_smoothness_label()
+            if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
+                self.update_camera_lock_tolerance_label()
             
-            # Update menu theme styling based on imported color
+
             theme_color = self.settings.get('menu_theme_color', '#FF0000')
             self.update_menu_theme_styling(theme_color)
             self.header_label.setStyleSheet(f"color: {theme_color}; font-family: 'MS PGothic'; font-weight: bold; font-size: 16px;")
             
-            # Update box mode dropdown state based on low CPU mode
+
             self.update_box_mode_dropdown_state()
             
-            # Update FPS slider state based on low CPU mode
+
             self.initialize_fps_slider_state()
             
-            # Apply topmost setting
+
             topmost_enabled = self.settings.get('topmost', 1) == 1
             if topmost_enabled:
                 self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
@@ -2329,7 +2297,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
             self.show()
             
-            # Save settings to apply changes (this should now have the correct imported values)
+
             self.save_settings()
             
         except Exception as e:
@@ -2403,7 +2371,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
             
-            # Update box mode dropdown state when low CPU mode changes
             self.update_box_mode_dropdown_state()
             
             save_settings(self.settings)
@@ -2490,37 +2457,37 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             self.pause_rainbow_timer()
             
-            # Reset FOV to default (90) before terminating (only if changed)
+
             self.reset_fov_to_default()
             
-            # Give FOV reset time to complete before terminating
+
             import time
             time.sleep(0.2)
             
             try:
-                # Create terminate signal file
+
                 with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                     f.write('terminate')
             except Exception:
                 pass
             try:
-                # Clean up keybind cooldowns file
+
                 if os.path.exists(KEYBIND_COOLDOWNS_FILE):
                     os.remove(KEYBIND_COOLDOWNS_FILE)
             except Exception:
                 pass
             
             try:
-                # Write final log entry
+
                 print("[DEBUG] Application terminating - check debug_log.txt for full output")
                 
-                # Force immediate termination of all processes
+
                 import os
                 os._exit(0)
             except Exception:
                 pass
         except Exception:
-            # Emergency exit if anything fails
+
             import os
             os._exit(0)
         finally:
@@ -2533,13 +2500,13 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if hasattr(self, 'box_mode_combo'):
                 if low_cpu_enabled:
-                    # Lock dropdown to 2D mode when low CPU is enabled
+
                     self.box_mode_combo.setCurrentText('2D')
                     self.box_mode_combo.setEnabled(False)
                     if hasattr(self, 'box_mode_label'):
                         self.box_mode_label.setToolTip('Box mode is locked to 2D when Low CPU Mode is enabled for better performance')
                 else:
-                    # Enable dropdown when low CPU is disabled
+
                     self.box_mode_combo.setEnabled(True)
                     if hasattr(self, 'box_mode_label'):
                         self.box_mode_label.setToolTip('Choose between 2D flat boxes or 3D boxes that show actual player dimensions in game world')
@@ -2551,7 +2518,7 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             self.pause_rainbow_timer()
             
-            # Create confirmation dialog
+
             reply = QtWidgets.QMessageBox.question(
                 self, 
                 'Reset Configuration', 
@@ -2563,19 +2530,18 @@ class ConfigWindow(QtWidgets.QWidget):
             if reply != QtWidgets.QMessageBox.Yes:
                 return
             
-            # Set loading flag to prevent FOV application during reset
+
             self._loading_config = True
             
-            # Reset settings
             self.settings = DEFAULT_SETTINGS.copy()
             save_settings(self.settings)
             
-            # Note: We don't reset _fov_warning_accepted here to preserve user's acceptance status
-            # This ensures that if user already accepted FOV warning once, they don't need to accept it again
+
+
             
-            # Update all UI elements
+
             try:
-                # Block signals during update
+
                 widget_names = [
                     'esp_rendering_cb', 'line_rendering_cb', 'hp_bar_rendering_cb',
                     'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 
@@ -2587,12 +2553,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 widgets = [getattr(self, name, None) for name in widget_names if hasattr(self, name)]
                 
-                # Block signals
+
                 for w in widgets:
                     if w is not None:
                         w.blockSignals(True)
                 
-                # Update checkboxes
+
                 if hasattr(self, 'esp_rendering_cb'):
                     self.esp_rendering_cb.setChecked(self.settings.get('esp_rendering', 1) == 1)
                 if hasattr(self, 'line_rendering_cb'):
@@ -2636,7 +2602,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'rainbow_menu_theme_cb'):
                     self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
                 
-                # Update sliders
+
                 if hasattr(self, 'radius_slider'):
                     self.radius_slider.setValue(self.settings.get('radius', 50))
                 if hasattr(self, 'opacity_slider'):
@@ -2677,7 +2643,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     if index >= 0:
                         self.box_mode_combo.setCurrentIndex(index)
                 
-                # Update keybind buttons
                 if hasattr(self, 'esp_toggle_key_btn'):
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
                 if hasattr(self, 'aim_key_btn'):
@@ -2689,7 +2654,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'menu_key_btn'):
                     self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
                 
-                # Update color buttons
                 if hasattr(self, 'team_color_btn'):
                     color = self.settings.get('team_color', '#47A76A')
                     self.team_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
@@ -2771,7 +2735,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.settings["esp_mode"] = self.esp_mode_cb.currentIndex()
         self.settings["line_rendering"] = 1 if self.line_rendering_cb.isChecked() else 0
         self.settings["lines_position"] = self.lines_position_combo.currentText() if hasattr(self, 'lines_position_combo') else "Bottom"
-        # Force 2D mode if low CPU is enabled, otherwise use dropdown selection
         low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
         if low_cpu_enabled:
             self.settings["box_mode"] = "2D"
@@ -2820,11 +2783,15 @@ class ConfigWindow(QtWidgets.QWidget):
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
         self.settings["aim_active"] = 1 if self.aim_active_cb.isChecked() else 0
         
-        # Save require_aimkey setting
         try:
             self.settings["require_aimkey"] = 1 if getattr(self, 'require_aimkey_cb', None) and self.require_aimkey_cb.isChecked() else 0
         except Exception:
             self.settings["require_aimkey"] = 1  # Default to requiring aimkey
+        
+        try:
+            self.settings["camera_lock_enabled"] = 1 if getattr(self, 'camera_lock_cb', None) and self.camera_lock_cb.isChecked() else 0
+        except Exception:
+            self.settings["camera_lock_enabled"] = 0  # Default to disabled
         
                                        
         try:
@@ -2860,20 +2827,20 @@ class ConfigWindow(QtWidgets.QWidget):
         if getattr(self, "triggerbot_first_shot_delay_slider", None):
             self.settings["triggerbot_first_shot_delay"] = self.triggerbot_first_shot_delay_slider.value()
 
-        # Head-only triggerbot settings
-        if getattr(self, "head_trigger_bot_active_cb", None):
-            self.settings["head_triggerbot_active"] = 1 if self.head_trigger_bot_active_cb.isChecked() else 0
-        if getattr(self, "head_triggerbot_burst_mode_cb", None):
-            self.settings["head_triggerbot_burst_mode"] = 1 if self.head_triggerbot_burst_mode_cb.isChecked() else 0
-        if getattr(self, "head_triggerbot_delay_slider", None):
-            self.settings["head_triggerbot_between_shots_delay"] = self.head_triggerbot_delay_slider.value()
-        if getattr(self, "head_triggerbot_first_shot_delay_slider", None):
-            self.settings["head_triggerbot_first_shot_delay"] = self.head_triggerbot_first_shot_delay_slider.value()
-        if getattr(self, "head_triggerbot_burst_shots_slider", None):
-            self.settings["head_triggerbot_burst_shots"] = self.head_triggerbot_burst_shots_slider.value()
+        if getattr(self, "triggerbot_head_only_cb", None):
+            self.settings["triggerbot_head_only"] = 1 if self.triggerbot_head_only_cb.isChecked() else 0
 
         if getattr(self, "center_dot_size_slider", None):
             self.settings["center_dot_size"] = self.center_dot_size_slider.value()
+
+        if getattr(self, "camera_lock_smoothness_slider", None):
+            self.settings["camera_lock_smoothness"] = self.camera_lock_smoothness_slider.value()
+        
+        if getattr(self, "camera_lock_tolerance_slider", None):
+            self.settings["camera_lock_tolerance"] = self.camera_lock_tolerance_slider.value()
+        
+        if getattr(self, "camera_lock_target_combo", None):
+            self.settings["camera_lock_target_bone"] = self.camera_lock_target_combo.currentIndex()
 
         
         try:
@@ -2904,16 +2871,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     val = text.split(':', 1)[1].strip()
                     if val:
                         self.settings["TriggerKey"] = val
-        except Exception:
-            pass
-
-        try:
-            if getattr(self, 'head_trigger_key_btn', None) is not None:
-                text = self.head_trigger_key_btn.text()
-                if ':' in text:
-                    val = text.split(':', 1)[1].strip()
-                    if val:
-                        self.settings["HeadTriggerKey"] = val
         except Exception:
             pass
 
@@ -3169,7 +3126,6 @@ class ConfigWindow(QtWidgets.QWidget):
                                                                   
                         self.set_keybind_cooldown(settings_key)
                         
-                        # Use consistent button text formatting
                         button_text_map = {
                             'AimKey': 'AimKey',
                             'TriggerKey': 'TriggerKey', 
@@ -3219,7 +3175,6 @@ class ConfigWindow(QtWidgets.QWidget):
             g = int(hex_color[2:4], 16)
             b = int(hex_color[4:6], 16)
             
-            # Calculate relative luminance using WCAG formula
             def get_luminance_component(c):
                 c = c / 255.0
                 if c <= 0.03928:
@@ -3233,14 +3188,11 @@ class ConfigWindow(QtWidgets.QWidget):
             
             luminance = 0.2126 * r_lum + 0.7152 * g_lum + 0.0722 * b_lum
             
-            # Return black text for light backgrounds, white text for dark backgrounds
             return 'black' if luminance > 0.5 else 'white'
         except:
-            # Fallback to white text if color parsing fails
             return 'white'
 
     def pick_color(self, settings_key: str, btn: QtWidgets.QPushButton):
-        # Temporarily pause rainbow menu timer to prevent interference with color dialog
         rainbow_timer_was_active = False
         if hasattr(self, '_rainbow_menu_timer') and self._rainbow_menu_timer.isActive():
             rainbow_timer_was_active = True
@@ -3262,7 +3214,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 if settings_key == 'menu_theme_color':
                     self.update_menu_theme_styling(hexc)
         finally:
-            # Restart rainbow menu timer if it was active before
             if rainbow_timer_was_active and hasattr(self, '_rainbow_menu_timer'):
                 self._rainbow_menu_timer.start(50)
 
@@ -3622,7 +3573,6 @@ class ConfigWindow(QtWidgets.QWidget):
             if rainbow_enabled:
                 global RAINBOW_HUE_MENU
                                                                                                
-                # Menu theme always updates its own hue when enabled
                 RAINBOW_HUE_MENU = (RAINBOW_HUE_MENU + 0.005) % 1.0
                 
                 r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_MENU, 1.0, 1.0)]
@@ -3852,6 +3802,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.lbl_smooth.setText(f"Aim Smoothness: ({val})")
         self.save_settings()
 
+    def update_camera_lock_smoothness_label(self):
+        val = self.camera_lock_smoothness_slider.value()
+        self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({val}%)")
+        self.save_settings()
+
+    def update_camera_lock_tolerance_label(self):
+        val = self.camera_lock_tolerance_slider.value()
+        self.lbl_camera_lock_tolerance.setText(f"Camera Lock Tolerance: ({val}px)")
+        self.save_settings()
+
     def update_triggerbot_delay_label(self):
         val = self.triggerbot_delay_slider.value()
         self.lbl_delay.setText(f"Triggerbot Delay (ms): ({val})")
@@ -3864,18 +3824,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_triggerbot_burst_shots_label(self):
         self.lbl_burst_shots.setText(f"Burst Shots: ({self.triggerbot_burst_shots_slider.value()})")
-        self.save_settings()
-
-    def update_head_triggerbot_delay_label(self):
-        self.lbl_head_delay.setText(f"Head Between Shots Delay (ms): ({self.head_triggerbot_delay_slider.value()})")
-        self.save_settings()
-
-    def update_head_triggerbot_first_shot_delay_label(self):
-        self.lbl_head_first_shot_delay.setText(f"Head First Shot Delay (ms): ({self.head_triggerbot_first_shot_delay_slider.value()})")
-        self.save_settings()
-
-    def update_head_triggerbot_burst_shots_label(self):
-        self.lbl_head_burst_shots.setText(f"Head Burst Shots: ({self.head_triggerbot_burst_shots_slider.value()})")
         self.save_settings()
 
     def update_center_dot_size_label(self):
@@ -3941,8 +3889,6 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider and hasattr(self, 'lbl_game_fov') and self.lbl_game_fov:
                 val = self.game_fov_slider.value()
                 self.lbl_game_fov.setText(f"Camera FOV: ({val})")
-                # Don't update settings during config loading/initialization
-                # Settings should only be updated when user manually changes values
         except Exception:
             pass
 
@@ -3962,17 +3908,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.update_game_fov_label_only()
                 return
             
-            # Track original value when slider interaction starts
             if not hasattr(self, '_fov_original_value'):
-                # Use the actual current FOV value from the slider, not from settings
-                # This ensures we compare against what was actually displayed before user interaction
                 self._fov_original_value = self.game_fov_slider.value()
                 print(f"[DEBUG] Storing original FOV value: {self._fov_original_value}")  # Debug
                 
-            # If warning already accepted, apply change immediately
             if self._fov_warning_accepted:
                 print("[DEBUG] Warning accepted, applying change immediately")  # Debug
-                # Update settings and apply
                 new_value = self.game_fov_slider.value()
                 self.settings['game_fov'] = new_value
                 self.settings['auto_apply_fov'] = 1
@@ -4002,7 +3943,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 print("[DEBUG] FOV controls not available on release")  # Debug
                 return
                 
-            # Don't show popup during initialization
             if getattr(self, '_is_initializing', False):
                 print("[DEBUG] Still initializing, ignoring release")  # Debug
                 return
@@ -5924,14 +5864,7 @@ def triggerbot():
         "triggerbot_between_shots_delay": 30,
         "triggerbot_burst_mode": 0,
         "triggerbot_burst_shots": 3,
-        "triggerbot_first_shot_delay": 0,
-        # Head-only triggerbot settings
-        "HeadTriggerKey": "Z",
-        "head_triggerbot_active": 0,
-        "head_triggerbot_between_shots_delay": 30,
-        "head_triggerbot_burst_mode": 0,
-        "head_triggerbot_burst_shots": 3,
-        "head_triggerbot_first_shot_delay": 0
+        "triggerbot_first_shot_delay": 0
     }
 
     def load_settings():
@@ -5998,13 +5931,9 @@ def triggerbot():
         
         # Triggerbot state tracking
         trigger_key_pressed = False
-        head_trigger_key_pressed = False
         first_shot_time = None
-        head_first_shot_time = None
         burst_shot_count = 0  # Track shots fired in current burst
-        head_burst_shot_count = 0
         last_burst_time = 0   # Track time of last burst
-        head_last_burst_time = 0
         
         while pm is None or client is None:
             if is_cs2_running():
@@ -6021,51 +5950,29 @@ def triggerbot():
                 time.sleep(1)
         while True:
             try:
-                # Regular triggerbot settings
+                # Triggerbot settings
                 trigger_bot_active = settings.get("trigger_bot_active", 0)
                 keyboards = settings.get("TriggerKey", "X")
                 between_shots_delay_ms = settings.get("triggerbot_between_shots_delay", 30)
                 first_shot_delay_ms = settings.get("triggerbot_first_shot_delay", 0)
                 burst_mode = settings.get("triggerbot_burst_mode", 0)
                 burst_shots = settings.get("triggerbot_burst_shots", 3)
+                head_only_mode = settings.get("triggerbot_head_only", 0)
                 vk = key_str_to_vk(keyboards)
                 
-                # Head-only triggerbot settings
-                head_triggerbot_active = settings.get("head_triggerbot_active", 0)
-                head_keyboards = settings.get("HeadTriggerKey", "Z")
-                head_between_shots_delay_ms = settings.get("head_triggerbot_between_shots_delay", 30)
-                head_first_shot_delay_ms = settings.get("head_triggerbot_first_shot_delay", 0)
-                head_burst_mode = settings.get("head_triggerbot_burst_mode", 0)
-                head_burst_shots = settings.get("head_triggerbot_burst_shots", 3)
-                head_vk = key_str_to_vk(head_keyboards)
-                
-                # Check regular triggerbot key state
+                # Check triggerbot key state
                 if is_keybind_on_global_cooldown("TriggerKey"):
                     key_currently_pressed = False
                 else:
                     key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                 
-                # Check head-only triggerbot key state  
-                if is_keybind_on_global_cooldown("HeadTriggerKey"):
-                    head_key_currently_pressed = False
-                else:
-                    head_key_currently_pressed = head_vk != 0 and (win32api.GetAsyncKeyState(head_vk) & 0x8000) != 0
-                
-                # Handle regular triggerbot key transitions
+                # Handle triggerbot key transitions
                 if key_currently_pressed and not trigger_key_pressed:
                     trigger_key_pressed = True
                     first_shot_time = time.time()
                 elif not key_currently_pressed and trigger_key_pressed:
                     trigger_key_pressed = False
                     first_shot_time = None
-                
-                # Handle head-only triggerbot key transitions
-                if head_key_currently_pressed and not head_trigger_key_pressed:
-                    head_trigger_key_pressed = True
-                    head_first_shot_time = time.time()
-                elif not head_key_currently_pressed and head_trigger_key_pressed:
-                    head_trigger_key_pressed = False
-                    head_first_shot_time = None
                 
                 # Process regular triggerbot
                 if key_currently_pressed and trigger_bot_active == 1:
@@ -6082,6 +5989,39 @@ def triggerbot():
                             entityHp = pm.read_int(entity + m_iHealth)
                             
                             if entityTeam != playerTeam and entityHp > 0:
+                                should_shoot = False
+                                
+                                if head_only_mode:
+                                    # Head-only mode - check if crosshair is on head
+                                    try:
+                                        view_matrix = []
+                                        for i in range(16):
+                                            view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
+                                        
+                                        w, h = get_window_size("Counter-Strike 2")
+                                        if w is not None and h is not None:
+                                            bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
+                                            if bone_ptr:
+                                                bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
+                                                if bone_matrix:
+                                                    head_id = 6
+                                                    head_x = pm.read_float(bone_matrix + head_id * 0x20)
+                                                    head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
+                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
+                                                    sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                    
+                                                    if sx != -999 and sy != -999:
+                                                        cx, cy = w // 2, h // 2
+                                                        distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
+                                                        if distance_to_head <= 8:
+                                                            should_shoot = True
+                                    except Exception:
+                                        pass
+                                else:
+                                    # Normal mode - shoot at any enemy body part
+                                    should_shoot = True
+                                
+                                if should_shoot:
                                     current_time = time.time()
                                     
                                     # Handle first shot delay
@@ -6108,7 +6048,7 @@ def triggerbot():
                                                             break
                                                         
                                                         # Re-check target validity for continuous shooting
-                                                        if not _check_target_valid(pm, client, 0):
+                                                        if not _check_target_valid(pm, client, head_only_mode):
                                                             break
                                                             
                                                         mouse.press(Button.left)
@@ -6142,108 +6082,8 @@ def triggerbot():
                     except Exception:
                         pass
                 
-                # Process head-only triggerbot
-                if head_key_currently_pressed and head_triggerbot_active == 1:
-                    try:
-                        player = pm.read_longlong(client + dwLocalPlayerPawn)
-                        entityId = pm.read_int(player + m_iIDEntIndex)
-                        
-                        if entityId > 0:
-                            entList = pm.read_longlong(client + dwEntityList)
-                            entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
-                            entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
-                            entityTeam = pm.read_int(entity + m_iTeamNum)
-                            playerTeam = pm.read_int(player + m_iTeamNum)
-                            entityHp = pm.read_int(entity + m_iHealth)
-                            
-                            if entityTeam != playerTeam and entityHp > 0:
-                                # Always head-only for head triggerbot
-                                should_shoot = False
-                                try:
-                                    view_matrix = []
-                                    for i in range(16):
-                                        view_matrix.append(pm.read_float(client + dwViewMatrix + i * 4))
-                                    
-                                    w, h = get_window_size("Counter-Strike 2")
-                                    if w is not None and h is not None:
-                                        bone_ptr = pm.read_longlong(entity + m_pGameSceneNode)
-                                        if bone_ptr:
-                                            bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
-                                            if bone_matrix:
-                                                head_id = 6
-                                                head_x = pm.read_float(bone_matrix + head_id * 0x20)
-                                                head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                                                head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                                                sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
-                                                
-                                                if sx != -999 and sy != -999:
-                                                    cx, cy = w // 2, h // 2
-                                                    distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
-                                                    if distance_to_head <= 8:
-                                                        should_shoot = True
-                                except Exception:
-                                    pass
-                                
-                                if should_shoot:
-                                    current_time = time.time()
-                                    
-                                    # Handle first shot delay
-                                    if head_first_shot_time is None or current_time - head_first_shot_time >= (head_first_shot_delay_ms / 1000.0):
-                                        if not head_burst_mode:
-                                            # Normal mode - continuous shooting with delay
-                                            try:
-                                                mouse.press(Button.left)
-                                                mouse.release(Button.left)
-                                                if head_first_shot_time is not None:
-                                                    head_first_shot_time = None                          
-                                                head_last_shot_time = current_time
-                                                
-                                                # Continue shooting while key is held
-                                                while head_key_currently_pressed and head_triggerbot_active == 1:
-                                                    time.sleep(0.001)                     
-                                                    current_time = time.time()
-                                                    if current_time - head_last_shot_time >= (head_between_shots_delay_ms / 1000.0):
-                                                        head_key_currently_pressed = head_vk != 0 and (win32api.GetAsyncKeyState(head_vk) & 0x8000) != 0
-                                                        if not head_key_currently_pressed:
-                                                            break
-                                                        head_triggerbot_active = settings.get("head_triggerbot_active", 0)
-                                                        if head_triggerbot_active != 1:
-                                                            break
-                                                        
-                                                        # Re-check target validity for continuous shooting (always head-only)
-                                                        if not _check_target_valid(pm, client, True):
-                                                            break
-                                                            
-                                                        mouse.press(Button.left)
-                                                        mouse.release(Button.left)
-                                                        head_last_shot_time = current_time
-                                            except Exception:
-                                                pass
-                                        else:
-                                            # Burst mode - fire exact number of shots specified
-                                            try:
-                                                # Check if enough time has passed since last burst
-                                                if head_burst_shot_count == 0 or current_time - head_last_burst_time >= (head_between_shots_delay_ms / 1000.0):
-                                                    # Click mouse exactly burst_shots times
-                                                    actual_clicks = 0
-                                                    i = 0
-                                                    while i < head_burst_shots:
-                                                        mouse.click(Button.left)
-                                                        actual_clicks += 1
-                                                        i += 1
-                                                        # Delay between clicks to ensure CS2 registers them
-                                                        if i < head_burst_shots:
-                                                            time.sleep(0.1)
-                                                    
-                                                    # Mark burst as completed
-                                                    head_burst_shot_count = actual_clicks
-                                                    head_last_burst_time = current_time
-                                                    if head_first_shot_time is not None:
-                                                        head_first_shot_time = None
-                                            except Exception:
-                                                pass
-                    except Exception:
-                        pass
+                # Reload settings every 10 loops to pick up config changes
+                settings = load_settings()
                         
             except Exception:
                 pass
@@ -6967,6 +6807,134 @@ def aim():
                                            
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
 
+    def camera_lock(pm, client, settings):
+        """Independent camera lock system that scans for enemies and locks to closest head when triggerbot key is held"""
+        try:
+            if not settings.get('camera_lock_enabled', 0):
+                return
+            
+            # Check if triggerbot key is being held (same key as triggerbot)
+            trigger_key = settings.get('TriggerKey', 'X')
+            trigger_key_vk = key_str_to_vk(trigger_key)
+            if not trigger_key_vk or not (win32api.GetAsyncKeyState(trigger_key_vk) & 0x8000):
+                return
+            
+            # Get window dimensions
+            window_width = win32api.GetSystemMetrics(0)
+            window_height = win32api.GetSystemMetrics(1)
+            center_x = window_width // 2
+            center_y = window_height // 2
+            
+            # Get view matrix and local player info
+            view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
+            local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
+            
+            try:
+                local_player_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
+            except:
+                return
+            
+            # Scan for valid targets
+            entity_list = pm.read_longlong(client + dwEntityList)
+            entity_ptr = pm.read_longlong(entity_list + 0x10)
+            
+            closest_target = None
+            min_distance = float('inf')
+            
+            for i in range(1, 64):
+                try:
+                    if entity_ptr == 0:
+                        break
+
+                    entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
+                    if entity_controller == 0:
+                        continue
+
+                    entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
+                    if entity_controller_pawn == 0:
+                        continue
+
+                    entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
+                    if entity_list_pawn == 0:
+                        continue
+
+                    entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                    if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
+                        continue
+
+                    entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
+                    
+                    # Use esp_mode setting: 0 = enemies only, 1 = all players
+                    esp_mode = settings.get('esp_mode', 0)
+                    if esp_mode == 0 and entity_team == local_player_team:
+                        continue  # Skip teammates when in enemies-only mode
+
+                    entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
+                    if entity_alive != 256:
+                        continue
+
+                    # Get target bone position
+                    game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
+                    bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
+                    
+                    # Get selected bone ID from settings
+                    target_bone_mode = settings.get('camera_lock_target_bone', 1)
+                    target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
+                    target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
+                    
+                    # Get target bone position
+                    target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
+                    target_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
+                    target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
+                    
+                    # Project to screen
+                    target_pos = w2s(view_matrix, target_x, target_y, target_z, window_width, window_height)
+                    
+                    # Only consider targets within screen bounds
+                    if (target_pos[0] != -999 and target_pos[1] != -999 and
+                        0 <= target_pos[0] <= window_width and 
+                        0 <= target_pos[1] <= window_height):
+                        
+                        # Calculate distance from center of screen
+                        dx = target_pos[0] - center_x
+                        dy = target_pos[1] - center_y
+                        distance = (dx * dx + dy * dy) ** 0.5
+                        
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_target = target_pos
+                            
+                except Exception:
+                    continue
+            
+            # Apply camera adjustment if target found
+            if closest_target:
+                target_x, target_y = closest_target
+                
+                # Calculate vertical adjustment needed to align with target
+                dy = target_y - center_y
+                
+                # Get user-configurable tolerance (dead zone)
+                tolerance = settings.get('camera_lock_tolerance', 5)
+                
+                # Only adjust if the difference is significant (more than tolerance pixels)
+                if abs(dy) > tolerance:
+                    # Apply smooth camera movement with user-configurable smoothness
+                    smoothness = settings.get('camera_lock_smoothness', 30) / 100.0  # Convert to percentage
+                    move_y = int(dy * smoothness)  # Apply smoothness percentage
+                    
+                    # Limit maximum movement to prevent jerky camera
+                    if move_y > 8:
+                        move_y = 8
+                    elif move_y < -8:
+                        move_y = -8
+                        
+                    # Apply the camera adjustment
+                    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, move_y, 0, 0)
+                    
+        except Exception:
+            pass
+
     def main(settings):
         import time
         pm = None
@@ -7000,54 +6968,60 @@ def aim():
                     pass
             loop_counter += 1
             
-            target_list = []
-            target_list = esp(pm, client, settings, target_list, window_size)
-            
-            # Apply FOV setting only if auto-apply is enabled
-            try:
-                if settings.get('auto_apply_fov', 0) == 1:
-                    game_fov = settings.get('game_fov', 90)
-                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                    if local_player_controller:
-                        pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
-            except Exception:
-                pass
-            
+            # Only run ESP and aimbot if aim is active
+            if settings.get('aim_active', 0) == 1:
+                target_list = []
+                target_list = esp(pm, client, settings, target_list, window_size)
+                
+                # Apply FOV setting only if auto-apply is enabled
+                try:
+                    if settings.get('auto_apply_fov', 0) == 1:
+                        game_fov = settings.get('game_fov', 90)
+                        local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
+                        if local_player_controller:
+                            pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
+                except Exception:
+                    pass
+                
                            
-            try:
-                vk = key_str_to_vk(settings.get('AimKey', ''))
-            except Exception:
-                vk = 0
-            try:
-                                                 
-                if is_keybind_on_global_cooldown("AimKey"):
+                try:
+                    vk = key_str_to_vk(settings.get('AimKey', ''))
+                except Exception:
+                    vk = 0
+                try:
+                                                     
+                    if is_keybind_on_global_cooldown("AimKey"):
+                        pressed = False
+                    else:
+                        pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
+                except Exception:
                     pressed = False
-                else:
-                    pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
-            except Exception:
-                pressed = False
 
-            
-            
-                                    
-            try:
-                if pressed and not aim_lock_state.get('aim_was_pressed', False):
-                    aim_lock_state['locked_entity'] = None
-                    aim_lock_state['aim_was_pressed'] = True
-                if not pressed:
-                    
-                    aim_lock_state['aim_was_pressed'] = False
-            except Exception:
-                pass
+                
+                
+                                        
+                try:
+                    if pressed and not aim_lock_state.get('aim_was_pressed', False):
+                        aim_lock_state['locked_entity'] = None
+                        aim_lock_state['aim_was_pressed'] = True
+                    if not pressed:
+                        
+                        aim_lock_state['aim_was_pressed'] = False
+                except Exception:
+                    pass
 
-            # Check if aimkey is required or if it's pressed
-            require_aimkey = settings.get('require_aimkey', 1) == 1
-            should_aim = pressed if require_aimkey else True
+                # Check if aimkey is required or if it's pressed
+                require_aimkey = settings.get('require_aimkey', 1) == 1
+                should_aim = pressed if require_aimkey else True
+                
+                if should_aim:
+                                                    
+                    smoothness = settings.get('aim_smoothness', 0)
+                    aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
             
-            if should_aim:
-                                                
-                smoothness = settings.get('aim_smoothness', 0)
-                aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
+            # Apply camera lock (completely independent)
+            camera_lock(pm, client, settings)
+            
             time.sleep(0.001)
 
     def start_main_thread(settings):
@@ -7242,70 +7216,111 @@ if __name__ == "__main__":
         multiprocessing.Process(target=auto_accept_main),
     ]
     
-    pass  # Starting all processes
+    process_names = ["configurator", "esp_main", "triggerbot", "aim", "bhop", "auto_accept_main"]
+    
+    def cleanup_and_exit(reason=""):
+        """Clean shutdown of all processes and resources"""
+        print(f"[DEBUG] Cleanup initiated: {reason}")
+        
+        if 'procs' in locals() or 'procs' in globals():
+            for i, p in enumerate(procs):
+                try:
+                    if p.is_alive():
+                        print(f"[DEBUG] Terminating process: {process_names[i]}")
+                        p.terminate()
+                        p.join(2)  # Wait up to 2 seconds for clean shutdown
+                        if p.is_alive():
+                            print(f"[DEBUG] Force killing process: {process_names[i]}")
+                            p.kill()
+                            p.join(1)
+                except Exception as e:
+                    print(f"[DEBUG] Error terminating {process_names[i]}: {e}")
+                    
+        remove_lock_file()
+        try:
+            if os.path.exists(TERMINATE_SIGNAL_FILE):
+                os.remove(TERMINATE_SIGNAL_FILE)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
+                os.remove(KEYBIND_COOLDOWNS_FILE)
+        except Exception:
+            pass
+        cleanup_logging()
+        
+    # Start all processes
+    print("[DEBUG] Starting all processes...")
     for i, p in enumerate(procs):
-        process_names = ["configurator", "esp_main", "triggerbot", "aim", "bhop", "auto_accept_main"]
-        pass  # Starting process
+        print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
+        time.sleep(0.5)  # Small delay between process starts
 
     try:
-        
+        print("[DEBUG] Entering main monitoring loop...")
+        process_check_interval = 0
         
         while True:
             time.sleep(1)
+            process_check_interval += 1
             
+            # Check for terminate signal
             if os.path.exists(TERMINATE_SIGNAL_FILE):
+                print("[DEBUG] Terminate signal detected")
                 break
                                                                                          
+            # Check if CS2 is still running
             if not is_cs2_running():
-                pass
+                print("[DEBUG] CS2 no longer running")
                 break
-    except Exception as e:
-        app_title = get_app_title()
-        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
-        if 'procs' in locals():
-            for p in procs:
-                try:
-                    if p.is_alive():
-                        p.terminate()
-                        p.join(1)
-                except Exception:
-                    pass
-        remove_lock_file()
-        try:
-            if os.path.exists(TERMINATE_SIGNAL_FILE):
-                os.remove(TERMINATE_SIGNAL_FILE)
-        except Exception:
-            pass
-        try:
-            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                os.remove(KEYBIND_COOLDOWNS_FILE)
-        except Exception:
-            pass
-        cleanup_logging()
+            
+            # Check process health every 5 seconds
+            if process_check_interval >= 5:
+                process_check_interval = 0
+                
+                dead_processes = []
+                for i, p in enumerate(procs):
+                    if not p.is_alive():
+                        dead_processes.append(process_names[i])
+                
+                if dead_processes:
+                    print(f"[DEBUG] Dead processes detected: {', '.join(dead_processes)}")
+                    
+                    # Show error message to user
+                    app_title = get_app_title()
+                    error_msg = f"The following process(es) have stopped unexpectedly:\\n{', '.join(dead_processes)}\\n\\nAll processes will be terminated for safety."
+                    try:
+                        ctypes.windll.user32.MessageBoxW(
+                            0, 
+                            error_msg, 
+                            f"{app_title} - Process Failure", 
+                            0x00000000 | 0x00010000 | 0x00040000 | 0x00000030  # OK + SetForeground + TopMost + Warning Icon
+                        )
+                    except Exception:
+                        pass
+                    
+                    cleanup_and_exit(f"Process failure: {', '.join(dead_processes)}")
+                    sys.exit(1)
+                    
+    except KeyboardInterrupt:
+        print("[DEBUG] Keyboard interrupt received")
+        cleanup_and_exit("Keyboard interrupt")
         sys.exit(0)
+    except Exception as e:
+        print(f"[DEBUG] Unexpected error in main loop: {e}")
+        app_title = get_app_title()
+        try:
+            ctypes.windll.user32.MessageBoxW(
+                0, 
+                f"An unexpected error occurred in the main process:\\n{str(e)}\\n\\nAll processes will be terminated.", 
+                f"{app_title} - Critical Error", 
+                0x00000000 | 0x00010000 | 0x00040000 | 0x00000010  # OK + SetForeground + TopMost + Error Icon
+            )
+        except Exception:
+            pass
+        cleanup_and_exit(f"Main loop error: {str(e)}")
+        sys.exit(1)
     finally:
-        for p in procs:
-            try:
-                if p.is_alive():
-                    p.terminate()
-                    p.join(1)
-            except Exception:
-                pass
-        
-                        
-        remove_lock_file()
-        try:
-            if os.path.exists(TERMINATE_SIGNAL_FILE):
-                os.remove(TERMINATE_SIGNAL_FILE)
-        except Exception:
-            pass
-        try:
-            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                os.remove(KEYBIND_COOLDOWNS_FILE)
-        except Exception:
-            pass
-        
-        # Cleanup logging before exit
-        cleanup_logging()
+        print("[DEBUG] Main loop exited, cleaning up...")
+        cleanup_and_exit("Normal shutdown")
         sys.exit(0)
