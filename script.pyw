@@ -586,6 +586,7 @@ DEFAULT_SETTINGS = {
     "skeleton_color": "#FFFFFF",
     "aim_circle_color": "#FF0000",
     "center_dot_color": "#FFFFFF",
+    "camera_lock_radius_color": "#FF0000",
     "menu_theme_color": "#FF0000",
     "rainbow_fov": 0,
     "rainbow_center_dot": 0,
@@ -1066,7 +1067,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.esp_toggle_key_btn, self.trigger_key_btn,
                 self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
                 self.enemy_color_btn, self.skeleton_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
-                self.menu_theme_color_btn, self.reset_btn
+                self.camera_lock_radius_color_btn, self.menu_theme_color_btn, self.reset_btn
             ]
             
             for btn in buttons:
@@ -1820,6 +1821,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         crosshair_colors_layout.addWidget(self.center_dot_color_btn)
 
+        self.camera_lock_radius_color_btn = QtWidgets.QPushButton('Camera Lock Radius')
+        camera_lock_radius_hex = self.settings.get('camera_lock_radius_color', '#FF0000')
+        camera_lock_radius_text_color = self.get_contrasting_text_color(camera_lock_radius_hex)
+        self.camera_lock_radius_color_btn.setStyleSheet(f'background-color: {camera_lock_radius_hex}; color: {camera_lock_radius_text_color}; border-radius: 6px; font-weight: bold;')
+        self.camera_lock_radius_color_btn.clicked.connect(lambda: self.pick_color('camera_lock_radius_color', self.camera_lock_radius_color_btn))
+        self.set_tooltip_if_enabled(self.camera_lock_radius_color_btn, "Color of the camera lock radius circle that shows the targeting area.")
+        self.camera_lock_radius_color_btn.setMinimumHeight(32)
+        self.camera_lock_radius_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_colors_layout.addWidget(self.camera_lock_radius_color_btn)
+
         colors_layout.addLayout(crosshair_colors_layout)
 
 
@@ -2307,6 +2318,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_color_button_style(self.skeleton_color_btn, self.settings.get('skeleton_color', '#FFFFFF'))
             self.update_color_button_style(self.aim_circle_color_btn, self.settings.get('aim_circle_color', '#FF0000'))
             self.update_color_button_style(self.center_dot_color_btn, self.settings.get('center_dot_color', '#FFFFFF'))
+            self.update_color_button_style(self.camera_lock_radius_color_btn, self.settings.get('camera_lock_radius_color', '#FF0000'))
             self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
             
 
@@ -2406,7 +2418,7 @@ class ConfigWindow(QtWidgets.QWidget):
         """Update color button style to show the color"""
         try:
             contrasting_color = self.get_contrasting_text_color(color)
-            button.setStyleSheet(f"QPushButton {{ background-color: {color}; color: {contrasting_color}; border: 1px solid #555; }}")
+            button.setStyleSheet(f"background-color: {color}; color: {contrasting_color}; border-radius: 6px; font-weight: bold;")
         except Exception:
             pass
 
@@ -5351,7 +5363,7 @@ def render_camera_lock_radius(scene, window_width, window_height, settings):
             if settings.get('rainbow_menu_theme', 0) == 1:
                 circle_color_hex = settings.get('current_rainbow_color', '#FF0000')
             else:
-                circle_color_hex = settings.get('menu_theme_color', '#FF0000')
+                circle_color_hex = settings.get('camera_lock_radius_color', '#FF0000')
             circle_color = QtGui.QColor(circle_color_hex)
             circle_color.setAlpha(100)  # Semi-transparent
         except Exception:
