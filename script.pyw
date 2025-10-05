@@ -1,3 +1,4 @@
+#1
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -39,10 +40,9 @@ from datetime import datetime
 
 CONSOLE_CREATED = False
 
-# Global variables for cleanup tracking
-TEMPORARY_FILES = set()  # Track all temporary files created
-CLEANUP_REGISTERED = False  # Track if cleanup handlers are registered
-PROCESSES_LIST = []  # Track all spawned processes for cleanup
+TEMPORARY_FILES = set()
+CLEANUP_REGISTERED = False
+PROCESSES_LIST = []
 
 LOG_FILE = None
 original_stdout = None
@@ -89,7 +89,7 @@ def setup_logging():
     
 
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
-    add_temporary_file(LOG_FILE)  # Track for cleanup
+    add_temporary_file(LOG_FILE)
     
 
     original_stdout = sys.stdout
@@ -132,7 +132,6 @@ def cleanup_all_temporary_files():
     try:
         print("[CLEANUP] Starting comprehensive cleanup...")
         
-        # 1. Terminate all spawned processes first
         if PROCESSES_LIST:
             print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
             for i, p in enumerate(PROCESSES_LIST):
@@ -140,14 +139,13 @@ def cleanup_all_temporary_files():
                     if hasattr(p, 'is_alive') and p.is_alive():
                         print(f"[CLEANUP] Terminating process {i+1}")
                         p.terminate()
-                        p.join(2)  # Wait up to 2 seconds
+                        p.join(2)
                         if p.is_alive():
                             p.kill()
                             p.join(1)
                 except Exception as e:
                     print(f"[CLEANUP] Error terminating process {i+1}: {e}")
         
-        # 2. Clean up tracked temporary files
         files_cleaned = 0
         if TEMPORARY_FILES:
             print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
@@ -160,7 +158,6 @@ def cleanup_all_temporary_files():
                 except Exception as e:
                     print(f"[CLEANUP] Error removing {temp_file}: {e}")
         
-        # 3. Clean up standard temporary files
         standard_temp_files = [
             LOCK_FILE,
             TERMINATE_SIGNAL_FILE,
@@ -181,7 +178,6 @@ def cleanup_all_temporary_files():
             except Exception as e:
                 print(f"[CLEANUP] Error removing {temp_file}: {e}")
         
-        # 4. Clean up any orphaned .signal files
         try:
             import glob
             signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
@@ -197,7 +193,6 @@ def cleanup_all_temporary_files():
         except Exception as e:
             print(f"[CLEANUP] Error cleaning signal files: {e}")
         
-        # 5. Clean up any orphaned .lock files
         try:
             import glob
             lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
@@ -213,20 +208,17 @@ def cleanup_all_temporary_files():
         except Exception as e:
             print(f"[CLEANUP] Error cleaning lock files: {e}")
         
-        # 6. Clean up temporary script files in system temp directory
         try:
             import tempfile
             import glob
             temp_dir = tempfile.gettempdir()
             script_temp_files = glob.glob(os.path.join(temp_dir, '*.pyw'))
-            # Only remove files that are likely from our loader (recent and small)
             for temp_file in script_temp_files:
                 try:
-                    # Check if file is recent (within last hour) and reasonable size
                     if os.path.exists(temp_file):
                         file_age = time.time() - os.path.getmtime(temp_file)
                         file_size = os.path.getsize(temp_file)
-                        if file_age < 3600 and 1000 < file_size < 1000000:  # 1KB to 1MB, less than 1 hour old
+                        if file_age < 3600 and 1000 < file_size < 1000000:
                             os.remove(temp_file)
                             files_cleaned += 1
                             print(f"[CLEANUP] Removed temp script: {temp_file}")
@@ -235,7 +227,6 @@ def cleanup_all_temporary_files():
         except Exception as e:
             print(f"[CLEANUP] Error cleaning temp scripts: {e}")
         
-        # 7. Clean up logging
         cleanup_logging()
         
         print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
@@ -251,21 +242,18 @@ def register_cleanup_handlers():
         return
     
     try:
-        # Register atexit handler for normal exits
         atexit.register(cleanup_all_temporary_files)
         
-        # Register signal handlers for forced termination
         def signal_handler(signum, frame):
             print(f"[CLEANUP] Signal {signum} received, cleaning up...")
             cleanup_all_temporary_files()
             os._exit(1)
         
-        # Register handlers for common termination signals
         if hasattr(signal, 'SIGTERM'):
             signal.signal(signal.SIGTERM, signal_handler)
         if hasattr(signal, 'SIGINT'):
             signal.signal(signal.SIGINT, signal_handler)
-        if hasattr(signal, 'SIGBREAK'):  # Windows specific
+        if hasattr(signal, 'SIGBREAK'):
             signal.signal(signal.SIGBREAK, signal_handler)
         
         CLEANUP_REGISTERED = True
@@ -385,7 +373,7 @@ def version_check_worker():
                 try:
                     with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                         f.write('version_mismatch')
-                    add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
+                    add_temporary_file(TERMINATE_SIGNAL_FILE)
                 except Exception:
                     pass
                                                                               
@@ -559,9 +547,8 @@ def load_selected_mode():
                     return mode
     except Exception:
         pass
-    return 'full'  # Default to full mode if no mode file or error
+    return 'full'
 
-# Load the selected mode at startup
 SELECTED_MODE = load_selected_mode()
 
 
@@ -587,7 +574,7 @@ def create_lock_file():
     try:
         with open(LOCK_FILE, 'w') as f:
             f.write(str(os.getpid()))
-        add_temporary_file(LOCK_FILE)  # Track for cleanup
+        add_temporary_file(LOCK_FILE)
         return True
     except Exception:
         return False
@@ -639,7 +626,7 @@ def terminate_existing_instance():
                                  
         with open(TERMINATE_SIGNAL_FILE, 'w') as f:
             f.write('terminate')
-        add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
+        add_temporary_file(TERMINATE_SIGNAL_FILE)
         
                                                                
         timeout = 10                      
@@ -1082,7 +1069,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.fov_enabled = "fov" in load_commands()
         
-        # Only show mode text for legit mode
         if SELECTED_MODE == 'legit':
             header_text = f"{app_title} - LEGIT Mode"
         else:
@@ -1108,7 +1094,6 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs = QtWidgets.QTabWidget()
         tabs.addTab(esp_container, "ESP")
         
-        # Only add aim tab in full mode
         if SELECTED_MODE == 'full':
             aim_container = self.create_aim_container()
             tabs.addTab(aim_container, "Aim")
@@ -1159,7 +1144,6 @@ class ConfigWindow(QtWidgets.QWidget):
             self._menu_toggle_ignore_until = 0
 
         
-        # ESC hold timer removed - exit key is now the main closing method
 
                                                                                
         self.setMinimumWidth(480)
@@ -1225,7 +1209,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.triggerbot_burst_mode_cb, self.triggerbot_head_only_cb,
             ]
             
-            # Add aim-related checkboxes only if they exist (full mode)
             aim_checkboxes = [
                 'aim_active_cb', 'aim_circle_visible_cb', 'aim_visibility_cb', 
                 'lock_target_cb', 'disable_crosshair_cb', 'movement_prediction_cb'
@@ -1235,7 +1218,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, attr_name):
                     checkboxes.append(getattr(self, attr_name))
             
-            # Add other checkboxes that should always exist
             misc_checkboxes = [
                 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb', 
                 'auto_accept_cb', 'low_cpu_cb'
@@ -1257,7 +1239,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.fps_limit_slider
             ]
             
-            # Add aim-related sliders only if they exist (full mode)
             aim_sliders = [
                 'radius_slider', 'opacity_slider', 'thickness_slider', 'smooth_slider'
             ]
@@ -1281,7 +1262,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.camera_lock_radius_color_btn, self.menu_theme_color_btn, self.reset_btn
             ]
             
-            # Add aim-related buttons only if they exist (full mode)
             aim_buttons = ['aim_key_btn', 'aim_circle_color_btn']
             for attr_name in aim_buttons:
                 if hasattr(self, attr_name):
@@ -1418,7 +1398,6 @@ class ConfigWindow(QtWidgets.QWidget):
             with open(cooldown_file, 'w') as f:
                 json.dump(cooldown_data, f)
             
-            # Track the cooldown file for cleanup
             add_temporary_file(cooldown_file)
         except Exception:
             pass
@@ -1664,10 +1643,8 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
-        # Apply legit mode restrictions for first shot delay
         if SELECTED_MODE == 'legit':
             self.triggerbot_first_shot_delay_slider.setMinimum(150)
-            # Ensure saved value meets minimum requirement
             current_value = max(150, self.settings.get("triggerbot_first_shot_delay", 150))
         else:
             self.triggerbot_first_shot_delay_slider.setMinimum(0)
@@ -1708,7 +1685,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
-        # Apply legit mode restrictions for camera lock smoothness
         if SELECTED_MODE == 'legit':
             self.camera_lock_smoothness_slider.setMinimum(20)
             self.camera_lock_smoothness_slider.setMaximum(50)
@@ -1742,7 +1718,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_tolerance_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.camera_lock_tolerance_slider)
 
-        # Draw Range Lines toggle
         self.camera_lock_draw_range_lines_cb = QtWidgets.QCheckBox("Draw Range Lines")
         self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
         self.camera_lock_draw_range_lines_cb.stateChanged.connect(self.save_settings)
@@ -1750,7 +1725,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_draw_range_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.camera_lock_draw_range_lines_cb)
 
-        # Camera Lock Line Width Slider
         self.lbl_camera_lock_line_width = QtWidgets.QLabel(f"Camera Lock Line Width: ({self.settings.get('camera_lock_line_width', 2)})")
         trigger_layout.addWidget(self.lbl_camera_lock_line_width)
         self.camera_lock_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -1761,13 +1735,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.camera_lock_line_width_slider, "Adjust the length of camera lock range lines. Higher values make lines wider/longer across the screen.")
         trigger_layout.addWidget(self.camera_lock_line_width_slider)
 
-        # Camera Lock Use Radius Toggle
         self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
         
-        # Force use radius to be on in legit mode
         if SELECTED_MODE == 'legit':
             self.camera_lock_use_radius_cb.setChecked(True)
-            self.camera_lock_use_radius_cb.setEnabled(False)  # Disable the checkbox in legit mode
+            self.camera_lock_use_radius_cb.setEnabled(False)
         else:
             self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
             
@@ -1776,7 +1748,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_use_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.camera_lock_use_radius_cb)
 
-        # Camera Lock Draw Radius Toggle
         self.camera_lock_draw_radius_cb = QtWidgets.QCheckBox("Draw Radius")
         self.camera_lock_draw_radius_cb.setChecked(self.settings.get("camera_lock_draw_radius", 0) == 1)
         self.camera_lock_draw_radius_cb.stateChanged.connect(self.save_settings)
@@ -1784,14 +1755,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_draw_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.camera_lock_draw_radius_cb)
 
-        # Camera Lock Radius Size Slider
         self.camera_lock_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.camera_lock_radius_slider.setMinimum(25)
         
-        # Apply legit mode restrictions for radius
         if SELECTED_MODE == 'legit':
             self.camera_lock_radius_slider.setMaximum(200)
-            # Ensure saved value doesn't exceed maximum
             radius_value = min(200, self.settings.get('camera_lock_radius', 100))
         else:
             self.camera_lock_radius_slider.setMaximum(300)
@@ -1804,7 +1772,6 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_layout.addWidget(self.lbl_camera_lock_radius)
         trigger_layout.addWidget(self.camera_lock_radius_slider)
 
-        # Camera Lock Spotted Check Toggle
         self.camera_lock_spotted_check_cb = QtWidgets.QCheckBox("Camera Lock Spotted Check")
         self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
         self.camera_lock_spotted_check_cb.stateChanged.connect(self.save_settings)
@@ -2268,7 +2235,6 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        # Exit button
         self.exit_key_btn = QtWidgets.QPushButton(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
         self.exit_key_btn.setObjectName("keybind_button")
         self.exit_key_btn.clicked.connect(lambda: self.record_key('ExitKey', self.exit_key_btn))
@@ -2422,43 +2388,36 @@ class ConfigWindow(QtWidgets.QWidget):
             return
             
         try:
-            # Disable all aim-related settings
             self.settings["aim_active"] = 0
             if hasattr(self, 'aim_active_cb') and self.aim_active_cb:
                 self.aim_active_cb.setChecked(False)
             
-            # Enforce triggerbot restrictions (minimum 150ms delay)
             current_delay = self.settings.get("triggerbot_between_shots_delay", 0)
             if current_delay < 150:
                 self.settings["triggerbot_between_shots_delay"] = 150
                 if hasattr(self, 'triggerbot_between_shots_delay_slider') and self.triggerbot_between_shots_delay_slider:
                     self.triggerbot_between_shots_delay_slider.setValue(150)
             
-            # Enforce smoothness restriction (force to 20)
             self.settings["aim_smoothness"] = 20
             if hasattr(self, 'aim_smoothness_slider') and self.aim_smoothness_slider:
                 self.aim_smoothness_slider.setValue(20)
             
-            # Enforce radius limits (max 200 for legit mode)
             current_radius = self.settings.get("radius", 0)
             if current_radius > 200:
                 self.settings["radius"] = 200
                 if hasattr(self, 'radius_slider') and self.radius_slider:
                     self.radius_slider.setValue(200)
             
-            # Force use radius setting
             self.settings["use_radius"] = 1
             if hasattr(self, 'use_radius_cb') and self.use_radius_cb:
                 self.use_radius_cb.setChecked(True)
             
-            # Enforce camera lock radius limits
             current_cam_radius = self.settings.get("camera_lock_radius", 0)
             if current_cam_radius > 200:
                 self.settings["camera_lock_radius"] = 200
                 if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
                     self.camera_lock_radius_slider.setValue(200)
                     
-            # Update labels if they exist
             if hasattr(self, 'triggerbot_between_shots_delay_label') and self.triggerbot_between_shots_delay_label:
                 self.triggerbot_between_shots_delay_label.setText(f"Between shots delay: {self.settings['triggerbot_between_shots_delay']}ms")
             if hasattr(self, 'aim_smoothness_label') and self.aim_smoothness_label:
@@ -2666,7 +2625,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     widget.blockSignals(False)
             self.blockSignals(False)
             
-            # Clear loading flag to allow normal FOV operations
             self._loading_config = False
             
 
@@ -2713,24 +2671,21 @@ class ConfigWindow(QtWidgets.QWidget):
 
             self.save_settings()
             
-            # Enforce Legit mode restrictions after successful config reload
             if hasattr(self, 'enforce_legit_mode_restrictions'):
                 self.enforce_legit_mode_restrictions()
             
         except Exception as e:
-            # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
             try:
                 for widget in widgets_to_block:
                     if widget is not None:
                         widget.blockSignals(False)
                 self.blockSignals(False)
                 self._loading_config = False
-                self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
+                self.settings['auto_apply_fov'] = 0
             except:
                 pass
             QtWidgets.QMessageBox.critical(self, "Reload Error", f"Failed to reload UI from settings:\n{str(e)}")
         
-        # Enforce Legit mode restrictions after config reload
         if hasattr(self, 'enforce_legit_mode_restrictions'):
             self.enforce_legit_mode_restrictions()
 
@@ -2889,7 +2844,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
                 with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                     f.write('terminate')
-                add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
+                add_temporary_file(TERMINATE_SIGNAL_FILE)
             except Exception:
                 pass
             try:
@@ -3042,11 +2997,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'radar_scale_slider'):
                     self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
                 
-                # Handle FOV slider reset - block signals to prevent auto-application
                 if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                     self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
                 
-                # Update dropdowns
                 if hasattr(self, 'lines_position_combo'):
                     position = self.settings.get('lines_position', 'Bottom')
                     index = self.lines_position_combo.findText(position)
@@ -3096,7 +3049,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.menu_theme_color_btn.setStyleSheet(f'background-color: {color}; color: white;')
                     self.update_menu_theme_styling(color)
                 
-                # Update labels
                 if hasattr(self, 'update_radius_label'):
                     self.update_radius_label()
                 if hasattr(self, 'update_opacity_label'):
@@ -3116,7 +3068,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'update_game_fov_label_only') and hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                     self.update_game_fov_label_only()
                 
-                # Apply settings
                 if hasattr(self, 'apply_topmost'):
                     self.apply_topmost()
                 if hasattr(self, 'initialize_fps_slider_state'):
@@ -3124,31 +3075,24 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'update_box_mode_dropdown_state'):
                     self.update_box_mode_dropdown_state()
                 
-                # Unblock signals
                 for w in widgets:
                     if w is not None:
                         w.blockSignals(False)
                 
-                # Clear loading flag to allow normal FOV operations
                 self._loading_config = False
                 
-                # CRITICAL: Reset auto_apply_fov to 0 after reset to prevent automatic FOV application
                 self.settings['auto_apply_fov'] = 0
                 
-                # SECURITY: Enforce legit mode restrictions after reset to prevent bypass
                 self.enforce_legit_mode_restrictions()
                 
-                # Save settings after enforcing restrictions
                 save_settings(self.settings)
                 
                 QtWidgets.QMessageBox.information(self, "Reset Complete", "All settings have been reset to default values.")
                 
             except Exception as e:
-                # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
                 self._loading_config = False
-                self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
+                self.settings['auto_apply_fov'] = 0
                 
-                # SECURITY: Enforce legit mode restrictions even after error
                 try:
                     self.enforce_legit_mode_restrictions()
                     save_settings(self.settings)
@@ -3158,11 +3102,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 QtWidgets.QMessageBox.critical(self, "Reset Error", f"Settings were reset but UI update failed:\n{str(e)}")
                 
         except Exception as e:
-            # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
             self._loading_config = False
-            self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
+            self.settings['auto_apply_fov'] = 0
             
-            # SECURITY: Enforce legit mode restrictions even after error
             try:
                 self.enforce_legit_mode_restrictions()
                 save_settings(self.settings)
@@ -3230,12 +3172,12 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             self.settings["require_aimkey"] = 1 if getattr(self, 'require_aimkey_cb', None) and self.require_aimkey_cb.isChecked() else 0
         except Exception:
-            self.settings["require_aimkey"] = 1  # Default to requiring aimkey
+            self.settings["require_aimkey"] = 1
         
         try:
             self.settings["camera_lock_enabled"] = 1 if getattr(self, 'camera_lock_cb', None) and self.camera_lock_cb.isChecked() else 0
         except Exception:
-            self.settings["camera_lock_enabled"] = 0  # Default to disabled
+            self.settings["camera_lock_enabled"] = 0
         
                                        
         try:
@@ -3413,19 +3355,14 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
         
-        # Apply legit mode restrictions before saving
         if SELECTED_MODE == 'legit':
-            # Force minimum first shot delay of 150ms
             if self.settings.get("triggerbot_first_shot_delay", 0) < 150:
                 self.settings["triggerbot_first_shot_delay"] = 150
             
-            # Force camera lock smoothness to 20
             self.settings["camera_lock_smoothness"] = 20
             
-            # Force use radius for targeting to be on
             self.settings["camera_lock_use_radius"] = 1
             
-            # Limit camera lock radius to maximum 200
             if self.settings.get("camera_lock_radius", 100) > 200:
                 self.settings["camera_lock_radius"] = 200
         
@@ -3663,7 +3600,6 @@ class ConfigWindow(QtWidgets.QWidget):
     def get_contrasting_text_color(self, background_color):
         """Calculate optimal text color (black or white) based on background color luminance"""
         try:
-            # Remove # if present and convert to RGB
             hex_color = background_color.lstrip('#')
             r = int(hex_color[0:2], 16)
             g = int(hex_color[2:4], 16)
@@ -3700,7 +3636,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.settings[settings_key] = hexc
                 save_settings(self.settings)
                 
-                # Calculate optimal text color for contrast
                 text_color = self.get_contrasting_text_color(hexc)
                 btn.setStyleSheet(f'background-color: {hexc}; color: {text_color};')
                 
@@ -4104,7 +4039,6 @@ class ConfigWindow(QtWidgets.QWidget):
             if not key or str(key).upper() == "NONE":
                 return
                 
-            # Check if exit key is on cooldown to prevent accidental double-press
             if self.is_keybind_on_cooldown("ExitKey"):
                 return
                 
@@ -4112,10 +4046,8 @@ class ConfigWindow(QtWidgets.QWidget):
             pressed = (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
             
             if pressed:
-                # Set cooldown to prevent multiple activations
                 self.set_keybind_cooldown("ExitKey")
                 
-                # Force terminate all processes immediately using proper cleanup
                 self.exit_shutdown()
                 
         except Exception:
@@ -4124,24 +4056,20 @@ class ConfigWindow(QtWidgets.QWidget):
     def exit_shutdown(self):
         """Safe shutdown of all script processes using proper cleanup mechanism"""
         try:
-            # Hide the config window immediately
             self.hide()
             
-            # Reset FOV to default before shutdown
             try:
                 self.reset_fov_to_default()
             except Exception:
                 pass
             
-            # Create the terminate signal file that the main process monitors
             try:
                 with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                     f.write('panic_shutdown')
-                add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
+                add_temporary_file(TERMINATE_SIGNAL_FILE)
             except Exception:
                 pass
             
-            # Clean up panic signal file if it exists
             try:
                 panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
                 if os.path.exists(panic_file):
@@ -4149,24 +4077,20 @@ class ConfigWindow(QtWidgets.QWidget):
             except Exception:
                 pass
                 
-            # Exit this process cleanly and let main process handle cleanup
             try:
                 import sys
                 sys.exit(0)
             except Exception:
-                # Last resort - force exit
                 import os
                 os._exit(0)
                 
         except Exception:
-            # Last resort - force exit
             import os
             os._exit(0)
 
     def check_menu_toggle(self):
         
         try:
-            # Check exit key first
             self.check_exit_key()
             
             if getattr(self, "_menu_toggle_ignore_until", 0) > time.time():
@@ -4227,7 +4151,6 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-    # ESC hold feature removed - exit key is now the main closing method
 
     
     def hideEvent(self, event: QtGui.QHideEvent):
@@ -4405,7 +4328,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.lbl_game_fov.setText(f"Camera FOV: ({val})")
                 self.settings['game_fov'] = val
                 self.save_settings()
-                # Only apply FOV when manually changed by user
                 if getattr(self, '_fov_manual_change', False):
                     self.apply_fov_change(val)
                     self._fov_manual_change = False
@@ -4423,26 +4345,23 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_fov_slider_value_changed(self):
         """Handle FOV slider value changes for immediate label updates"""
-        print(f"[DEBUG] FOV slider value changed: {self.game_fov_slider.value()}")  # Debug
+        print(f"[DEBUG] FOV slider value changed: {self.game_fov_slider.value()}")
         try:
-            # Check if FOV controls are available
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
-                print("[DEBUG] FOV controls not available")  # Debug
+                print("[DEBUG] FOV controls not available")
                 return
                 
-            # Don't apply FOV during initialization or config loading
             if getattr(self, '_is_initializing', False) or getattr(self, '_loading_config', False):
-                print("[DEBUG] Initializing or loading config, updating label only")  # Debug
-                # Just update the label during initialization or config loading
+                print("[DEBUG] Initializing or loading config, updating label only")
                 self.update_game_fov_label_only()
                 return
             
             if not hasattr(self, '_fov_original_value'):
                 self._fov_original_value = self.game_fov_slider.value()
-                print(f"[DEBUG] Storing original FOV value: {self._fov_original_value}")  # Debug
+                print(f"[DEBUG] Storing original FOV value: {self._fov_original_value}")
                 
             if self._fov_warning_accepted:
-                print("[DEBUG] Warning accepted, applying change immediately")  # Debug
+                print("[DEBUG] Warning accepted, applying change immediately")
                 new_value = self.game_fov_slider.value()
                 self.settings['game_fov'] = new_value
                 self.settings['auto_apply_fov'] = 1
@@ -4451,109 +4370,89 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.update_game_fov_label()
                 return
             
-            print("[DEBUG] Updating label only (warning not accepted)")  # Debug
-            # Just update the label to show current value while dragging
-            # Also update settings so they're saved when user accepts
+            print("[DEBUG] Updating label only (warning not accepted)")
             new_value = self.game_fov_slider.value()
             self.settings['game_fov'] = new_value
             self.save_settings()
             self.update_game_fov_label_only()
             
         except Exception as e:
-            print(f"[DEBUG] Exception in on_fov_slider_value_changed: {e}")  # Debug
+            print(f"[DEBUG] Exception in on_fov_slider_value_changed: {e}")
             pass
 
     def on_fov_slider_released(self):
         """Handle FOV slider release - this is when we show the popup"""
-        print("[DEBUG] FOV slider released")  # Debug
+        print("[DEBUG] FOV slider released")
         try:
-            # Check if FOV controls are available
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
-                print("[DEBUG] FOV controls not available on release")  # Debug
+                print("[DEBUG] FOV controls not available on release")
                 return
                 
             if getattr(self, '_is_initializing', False):
-                print("[DEBUG] Still initializing, ignoring release")  # Debug
+                print("[DEBUG] Still initializing, ignoring release")
                 return
                 
-            # If dialog is currently showing, ignore
             if getattr(self, '_fov_dialog_showing', False):
-                print("[DEBUG] Dialog already showing, ignoring release")  # Debug
+                print("[DEBUG] Dialog already showing, ignoring release")
                 return
                 
-            # If warning already accepted, no need for popup
             if self._fov_warning_accepted:
-                print("[DEBUG] Warning already accepted, no popup needed")  # Debug
-                # Clear the original value tracker
+                print("[DEBUG] Warning already accepted, no popup needed")
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
                 return
             
             current_value = self.game_fov_slider.value()
             original_value = getattr(self, '_fov_original_value', 90)
-            print(f"[DEBUG] Current: {current_value}, Original: {original_value}")  # Debug
+            print(f"[DEBUG] Current: {current_value}, Original: {original_value}")
             
-            # Only show popup if value actually changed from original
             if current_value != original_value:
-                print("[DEBUG] Value changed, showing popup")  # Debug
+                print("[DEBUG] Value changed, showing popup")
                 self._pending_fov_value = current_value
-                # Small delay to ensure slider is fully released
                 QtCore.QTimer.singleShot(50, self._show_delayed_fov_popup)
             else:
-                print("[DEBUG] Value unchanged, no popup needed")  # Debug
-                # Clear the original value tracker
+                print("[DEBUG] Value unchanged, no popup needed")
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
-                # Clear the original value tracker
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
             
         except Exception as e:
-            print(f"[DEBUG] Exception in on_fov_slider_released: {e}")  # Debug
+            print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
             pass
 
     def _show_delayed_fov_popup(self):
         """Show FOV warning popup after slider is released"""
         try:
-            # Check if we have a pending FOV value and warning hasn't been accepted
             if self._pending_fov_value is None or self._fov_warning_accepted:
                 return
                 
-            # Check if dialog is already showing
             if getattr(self, '_fov_dialog_showing', False):
                 return
                 
-            # Set flag to prevent multiple dialogs
             self._fov_dialog_showing = True
             
-            # Store the values
             new_fov_value = self._pending_fov_value
             original_fov_value = self.settings.get('game_fov', 90)
             
-            # Pause rainbow timer during dialog
             self.pause_rainbow_timer()
             
             try:
-                # Show confirmation dialog
                 msg_box = QtWidgets.QMessageBox(self)
                 msg_box.setWindowTitle("FOV Change Warning")
                 msg_box.setText("Changing FOV can cause VAC ban. Change FOV?")
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
                 
-                # Create custom buttons
                 yes_button = msg_box.addButton("Yes, Apply FOV", QtWidgets.QMessageBox.YesRole)
                 cancel_button = msg_box.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
                 msg_box.setDefaultButton(cancel_button)
                 
-                # Set dialog flags to stay on top
                 msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint)
                 
-                # Show dialog and get result
                 msg_box.exec()
                 clicked_button = msg_box.clickedButton()
                 
                 if clicked_button == yes_button:
-                    # User accepted - apply the FOV change
                     self._fov_warning_accepted = True
                     self.settings['auto_apply_fov'] = 1
                     self.settings['game_fov'] = new_fov_value
@@ -4561,27 +4460,22 @@ class ConfigWindow(QtWidgets.QWidget):
                     self._fov_manual_change = True
                     self.update_game_fov_label()
                 else:
-                    # User cancelled - reset slider to original value
                     original_value = getattr(self, '_fov_original_value', 90)
                     self.game_fov_slider.blockSignals(True)
                     self.game_fov_slider.setValue(original_value)
                     self.game_fov_slider.blockSignals(False)
                     self.update_game_fov_label_only()
-                    # Reset settings to original value
                     self.settings['game_fov'] = original_value
                     self.save_settings()
                     
             finally:
-                # Clear pending value and flags
                 self._pending_fov_value = None
                 self._fov_dialog_showing = False
-                # Clear the original value tracker
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
                 self.resume_rainbow_timer()
                 
         except Exception:
-            # Make sure flags are cleared even if an exception occurs
             self._pending_fov_value = None
             self._fov_dialog_showing = False
             pass
@@ -4589,7 +4483,6 @@ class ConfigWindow(QtWidgets.QWidget):
     def apply_fov_change(self, fov_value):
         """Apply FOV change to the game"""
         try:
-            # Try to connect to CS2 process and apply FOV change
             import pymem
             pm = None
             client = None
@@ -4599,12 +4492,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
                 
                 if pm and client:
-                    # Read local player controller
                     local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                     if local_player_controller:
-                        # Write FOV value to the player controller
                         pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
-                        # Mark that FOV was changed during runtime
                         self._fov_changed_during_runtime = True
                         print(f"[DEBUG] FOV changed to {fov_value}, flag set to True")
             except Exception:
@@ -4618,14 +4508,12 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if not force and not self._fov_changed_during_runtime:
             print("[DEBUG] FOV reset skipped - not changed during runtime")
-            return  # Don't reset if FOV wasn't changed during script execution
+            return
             
         print("[DEBUG] Attempting FOV reset to 90...")
         try:
-            # Reset FOV to 90 (default FOV) directly without setting the tracking flag
             import pymem
             
-            # Use global offsets that were loaded at startup
             global dwLocalPlayerController, m_iDesiredFOV
             
             try:
@@ -4636,29 +4524,24 @@ class ConfigWindow(QtWidgets.QWidget):
                     print(f"[DEBUG] Using dwLocalPlayerController offset: {dwLocalPlayerController}")
                     print(f"[DEBUG] Using m_iDesiredFOV offset: {m_iDesiredFOV}")
                     
-                    # Read local player controller
                     local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                     if local_player_controller:
                         print(f"[DEBUG] Local player controller found at: 0x{local_player_controller:X}")
                         
-                        # Read current FOV to verify
                         current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
                         print(f"[DEBUG] Current FOV before reset: {current_fov}")
                         
-                        # Try multiple reset attempts with different approaches
                         reset_success = False
                         
-                        # Method 1: Direct write with multiple attempts
                         for attempt in range(3):
                             pm.write_int(local_player_controller + m_iDesiredFOV, 90)
-                            time.sleep(0.02)  # Small delay between attempts
+                            time.sleep(0.02)
                             verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
                             print(f"[DEBUG] Reset attempt {attempt + 1}: FOV now shows {verify_fov}")
                             if verify_fov == 90:
                                 reset_success = True
                                 break
                         
-                        # Method 2: Try writing 0 first, then 90 (sometimes helps bypass game protection)
                         if not reset_success:
                             print("[DEBUG] Trying alternative reset method...")
                             pm.write_int(local_player_controller + m_iDesiredFOV, 0)
@@ -4670,17 +4553,14 @@ class ConfigWindow(QtWidgets.QWidget):
                             if verify_fov == 90:
                                 reset_success = True
                         
-                        # Method 3: Try updating the UI slider value as well
                         if not reset_success:
                             print("[DEBUG] Trying UI slider sync method...")
-                            # Update our internal tracking
                             self.settings['game_fov'] = 90
                             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                                 self.game_fov_slider.setValue(90)
                             if hasattr(self, 'update_game_fov_label_only'):
                                 self.update_game_fov_label_only()
                             
-                            # Try the memory write again
                             pm.write_int(local_player_controller + m_iDesiredFOV, 90)
                             time.sleep(0.1)
                             verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
@@ -4688,13 +4568,11 @@ class ConfigWindow(QtWidgets.QWidget):
                             if verify_fov == 90:
                                 reset_success = True
                         
-                        # Final verification
                         final_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
                         print(f"[DEBUG] Final FOV check: {final_fov}")
                         
                         if reset_success or final_fov == 90:
                             print("[DEBUG] FOV successfully reset to 90")
-                            # Disable auto-apply FOV when resetting to default
                             self.settings['auto_apply_fov'] = 0
                             self.save_settings()
                             print("[DEBUG] Auto-apply FOV disabled")
@@ -4722,7 +4600,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.config_folder_watcher.addPath(CONFIG_DIR)
                 self.config_folder_watcher.directoryChanged.connect(self.on_config_folder_changed)
             
-            # Also watch commands.txt for FOV availability changes
             commands_file = os.path.join(os.getcwd(), 'commands.txt')
             if os.path.exists(commands_file):
                 self.config_folder_watcher.fileChanged.connect(self.on_commands_file_changed)
@@ -4733,23 +4610,18 @@ class ConfigWindow(QtWidgets.QWidget):
     def on_commands_file_changed(self):
         """Handle changes to commands.txt file"""
         try:
-            # Check if FOV command availability changed
             new_fov_enabled = "fov" in load_commands()
             if hasattr(self, 'fov_enabled') and new_fov_enabled != self.fov_enabled:
                 print(f"[DEBUG] FOV command availability changed: {self.fov_enabled} -> {new_fov_enabled}")
-                # Note: Dynamic FOV control creation/removal would require rebuilding UI
-                # For now, just update the flag - user needs to restart for full effect
                 self.fov_enabled = new_fov_enabled
         except Exception:
             pass
     
     def on_config_folder_changed(self):
         """Handle changes in the config folder with debounce"""
-        # Don't update if we're already updating or if user is interacting with dropdown
         if self._dropdown_updating or (hasattr(self, 'config_files_combo') and self.config_files_combo.view().isVisible()):
             return
         
-        # Use debounce timer to prevent rapid updates
         self._dropdown_update_timer.stop()
         self._dropdown_update_timer.start(500)  # 500ms debounce
     
@@ -4763,57 +4635,46 @@ class ConfigWindow(QtWidgets.QWidget):
             if not hasattr(self, 'config_files_combo'):
                 return
             
-            # Initialize dropdown updating flag if it doesn't exist
             if not hasattr(self, '_dropdown_updating'):
                 self._dropdown_updating = False
                 
             if self._dropdown_updating:
                 return
             
-            # Don't update if dropdown is currently open/visible
             if self.config_files_combo.view().isVisible():
                 return
                 
             self._dropdown_updating = True
                 
-            # Temporarily disconnect signal to prevent triggering import during population
             try:
                 self.config_files_combo.currentTextChanged.disconnect()
             except:
                 pass
             
-            # Store current selection
             current_text = self.config_files_combo.currentText()
             
-            # Get current file list
             new_files = []
             if os.path.exists(CONFIG_DIR):
                 new_files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.json') and f != 'autosave.json']
-                new_files.sort()  # Sort alphabetically
+                new_files.sort()
             
-            # Check if files have actually changed
             current_items = []
-            for i in range(1, self.config_files_combo.count()):  # Skip placeholder item
+            for i in range(1, self.config_files_combo.count()):
                 current_items.append(self.config_files_combo.itemText(i))
             
-            # Only update if the file list has changed
             if current_items != new_files:
-                # Clear and repopulate
                 self.config_files_combo.clear()
                 
-                # Add placeholder item
                 self.config_files_combo.addItem("-- Select config to import --")
                 
                 for json_file in new_files:
                     self.config_files_combo.addItem(json_file)
                 
-                # Only restore selection if it's not the placeholder and still exists
                 if current_text and current_text != "-- Select config to import --":
                     index = self.config_files_combo.findText(current_text)
                     if index >= 0:
                         self.config_files_combo.setCurrentIndex(index)
             
-            # Reconnect the signal
             self.config_files_combo.currentTextChanged.connect(self.on_config_file_selected)
             
         except Exception:
@@ -4841,7 +4702,7 @@ def configurator():
         except Exception:
             pass
         
-        pass  # Using default Qt styling
+        pass
         
         window = ConfigWindow()
         
@@ -4863,13 +4724,11 @@ def configurator():
 class ESPWindow(QtWidgets.QWidget):
     def __init__(self, settings, window_width=None, window_height=None):
         super().__init__()
-        # Ensure settings are properly merged with defaults BEFORE any rendering
         merged_settings = DEFAULT_SETTINGS.copy()
         if settings and isinstance(settings, dict):
             merged_settings.update(settings)
         self.settings = merged_settings
         
-        # Mark initialization as complete to prevent settings reloading during render
         self._initialization_complete = True
         
         self.setWindowTitle('ESP Overlay')
@@ -5036,39 +4895,31 @@ class ESPWindow(QtWidgets.QWidget):
     
 
     def reload_settings(self):
-        # Load new settings with validation - prevent partial updates during load
         try:
             new_settings = load_settings()
         except Exception:
-            # If loading fails, keep current settings
             return
         
-        # Only update if settings actually changed and are valid
         if new_settings and isinstance(new_settings, dict) and len(new_settings) > 0:
-            # Atomic settings update - merge with defaults to ensure completeness
             merged_settings = DEFAULT_SETTINGS.copy()
             merged_settings.update(new_settings)
             
             if merged_settings != self.settings:
-                # Temporarily pause updates during settings change
                 old_settings = self.settings
                 self.settings = merged_settings
                 
-                # If settings update fails, rollback
                 try:
                     self._perform_settings_dependent_updates()
                 except Exception:
                     self.settings = old_settings
                     return
             else:
-                return  # No change, skip the rest of reload
+                return
         else:
-            # Invalid settings loaded, skip update
             return
 
     def _perform_settings_dependent_updates(self):
         """Perform all updates that depend on settings in a safe manner"""
-        # Update window geometry based on current CS2 window
         current_x, current_y, current_width, current_height = get_window_client_rect("Counter-Strike 2")
         if current_width is not None and current_height is not None:
             self.window_x = current_x
@@ -5086,7 +4937,6 @@ class ESPWindow(QtWidgets.QWidget):
             except Exception as view_error:
                 pass
         
-        # Update scene and apply low CPU mode settings
         self.update_scene()
         try:
             self.apply_low_cpu_mode()
@@ -5229,12 +5079,10 @@ class ESPWindow(QtWidgets.QWidget):
         return False
 
     def update_scene(self):
-        # Early validation: ensure settings are properly loaded
         if not hasattr(self, 'settings') or not self.settings:
-            # Only load settings on first initialization, not during normal operation
             if not hasattr(self, '_initialization_complete'):
                 self._initialization_complete = True
-            return  # Skip this frame to prevent settings issues
+            return
                                                                  
         if not self.is_game_window_active():
             if hasattr(self, 'scene') and self.scene.items():
@@ -5260,7 +5108,6 @@ class ESPWindow(QtWidgets.QWidget):
                                                                                       
         size_or_position_changed = self.check_and_update_window_size()
 
-        # Final safety check: ensure settings are complete before rendering
         if not self.settings or not isinstance(self.settings, dict) or len(self.settings) == 0:
             return
 
@@ -5281,15 +5128,12 @@ class ESPWindow(QtWidgets.QWidget):
                 render_center_dot(self.scene, self.window_width, self.window_height, self.settings)
             
             if aim_circle_visible:
-                # Render Aim Radius
                 render_aim_circle(self.scene, self.window_width, self.window_height, self.settings)
             
-            # Render camera lock range lines if enabled
             camera_lock_range_lines_enabled = self.settings.get('camera_lock_draw_range_lines', 0) == 1
             if camera_lock_range_lines_enabled:
                 render_camera_lock_range_lines(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
-            # Render camera lock radius circle
             camera_lock_radius_enabled = self.settings.get('camera_lock_draw_radius', 0) == 1
             if camera_lock_radius_enabled:
                 render_camera_lock_radius(self.scene, self.window_width, self.window_height, self.settings)
@@ -5369,7 +5213,6 @@ class ESPWindow(QtWidgets.QWidget):
 def render_center_dot(scene, window_width, window_height, settings):
     """Render center dot independently of ESP settings"""
     try:
-        # Safety check: ensure settings are valid and complete
         if not settings or not isinstance(settings, dict):
             return
             
@@ -5415,7 +5258,6 @@ def render_center_dot(scene, window_width, window_height, settings):
 def render_aim_circle(scene, window_width, window_height, settings):
     """Render Aim Radius independently of ESP settings"""
     try:
-        # Safety check: ensure settings are valid and complete
         if not settings or not isinstance(settings, dict):
             return
             
@@ -5431,7 +5273,6 @@ def render_aim_circle(scene, window_width, window_height, settings):
                 try:
                                                                                            
                                                                                        
-                    # FOV always updates its own hue when enabled
                     RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
                     r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                     aim_qcolor = QtGui.QColor(r, g, b)
@@ -5465,48 +5306,39 @@ def render_aim_circle(scene, window_width, window_height, settings):
 def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
     """Render horizontal lines showing camera lock target position and deadzone"""
     try:
-        # Check if draw range lines is enabled
         if not settings.get('camera_lock_draw_range_lines', 0) == 1:
             return
         
-        # Check if camera lock is enabled
         if not settings.get('camera_lock_enabled', 0) == 1:
             return
             
-        # Check if trigger key is being held down
         trigger_key = settings.get('TriggerKey', 'X')
         trigger_vk = key_str_to_vk(trigger_key)
         
-        # Only show lines if trigger key is being pressed
         if trigger_vk != 0:
             try:
                 import win32api
                 if not (win32api.GetAsyncKeyState(trigger_vk) & 0x8000):
-                    return  # Trigger key is not being held
+                    return
             except Exception:
-                return  # Can't check key state, don't show lines
+                return
         else:
-            return  # Invalid trigger key
+            return
             
-        # Get camera lock tolerance (deadzone)
         tolerance = settings.get('camera_lock_tolerance', 5)
         
-        # Find the actual camera lock target position using the same logic as camera_lock function
         target_y = None
         valid_target_found = False
         
         try:
-            # Get view matrix and local player info
             view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
             local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
             
             try:
                 local_player_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
             except:
-                # If we can't get player info, don't show lines
                 return
             
-            # Scan for valid targets using same logic as camera_lock
             entity_list = pm.read_longlong(client + dwEntityList)
             entity_ptr = pm.read_longlong(entity_list + 0x10)
             
@@ -5538,16 +5370,14 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
 
                     entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
                     
-                    # Use esp_mode setting: 0 = enemies only, 1 = all players
                     esp_mode = settings.get('esp_mode', 0)
                     if esp_mode == 0 and entity_team == local_player_team:
-                        continue  # Skip teammates when in enemies-only mode
+                        continue
 
                     entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
                     if entity_alive != 256:
                         continue
 
-                    # Check spotted status if enabled
                     spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
                     if spotted_check_enabled:
                         try:
@@ -5556,44 +5386,35 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                         except:
                             is_spotted = False
                         
-                        # Skip non-spotted enemies when spotted check is enabled
                         if not is_spotted:
                             continue
 
-                    # Get target bone position
                     game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                     
-                    # Get selected bone ID from settings
                     target_bone_mode = settings.get('camera_lock_target_bone', 1)
                     target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
-                    target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
+                    target_bone_id = bone_ids.get(target_bone_name, 6)
                     
-                    # Get target bone position
                     target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
                     target_y_world = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
                     target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
                     
-                    # Project to screen
                     target_pos = w2s(view_matrix, target_x, target_y_world, target_z, window_width, window_height)
                     
-                    # Only consider targets within screen bounds
                     if (target_pos[0] != -999 and target_pos[1] != -999 and
                         0 <= target_pos[0] <= window_width and 
                         0 <= target_pos[1] <= window_height):
                         
-                        # Calculate distance from center of screen
                         dx = target_pos[0] - center_x
                         dy = target_pos[1] - center_y
                         distance = (dx * dx + dy * dy) ** 0.5
                         
-                        # Check if radius targeting is enabled
                         use_radius = settings.get('camera_lock_use_radius', 0) == 1
                         if use_radius:
-                            # Only consider targets within the radius
                             radius = settings.get('camera_lock_radius', 100)
                             if distance > radius:
-                                continue  # Skip targets outside the radius
+                                continue
                         
                         if distance < min_distance:
                             min_distance = distance
@@ -5603,56 +5424,46 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                 except Exception:
                     continue
             
-            # Only proceed if we found a valid target
             if not valid_target_found or not closest_target:
-                return  # No valid target found, don't show lines
+                return
                 
-            target_y = closest_target[1]  # Y coordinate of the target
+            target_y = closest_target[1]
                     
         except Exception:
-            # If anything fails, don't show lines
             return
         
-        # Calculate line positions based on target position and deadzone
         upper_line_y = target_y - tolerance
         lower_line_y = target_y + tolerance
         
-        # Get theme color for the lines
         try:
             if settings.get('rainbow_menu_theme', 0) == 1:
                 line_color_hex = settings.get('current_rainbow_color', '#FF0000')
             else:
                 line_color_hex = settings.get('menu_theme_color', '#FF0000')
             line_color = QtGui.QColor(line_color_hex)
-            line_color.setAlpha(180)  # Semi-transparent
+            line_color.setAlpha(180)
         except Exception:
             line_color = QtGui.QColor('#FF0000')
             line_color.setAlpha(180)
             
-        # Create pen for drawing lines - keep thickness constant and thin
         pen = QtGui.QPen(line_color)
-        pen.setWidth(0.1)  # Thinnest possible thickness for deadzone lines
+        pen.setWidth(0.1)
         pen.setStyle(QtCore.Qt.DashLine)
         
-        # Calculate line width using user setting - control line length
         line_width_setting = settings.get('camera_lock_line_width', 2)
-        line_width_multiplier = line_width_setting / 10.0  # Convert 1-10 to 0.1-1.0
-        # Modified formula: smaller minimum (5%) and reduced scaling for shorter lines at low values
+        line_width_multiplier = line_width_setting / 10.0
         line_width = window_width * (0.05 + line_width_multiplier * 0.3)  # 5% to 35% of screen width
-        line_start_x = (window_width - line_width) / 2  # Center the lines
+        line_start_x = (window_width - line_width) / 2
         line_end_x = line_start_x + line_width
         
-        # Draw upper line
         if 0 <= upper_line_y <= window_height:
             upper_line = scene.addLine(line_start_x, upper_line_y, line_end_x, upper_line_y, pen)
             
-        # Draw lower line  
         if 0 <= lower_line_y <= window_height:
             lower_line = scene.addLine(line_start_x, lower_line_y, line_end_x, lower_line_y, pen)
             
-        # Draw center target line (solid) - same thickness as deadzone lines
         center_pen = QtGui.QPen(line_color)
-        center_pen.setWidth(0)  # Thinnest possible thickness for center line
+        center_pen.setWidth(0)
         center_pen.setStyle(QtCore.Qt.SolidLine)
         center_line = scene.addLine(line_start_x, target_y, line_end_x, target_y, center_pen)
         
@@ -5662,39 +5473,32 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
 def render_camera_lock_radius(scene, window_width, window_height, settings):
     """Render camera lock radius circle"""
     try:
-        # Check if draw radius is enabled
         if not settings.get('camera_lock_draw_radius', 0) == 1:
             return
         
-        # Check if camera lock is enabled
         if not settings.get('camera_lock_enabled', 0) == 1:
             return
             
-        # Get radius size
         radius = settings.get('camera_lock_radius', 100)
         
-        # Calculate circle position (center of screen)
         center_x = window_width / 2
         center_y = window_height / 2
         
-        # Get color for the circle
         try:
             if settings.get('rainbow_menu_theme', 0) == 1:
                 circle_color_hex = settings.get('current_rainbow_color', '#FF0000')
             else:
                 circle_color_hex = settings.get('camera_lock_radius_color', '#FF0000')
             circle_color = QtGui.QColor(circle_color_hex)
-            circle_color.setAlpha(100)  # Semi-transparent
+            circle_color.setAlpha(100)
         except Exception:
             circle_color = QtGui.QColor('#FF0000')
             circle_color.setAlpha(100)
             
-        # Create pen for drawing circle
         pen = QtGui.QPen(circle_color)
-        pen.setWidth(0.1)  # Thinnest possible thickness for radius circle
+        pen.setWidth(0.1)
         pen.setStyle(QtCore.Qt.DashLine)
         
-        # Draw the radius circle
         scene.addEllipse(
             QtCore.QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2),
             pen,
@@ -5707,7 +5511,6 @@ def render_camera_lock_radius(scene, window_width, window_height, settings):
 def render_radar(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
     """Render radar showing enemy positions"""
     try:
-        # Safety check: ensure settings are valid and complete
         if not settings or not isinstance(settings, dict):
             return
             
@@ -6040,7 +5843,6 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
 def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
     """Render bomb ESP independently of main ESP"""
     try:
-        # Safety check: ensure settings are valid and complete
         if not settings or not isinstance(settings, dict):
             return
             
@@ -6106,16 +5908,15 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
                                                             
                 if DefuseTime > 0:
                     bomb_text = f'BOMB: {round(BombTime, 2)} | DEFUSE: {round(DefuseTime, 2)}'
-                    # Determine text color based on bomb time vs defuse time
                     if BombTime < DefuseTime:
-                        text_color = QtGui.QColor(255, 0, 0)  # Red - bomb will explode before defuse finishes
+                        text_color = QtGui.QColor(255, 0, 0)
                     elif BombTime > DefuseTime:
-                        text_color = QtGui.QColor(0, 255, 0)  # Green - defuse will finish before bomb explodes
+                        text_color = QtGui.QColor(0, 255, 0)
                     else:
-                        text_color = QtGui.QColor(255, 255, 0)  # Yellow - exact timing (very rare)
+                        text_color = QtGui.QColor(255, 255, 0)
                 else:
                     bomb_text = f'BOMB: {round(BombTime, 2)}'
-                    text_color = QtGui.QColor(255, 255, 255)  # White - no defuse
+                    text_color = QtGui.QColor(255, 255, 255)
                 
                 c4_name_x = BombPosition[0]
                 c4_name_y = BombPosition[1]
@@ -6136,7 +5937,6 @@ def render_bomb_esp(scene, pm, client, offsets, client_dll, window_width, window
         pass
 
 def esp(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
-    # Safety check: ensure settings are valid and complete
     if not settings or not isinstance(settings, dict):
         return
                                    
@@ -6181,9 +5981,9 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
     no_center_x = window_width / 2
     lines_position = settings.get('lines_position', 'Bottom')
     if lines_position == 'Top':
-        no_center_y = 0  # Top of screen
+        no_center_y = 0
     else:
-        no_center_y = window_height  # Very bottom of screen (default)
+        no_center_y = window_height
     entity_list = pm.read_longlong(client + dwEntityList)
     entity_ptr = pm.read_longlong(entity_list + 0x10)
 
@@ -6251,13 +6051,10 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 
                                         
                 if line_rendering:
-                    # Choose connection point based on lines position setting
                     if lines_position == 'Top':
-                        # Connect to top of ESP box
                         connection_x = head_pos[0]
-                        connection_y = head_pos[1]  # This is already the top of the ESP box
+                        connection_y = head_pos[1]
                     else:
-                        # Connect to bottom of player (feet) - default behavior
                         connection_x = head_pos[0] - (head_pos[0] - leg_pos[0]) // 2
                         connection_y = leg_pos[1]
                     
@@ -6273,44 +6070,37 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     box_pen.setCapStyle(QtCore.Qt.SquareCap)                                  
                     box_pen.setJoinStyle(QtCore.Qt.MiterJoin)
                     
-                    # Check box mode setting - force 2D if low CPU mode is enabled
                     low_cpu_enabled = settings.get('low_cpu', 0) == 1
                     box_mode = '2D' if low_cpu_enabled else settings.get('box_mode', '2D')
                     
                     if box_mode == '3D':
-                        # True 3D bounding box - define player dimensions in game units
-                        player_width = 32.0    # CS2 player width in game units
-                        player_length = 32.0   # CS2 player depth in game units  
-                        player_height = 72.0   # CS2 player height in game units
+                        player_width = 32.0
+                        player_length = 32.0
+                        player_height = 72.0
                         
-                        # Get player's 3D position
                         try:
                             player_origin_addr = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                             origin_x = pm.read_float(player_origin_addr + m_vecAbsOrigin)
                             origin_y = pm.read_float(player_origin_addr + m_vecAbsOrigin + 4)
                             origin_z = pm.read_float(player_origin_addr + m_vecAbsOrigin + 8)
                             
-                            # Define 8 corners of 3D bounding box around player
                             half_width = player_width / 2
                             half_length = player_length / 2
                             
-                            # Bottom face corners (at player's feet)
                             bottom_corners = [
-                                (origin_x - half_width, origin_y - half_length, origin_z),  # Bottom front-left
-                                (origin_x + half_width, origin_y - half_length, origin_z),  # Bottom front-right
-                                (origin_x + half_width, origin_y + half_length, origin_z),  # Bottom back-right
-                                (origin_x - half_width, origin_y + half_length, origin_z),  # Bottom back-left
+                                (origin_x - half_width, origin_y - half_length, origin_z),
+                                (origin_x + half_width, origin_y - half_length, origin_z),
+                                (origin_x + half_width, origin_y + half_length, origin_z),
+                                (origin_x - half_width, origin_y + half_length, origin_z),
                             ]
                             
-                            # Top face corners (at player's head)
                             top_corners = [
-                                (origin_x - half_width, origin_y - half_length, origin_z + player_height),  # Top front-left
-                                (origin_x + half_width, origin_y - half_length, origin_z + player_height),  # Top front-right
-                                (origin_x + half_width, origin_y + half_length, origin_z + player_height),  # Top back-right
-                                (origin_x - half_width, origin_y + half_length, origin_z + player_height),  # Top back-left
+                                (origin_x - half_width, origin_y - half_length, origin_z + player_height),
+                                (origin_x + half_width, origin_y - half_length, origin_z + player_height),
+                                (origin_x + half_width, origin_y + half_length, origin_z + player_height),
+                                (origin_x - half_width, origin_y + half_length, origin_z + player_height),
                             ]
                             
-                            # Project all 8 corners to screen coordinates
                             bottom_screen = []
                             top_screen = []
                             
@@ -6330,49 +6120,40 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                                         break
                                     top_screen.append((screen_x, screen_y))
                             
-                            # Draw the 3D bounding box if all corners are valid
                             if all_corners_valid:
-                                # Draw bottom face edges
                                 for i in range(4):
                                     next_i = (i + 1) % 4
                                     scene.addLine(bottom_screen[i][0], bottom_screen[i][1], 
                                                 bottom_screen[next_i][0], bottom_screen[next_i][1], box_pen)
                                 
-                                # Draw top face edges  
                                 for i in range(4):
                                     next_i = (i + 1) % 4
                                     scene.addLine(top_screen[i][0], top_screen[i][1],
                                                 top_screen[next_i][0], top_screen[next_i][1], box_pen)
                                 
-                                # Draw vertical edges connecting bottom to top
                                 for i in range(4):
                                     scene.addLine(bottom_screen[i][0], bottom_screen[i][1],
                                                 top_screen[i][0], top_screen[i][1], box_pen)
                             else:
-                                # Fallback to 2D box if 3D projection fails
                                 scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
                                 
                         except Exception:
-                            # Fallback to 2D box if 3D calculation fails
                             scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)
                     else:
-                        # 2D box mode (default)
+
                         scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)                                          
                 if hp_bar_rendering:
                     max_hp = 100
                     hp_percentage = min(1.0, max(0.0, entity_hp / max_hp))
                     
-                    # Horizontal HP bar under player
-                    hp_bar_width = (rightX - leftX) + 10  # Extended width (5px on each side)
-                    hp_bar_height = 3  # Fixed height for horizontal bar
-                    hp_bar_x_left = leftX - 5  # Start 5px to the left
-                    hp_bar_y_top = leg_pos[1] + 5  # Position under player feet
+                    hp_bar_width = (rightX - leftX) + 10
+                    hp_bar_height = 3
+                    hp_bar_x_left = leftX - 5
+                    hp_bar_y_top = leg_pos[1] + 5
                     
-                    # HP bar background (smaller outline)
                     bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
                     hp_bar_bg = scene.addRect(QtCore.QRectF(hp_bar_x_left-0.5, hp_bar_y_top-0.5, hp_bar_width+1, hp_bar_height+1), bg_pen, QtGui.QColor(0, 0, 0, 120))
                     
-                    # HP color based on percentage
                     hp_color = QtGui.QColor()
                     if hp_percentage > 0.6:
                         hp_color.setRgb(int(255*(1-hp_percentage)), 255, 0)                   
@@ -6381,26 +6162,21 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     else:
                         hp_color.setRgb(255, 0, 0)       
                     
-                    # Current HP bar (fills from left to right)
                     current_hp_width = hp_bar_width * hp_percentage
                     hp_bar_current = scene.addRect(QtCore.QRectF(hp_bar_x_left, hp_bar_y_top, current_hp_width, hp_bar_height), QtGui.QPen(QtCore.Qt.NoPen), hp_color)
                     
-                    # Armor bar (if armor exists, place it below HP bar)
                     if armor_hp > 0:
                         max_armor_hp = 100
                         armor_hp_percentage = min(1.0, max(0.0, armor_hp / max_armor_hp))
                         
-                        # Horizontal armor bar below HP bar
-                        armor_bar_width = (rightX - leftX) + 10  # Extended width (5px on each side)
-                        armor_bar_height = 3  # Fixed height for horizontal bar
-                        armor_bar_x_left = leftX - 5  # Start 5px to the left
-                        armor_bar_y_top = hp_bar_y_top + hp_bar_height + 2  # Below HP bar with 2px gap
+                        armor_bar_width = (rightX - leftX) + 10
+                        armor_bar_height = 3
+                        armor_bar_x_left = leftX - 5
+                        armor_bar_y_top = hp_bar_y_top + hp_bar_height + 2
                         
-                        # Armor bar background (smaller outline)
                         armor_bg_pen = QtGui.QPen(QtGui.QColor(255, 255, 255, 180), 1)
                         armor_bar_bg = scene.addRect(QtCore.QRectF(armor_bar_x_left-0.5, armor_bar_y_top-0.5, armor_bar_width+1, armor_bar_height+1), armor_bg_pen, QtGui.QColor(0, 0, 0, 120))
                         
-                        # Current armor bar (fills from left to right)
                         current_armor_width = armor_bar_width * armor_hp_percentage
                         armor_color = QtGui.QColor(100, 149, 237)                   
                         armor_bar_current = scene.addRect(QtCore.QRectF(armor_bar_x_left, armor_bar_y_top, current_armor_width, armor_bar_height), QtGui.QPen(QtCore.Qt.NoPen), armor_color)
@@ -6554,25 +6330,21 @@ def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height, settings):
 
 def esp_main():
     try:
-        # Load settings with retry logic to ensure config is ready
         settings = None
-        for attempt in range(5):  # Try up to 5 times instead of 3
+        for attempt in range(5):
             try:
                 settings = load_settings()
-                # Validate that settings are complete and valid
                 if settings and isinstance(settings, dict) and len(settings) >= len(DEFAULT_SETTINGS) // 2:
-                    # Ensure all critical settings exist by merging with defaults
                     complete_settings = DEFAULT_SETTINGS.copy()
                     complete_settings.update(settings)
                     settings = complete_settings
                     break
             except Exception:
                 settings = None
-            time.sleep(0.2)  # Longer delay between attempts
+            time.sleep(0.2)
         
         if not settings:
             settings = DEFAULT_SETTINGS.copy()
-            # Try to save default settings to ensure config file exists
             try:
                 save_settings(settings)
             except Exception:
@@ -6678,7 +6450,6 @@ def triggerbot():
             if entityHp <= 0:
                 return False
                 
-            # Head-only check
             if head_only:
                 view_matrix = []
                 for i in range(16):
@@ -6710,11 +6481,10 @@ def triggerbot():
         pm = None
         client = None
         
-        # Triggerbot state tracking
         trigger_key_pressed = False
         first_shot_time = None
-        burst_shot_count = 0  # Track shots fired in current burst
-        last_burst_time = 0   # Track time of last burst
+        burst_shot_count = 0
+        last_burst_time = 0
         
         while pm is None or client is None:
             if is_cs2_running():
@@ -6731,7 +6501,6 @@ def triggerbot():
                 time.sleep(1)
         while True:
             try:
-                # Triggerbot settings
                 trigger_bot_active = settings.get("trigger_bot_active", 0)
                 keyboards = settings.get("TriggerKey", "X")
                 between_shots_delay_ms = settings.get("triggerbot_between_shots_delay", 30)
@@ -6741,13 +6510,11 @@ def triggerbot():
                 head_only_mode = settings.get("triggerbot_head_only", 0)
                 vk = key_str_to_vk(keyboards)
                 
-                # Check triggerbot key state
                 if is_keybind_on_global_cooldown("TriggerKey"):
                     key_currently_pressed = False
                 else:
                     key_currently_pressed = vk != 0 and (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
                 
-                # Handle triggerbot key transitions
                 if key_currently_pressed and not trigger_key_pressed:
                     trigger_key_pressed = True
                     first_shot_time = time.time()
@@ -6755,7 +6522,6 @@ def triggerbot():
                     trigger_key_pressed = False
                     first_shot_time = None
                 
-                # Process regular triggerbot
                 if key_currently_pressed and trigger_bot_active == 1:
                     try:
                         player = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -6773,7 +6539,6 @@ def triggerbot():
                                 should_shoot = False
                                 
                                 if head_only_mode:
-                                    # Head-only mode - check if crosshair is on head
                                     try:
                                         view_matrix = []
                                         for i in range(16):
@@ -6799,16 +6564,13 @@ def triggerbot():
                                     except Exception:
                                         pass
                                 else:
-                                    # Normal mode - shoot at any enemy body part
                                     should_shoot = True
                                 
                                 if should_shoot:
                                     current_time = time.time()
                                     
-                                    # Handle first shot delay
                                     if first_shot_time is None or current_time - first_shot_time >= (first_shot_delay_ms / 1000.0):
                                         if not burst_mode:
-                                            # Normal mode - continuous shooting with delay
                                             try:
                                                 mouse.press(Button.left)
                                                 mouse.release(Button.left)
@@ -6816,7 +6578,6 @@ def triggerbot():
                                                     first_shot_time = None                          
                                                 last_shot_time = current_time
                                                 
-                                                # Continue shooting while key is held
                                                 while key_currently_pressed and trigger_bot_active == 1:
                                                     time.sleep(0.001)                     
                                                     current_time = time.time()
@@ -6828,7 +6589,6 @@ def triggerbot():
                                                         if trigger_bot_active != 1:
                                                             break
                                                         
-                                                        # Re-check target validity for continuous shooting
                                                         if not _check_target_valid(pm, client, head_only_mode):
                                                             break
                                                             
@@ -6838,22 +6598,17 @@ def triggerbot():
                                             except Exception:
                                                 pass
                                         else:
-                                            # Burst mode - fire exact number of shots specified
                                             try:
-                                                # Check if enough time has passed since last burst
                                                 if burst_shot_count == 0 or current_time - last_burst_time >= (between_shots_delay_ms / 1000.0):
-                                                    # Click mouse exactly burst_shots times
                                                     actual_clicks = 0
                                                     i = 0
                                                     while i < burst_shots:
                                                         mouse.click(Button.left)
                                                         actual_clicks += 1
                                                         i += 1
-                                                        # Delay between clicks to ensure CS2 registers them
                                                         if i < burst_shots:
                                                             time.sleep(0.1)
                                                     
-                                                    # Mark burst as completed
                                                     burst_shot_count = actual_clicks
                                                     last_burst_time = current_time
                                                     if first_shot_time is not None:
@@ -6863,7 +6618,6 @@ def triggerbot():
                     except Exception:
                         pass
                 
-                # Reload settings every 10 loops to pick up config changes
                 settings = load_settings()
                         
             except Exception:
@@ -7060,7 +6814,6 @@ def bhop():
                     bhop_key_setting = settings.get("BhopKey", "SPACE")
                     activation_key = convert_key_to_keyboard_format(bhop_key_setting)
                     
-                    # Fallback key validation
                     try:
                         keyboard.is_pressed(activation_key)
                     except:
@@ -7071,42 +6824,35 @@ def bhop():
                     
                     if key_currently_pressed and toggle:
                         if not bhop_key_pressed:
-                            # Key just pressed - start bhop
                             bhop_key_pressed = True
                             send_space(TICK_64_MS * 1.5)
                             last_jump_time = current_time
                         else:
-                            # Key held down - continue bhop timing
                             if current_time - last_jump_time >= TICK_64_MS * 3:
                                 send_space(TICK_64_MS * 3)
                                 last_jump_time = current_time
                     else:
                         if bhop_key_pressed:
-                            # Key just released - ensure space is released
                             bhop_key_pressed = False
                             release_space()
-                            time.sleep(0.001)  # Small delay to ensure release is processed
+                            time.sleep(0.001)
                     
-                    # Handle toggle key
                     if keyboard.is_pressed(toggle_key):
                         toggle = not toggle
                         time.sleep(0.2)
                     
-                    time.sleep(0.001)  # Small sleep to prevent excessive CPU usage
+                    time.sleep(0.001)
                 else:
-                    # Bhop disabled or not in CS2 - ensure space is released
                     if bhop_key_pressed:
                         bhop_key_pressed = False
                         release_space()
                     time.sleep(0.1)
                     
             except KeyboardInterrupt:
-                # Ensure space is released on exit
                 if bhop_key_pressed:
                     release_space()
                 break
             except Exception:
-                # Ensure space is released on error
                 if bhop_key_pressed:
                     bhop_key_pressed = False
                     release_space()
@@ -7265,7 +7011,6 @@ def aim():
                     deltaZ = abs(head_pos[1] - leg_pos[1]) if head_pos[1] != -999 and leg_pos[1] != -999 else None
 
                     
-                    # Get velocity for movement prediction
                     try:
                         velocity_x = pm.read_float(entity_pawn_addr + m_vecVelocity)
                         velocity_y = pm.read_float(entity_pawn_addr + m_vecVelocity + 4)
@@ -7296,10 +7041,8 @@ def aim():
                 client = self.cheat_loop.client
                 
                 if pm and client:
-                    # Read local player controller
                     local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                     if local_player_controller:
-                        # Write FOV value to the player controller
                         pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
         except Exception:
             pass
@@ -7323,14 +7066,12 @@ def aim():
         center_x = win32api.GetSystemMetrics(0) // 2
         center_y = win32api.GetSystemMetrics(1) // 2
 
-        # Get current FOV for compensation calculations
-        current_fov = 90  # Default FOV
+        current_fov = 90
         try:
             if pm and client:
                 local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                 if local_player_controller:
                     current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                    # Clamp FOV to actual game values (60-160)
                     if current_fov < 60 or current_fov > 160:
                         current_fov = 90
         except Exception:
@@ -7371,8 +7112,6 @@ def aim():
                     closest = (pos, ent_addr)
                     closest_dist = dist
         else:
-            # Apply FOV compensation to radius calculation
-            # Use the same angular compensation as mouse movement for consistency
             import math
             fov_rad_current = math.radians(current_fov / 2.0)
             fov_rad_default = math.radians(90.0 / 2.0)
@@ -7449,13 +7188,11 @@ def aim():
 
         
 
-        # Movement prediction logic
         movement_prediction_enabled = settings.get('aim_movement_prediction', 0) == 1
         target_x, target_y = pos
         
         if movement_prediction_enabled and pm and client:
             try:
-                # Get velocity data for the target entity
                 target_velocity = None
                 target_bone_id = _select_bone_for_entity(ent_addr)
                 
@@ -7464,66 +7201,45 @@ def aim():
                         target_velocity = target.get('velocity', (0, 0, 0))
                         break
                 
-                # Only predict for targets with significant movement (reduced threshold for better accuracy)
                 if target_velocity and (abs(target_velocity[0]) > 30 or abs(target_velocity[1]) > 30):
-                    # Much more conservative prediction time - CS2 is hitscan so we need minimal lead
-                    # Base on 2D screen distance, but keep it very small
                     distance_to_target = ((pos[0] - center_x)**2 + (pos[1] - center_y)**2)**0.5
                     
-                    # Very short prediction time: 0.01 to 0.08 seconds max
-                    # This accounts for network latency and minor movement prediction
-                    max_screen_distance = 500  # Reasonable screen distance reference
+                    max_screen_distance = 500
                     prediction_time = 0.01 + min(distance_to_target / max_screen_distance, 1.0) * 0.07
                     
-                    # Get the specific bone position we're targeting, not just world center
                     try:
-                        # Read the bone matrix for the target
                         game_scene_node = pm.read_longlong(ent_addr + m_pGameSceneNode)
                         bone_matrix = pm.read_longlong(game_scene_node + m_modelState + 0x80)
                         
-                        # Get current bone world position
                         current_bone_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
                         current_bone_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
                         current_bone_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
                         
-                        # Apply conservative movement prediction to the bone position
                         predicted_bone_x = current_bone_x + (target_velocity[0] * prediction_time)
                         predicted_bone_y = current_bone_y + (target_velocity[1] * prediction_time)
                         predicted_bone_z = current_bone_z + (target_velocity[2] * prediction_time)
                         
-                        # Get view matrix and convert predicted bone position to screen coordinates
                         view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
                         
-                        # Project predicted bone position to screen
                         screen_width = win32api.GetSystemMetrics(0)
                         screen_height = win32api.GetSystemMetrics(1)
                         predicted_screen = w2s(view_matrix, predicted_bone_x, predicted_bone_y, predicted_bone_z, screen_width, screen_height)
                         
                         if predicted_screen and predicted_screen[0] != -999 and predicted_screen[1] != -999:
-                            # Use predicted screen position as new target
                             target_x, target_y = predicted_screen
                     except Exception:
-                        # If prediction fails, fall back to original position
                         pass
             except Exception:
-                # If any part of movement prediction fails, continue with original position
                 pass
 
-        # Calculate final aim adjustments with FOV compensation                                                           
         dx = target_x - center_x
         dy = target_y - center_y
 
-        # Apply FOV compensation to mouse movement
-        # In CS2, mouse sensitivity is inversely related to FOV for maintaining consistent angular movement
-        # Higher FOV = wider view = need MORE mouse movement to achieve same angular rotation
-        # Lower FOV = narrower view = need LESS mouse movement to achieve same angular rotation
-        # Formula: compensation = tan(current_fov/2) / tan(90/2) for proper angular scaling
         import math
         fov_rad_current = math.radians(current_fov / 2.0)
         fov_rad_default = math.radians(90.0 / 2.0)
         fov_compensation = math.tan(fov_rad_current) / math.tan(fov_rad_default)
         
-        # Apply FOV compensation to the deltas
         dx *= fov_compensation
         dy *= fov_compensation
 
@@ -7541,7 +7257,7 @@ def aim():
                                                                                      
                                                   
                                                               
-            max_smoothness = 3000000.0  # Updated to 3 million maximum
+            max_smoothness = 3000000.0
             min_alpha = 0.0005                                       
             max_alpha = 1.0                                         
             
@@ -7594,19 +7310,16 @@ def aim():
             if not settings.get('camera_lock_enabled', 0):
                 return
             
-            # Check if triggerbot key is being held (same key as triggerbot)
             trigger_key = settings.get('TriggerKey', 'X')
             trigger_key_vk = key_str_to_vk(trigger_key)
             if not trigger_key_vk or not (win32api.GetAsyncKeyState(trigger_key_vk) & 0x8000):
                 return
             
-            # Get window dimensions
             window_width = win32api.GetSystemMetrics(0)
             window_height = win32api.GetSystemMetrics(1)
             center_x = window_width // 2
             center_y = window_height // 2
             
-            # Get view matrix and local player info
             view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
             local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
             
@@ -7615,7 +7328,6 @@ def aim():
             except:
                 return
             
-            # Scan for valid targets
             entity_list = pm.read_longlong(client + dwEntityList)
             entity_ptr = pm.read_longlong(entity_list + 0x10)
             
@@ -7645,16 +7357,14 @@ def aim():
 
                     entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
                     
-                    # Use esp_mode setting: 0 = enemies only, 1 = all players
                     esp_mode = settings.get('esp_mode', 0)
                     if esp_mode == 0 and entity_team == local_player_team:
-                        continue  # Skip teammates when in enemies-only mode
+                        continue
 
                     entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
                     if entity_alive != 256:
                         continue
 
-                    # Check spotted status if enabled
                     spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
                     if spotted_check_enabled:
                         try:
@@ -7663,44 +7373,35 @@ def aim():
                         except:
                             is_spotted = False
                         
-                        # Skip non-spotted enemies when spotted check is enabled
                         if not is_spotted:
                             continue
 
-                    # Get target bone position
                     game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                     
-                    # Get selected bone ID from settings
                     target_bone_mode = settings.get('camera_lock_target_bone', 1)
                     target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
-                    target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
+                    target_bone_id = bone_ids.get(target_bone_name, 6)
                     
-                    # Get target bone position
                     target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
                     target_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
                     target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
                     
-                    # Project to screen
                     target_pos = w2s(view_matrix, target_x, target_y, target_z, window_width, window_height)
                     
-                    # Only consider targets within screen bounds
                     if (target_pos[0] != -999 and target_pos[1] != -999 and
                         0 <= target_pos[0] <= window_width and 
                         0 <= target_pos[1] <= window_height):
                         
-                        # Calculate distance from center of screen
                         dx = target_pos[0] - center_x
                         dy = target_pos[1] - center_y
                         distance = (dx * dx + dy * dy) ** 0.5
                         
-                        # Check if radius targeting is enabled
                         use_radius = settings.get('camera_lock_use_radius', 0) == 1
                         if use_radius:
-                            # Only consider targets within the radius
                             radius = settings.get('camera_lock_radius', 100)
                             if distance > radius:
-                                continue  # Skip targets outside the radius
+                                continue
                         
                         if distance < min_distance:
                             min_distance = distance
@@ -7709,41 +7410,28 @@ def aim():
                 except Exception:
                     continue
             
-            # Apply camera adjustment if target found
             if closest_target:
                 target_x, target_y = closest_target
                 
-                # Calculate vertical adjustment needed to align with target
                 dy = target_y - center_y
                 
-                # Get user-configurable tolerance (dead zone)
                 tolerance = settings.get('camera_lock_tolerance', 5)
                 
-                # Only adjust if the difference is significant (more than tolerance pixels)
                 if abs(dy) > tolerance:
-                    # Apply smooth camera movement with user-configurable smoothness
                     smoothness_value = settings.get('camera_lock_smoothness', 5)
                     if smoothness_value <= 0:
                         smoothness_value = 1
-                    # Use a different approach: smoothness controls how much we move per frame
-                    # Lower values = faster (more movement), higher values = slower (less movement)
-                    # Map 1-50 to movement speeds that are actually noticeable
                     smoothness_value = max(1, min(50, smoothness_value))
                     
                     if smoothness_value == 1:
-                        # Instant snap - move the full distance
                         move_y = dy
                     else:
-                        # Gradual movement - move a fraction of the distance each frame
-                        # Higher smoothness = smaller fraction = slower movement
                         movement_fraction = 1.0 / smoothness_value
                         move_y = int(dy * movement_fraction)
                         
-                        # Ensure we always move at least 1 pixel if there's any distance
                         if dy != 0 and move_y == 0:
                             move_y = 1 if dy > 0 else -1
 
-                    # Apply the camera adjustment directly
                     win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, move_y, 0, 0)
                     
         except Exception:
@@ -7769,11 +7457,9 @@ def aim():
                 time.sleep(1)
         window_size = get_window_size()
         
-        # Counter for periodic settings reload
         loop_counter = 0
         
         while True:
-            # Reload settings every 10 loops to pick up changes
             if loop_counter % 10 == 0:
                 try:
                     new_settings = load_settings()
@@ -7782,12 +7468,10 @@ def aim():
                     pass
             loop_counter += 1
             
-            # Only run ESP and aimbot if aim is active
             if settings.get('aim_active', 0) == 1:
                 target_list = []
                 target_list = esp(pm, client, settings, target_list, window_size)
                 
-                # Apply FOV setting only if auto-apply is enabled
                 try:
                     if settings.get('auto_apply_fov', 0) == 1:
                         game_fov = settings.get('game_fov', 90)
@@ -7824,7 +7508,6 @@ def aim():
                 except Exception:
                     pass
 
-                # Check if aimkey is required or if it's pressed
                 require_aimkey = settings.get('require_aimkey', 1) == 1
                 should_aim = pressed if require_aimkey else True
                 
@@ -7833,7 +7516,6 @@ def aim():
                     smoothness = settings.get('aim_smoothness', 0)
                     aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
             
-            # Apply camera lock (completely independent)
             camera_lock(pm, client, settings)
             
             time.sleep(0.001)
@@ -7938,7 +7620,6 @@ def auto_accept_main():
 
 if __name__ == "__main__":
     
-    # Register cleanup handlers as early as possible
     register_cleanup_handlers()
     
     print("Starting Popsicle CS2 application...")
@@ -7948,10 +7629,9 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # Version check worker started
     version_thread = threading.Thread(target=version_check_worker, daemon=True)
     version_thread.start()
-    pass  # Version check worker started
+    pass
 
                                                         
     if not handle_instance_check():
@@ -7978,25 +7658,25 @@ if __name__ == "__main__":
     
                                      
     if is_cs2_running():
-        pass  # CS2 is already running
+        pass
                                              
         if STARTUP_ENABLED:
-            pass  # Startup delays enabled
+            pass
             time.sleep(4)
             
                                      
-            pass  # Triggering graphics restart
+            pass
             trigger_graphics_restart()
             
                                                               
         pm = None
         try:
             pm = pymem.Pymem("cs2.exe")
-            pass  # Successfully connected to CS2 process
+            pass
         except Exception:
-            pass  # Failed to connect to CS2 process initially
+            pass
     else:
-        pass  # CS2 is not running - showing wait dialog
+        pass
                                                    
         app_title = get_app_title()
         result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
@@ -8033,12 +7713,10 @@ if __name__ == "__main__":
     
     process_names = ["configurator", "esp_main", "triggerbot", "bhop", "auto_accept_main"]
     
-    # Only add aim process in full mode
     if SELECTED_MODE == 'full':
         procs.append(multiprocessing.Process(target=aim))
         process_names.append("aim")
     
-    # Track all processes for cleanup
     for proc in procs:
         track_process(proc)
     
@@ -8046,17 +7724,15 @@ if __name__ == "__main__":
         """Clean shutdown of all processes and resources"""
         print(f"[DEBUG] Cleanup initiated: {reason}")
         
-        # Use the comprehensive cleanup function
         cleanup_all_temporary_files()
         
-        # Legacy cleanup for any missed processes
         if 'procs' in locals() or 'procs' in globals():
             for i, p in enumerate(procs):
                 try:
                     if p.is_alive():
                         print(f"[DEBUG] Legacy terminating process: {process_names[i]}")
                         p.terminate()
-                        p.join(2)  # Wait up to 2 seconds for clean shutdown
+                        p.join(2)
                         if p.is_alive():
                             print(f"[DEBUG] Legacy force killing process: {process_names[i]}")
                             p.kill()
@@ -8064,15 +7740,22 @@ if __name__ == "__main__":
                 except Exception as e:
                     print(f"[DEBUG] Error terminating {process_names[i]}: {e}")
         
-        # Final fallback cleanup
         remove_lock_file()
         
-    # Start all processes
     print("[DEBUG] Starting all processes...")
     for i, p in enumerate(procs):
         print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
-        time.sleep(0.5)  # Small delay between process starts
+        time.sleep(0.5)
+
+    # Signal to loader that script is fully loaded and processes started
+    try:
+        loaded_signal_path = os.path.join(os.getcwd(), 'script_loaded.signal')
+        with open(loaded_signal_path, 'w') as f:
+            f.write('loaded')
+        print("[DEBUG] Script fully loaded - signal sent to loader")
+    except Exception as e:
+        print(f"[DEBUG] Failed to create loaded signal: {e}")
 
     try:
         print("[DEBUG] Entering main monitoring loop...")
@@ -8082,12 +7765,10 @@ if __name__ == "__main__":
             time.sleep(1)
             process_check_interval += 1
             
-            # Check for terminate signal (including panic shutdowns)
             if os.path.exists(TERMINATE_SIGNAL_FILE):
                 print("[DEBUG] Terminate signal detected")
                 break
             
-            # Also check for panic signal file (backup check)
             panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
             if os.path.exists(panic_file):
                 print("[DEBUG] Panic shutdown signal detected")
@@ -8097,12 +7778,10 @@ if __name__ == "__main__":
                     pass
                 break
                                                                                          
-            # Check if CS2 is still running
             if not is_cs2_running():
                 print("[DEBUG] CS2 no longer running")
                 break
             
-            # Check process health every 5 seconds
             if process_check_interval >= 5:
                 process_check_interval = 0
                 
@@ -8114,7 +7793,6 @@ if __name__ == "__main__":
                 if dead_processes:
                     print(f"[DEBUG] Dead processes detected: {', '.join(dead_processes)}")
                     
-                    # Show error message to user
                     app_title = get_app_title()
                     error_msg = f"The following process(es) have stopped unexpectedly:\\n{', '.join(dead_processes)}\\n\\nAll processes will be terminated for safety."
                     try:
@@ -8122,7 +7800,7 @@ if __name__ == "__main__":
                             0, 
                             error_msg, 
                             f"{app_title} - Process Failure", 
-                            0x00000000 | 0x00010000 | 0x00040000 | 0x00000030  # OK + SetForeground + TopMost + Warning Icon
+                            0x00000000 | 0x00010000 | 0x00040000 | 0x00000030
                         )
                     except Exception:
                         pass
@@ -8142,7 +7820,7 @@ if __name__ == "__main__":
                 0, 
                 f"An unexpected error occurred in the main process:\\n{str(e)}\\n\\nAll processes will be terminated.", 
                 f"{app_title} - Critical Error", 
-                0x00000000 | 0x00010000 | 0x00040000 | 0x00000010  # OK + SetForeground + TopMost + Error Icon
+                0x00000000 | 0x00010000 | 0x00040000 | 0x00000010
             )
         except Exception:
             pass
