@@ -1,4 +1,4 @@
-#1
+#2
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -8,6 +8,10 @@ import os
 import sys
 import json
 import time
+import atexit
+import signal
+import tempfile
+import glob
                                                                                   
 import random
 import threading
@@ -36,6 +40,10 @@ from datetime import datetime
 
 CONSOLE_CREATED = False
 
+# Global variables for cleanup tracking
+TEMPORARY_FILES = set()  # Track all temporary files created
+CLEANUP_REGISTERED = False  # Track if cleanup handlers are registered
+PROCESSES_LIST = []  # Track all spawned processes for cleanup
 
 LOG_FILE = None
 original_stdout = None
@@ -82,6 +90,7 @@ def setup_logging():
     
 
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
+    add_temporary_file(LOG_FILE)  # Track for cleanup
     
 
     original_stdout = sys.stdout
@@ -116,6 +125,168 @@ def cleanup_logging():
     
 
     LOG_FILE = None
+
+def cleanup_all_temporary_files():
+    """Comprehensive cleanup of all temporary files created by the script"""
+    global TEMPORARY_FILES, PROCESSES_LIST
+    
+    try:
+        print("[CLEANUP] Starting comprehensive cleanup...")
+        
+        # 1. Terminate all spawned processes first
+        if PROCESSES_LIST:
+            print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
+            for i, p in enumerate(PROCESSES_LIST):
+                try:
+                    if hasattr(p, 'is_alive') and p.is_alive():
+                        print(f"[CLEANUP] Terminating process {i+1}")
+                        p.terminate()
+                        p.join(2)  # Wait up to 2 seconds
+                        if p.is_alive():
+                            p.kill()
+                            p.join(1)
+                except Exception as e:
+                    print(f"[CLEANUP] Error terminating process {i+1}: {e}")
+        
+        # 2. Clean up tracked temporary files
+        files_cleaned = 0
+        if TEMPORARY_FILES:
+            print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
+            for temp_file in list(TEMPORARY_FILES):
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                        files_cleaned += 1
+                        print(f"[CLEANUP] Removed: {temp_file}")
+                except Exception as e:
+                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
+        
+        # 3. Clean up standard temporary files
+        standard_temp_files = [
+            LOCK_FILE,
+            TERMINATE_SIGNAL_FILE,
+            KEYBIND_COOLDOWNS_FILE,
+            CONSOLE_LOCK_FILE,
+            MODE_FILE,
+            os.path.join(os.getcwd(), 'debug_log.txt'),
+            os.path.join(os.getcwd(), 'panic_shutdown.signal')
+        ]
+        
+        print("[CLEANUP] Cleaning standard temporary files...")
+        for temp_file in standard_temp_files:
+            try:
+                if temp_file and os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    files_cleaned += 1
+                    print(f"[CLEANUP] Removed: {temp_file}")
+            except Exception as e:
+                print(f"[CLEANUP] Error removing {temp_file}: {e}")
+        
+        # 4. Clean up any orphaned .signal files
+        try:
+            import glob
+            signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
+            if signal_files:
+                print(f"[CLEANUP] Cleaning {len(signal_files)} signal files...")
+                for signal_file in signal_files:
+                    try:
+                        os.remove(signal_file)
+                        files_cleaned += 1
+                        print(f"[CLEANUP] Removed signal file: {signal_file}")
+                    except Exception as e:
+                        print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
+        except Exception as e:
+            print(f"[CLEANUP] Error cleaning signal files: {e}")
+        
+        # 5. Clean up any orphaned .lock files
+        try:
+            import glob
+            lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
+            if lock_files:
+                print(f"[CLEANUP] Cleaning {len(lock_files)} lock files...")
+                for lock_file in lock_files:
+                    try:
+                        os.remove(lock_file)
+                        files_cleaned += 1
+                        print(f"[CLEANUP] Removed lock file: {lock_file}")
+                    except Exception as e:
+                        print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
+        except Exception as e:
+            print(f"[CLEANUP] Error cleaning lock files: {e}")
+        
+        # 6. Clean up temporary script files in system temp directory
+        try:
+            import tempfile
+            import glob
+            temp_dir = tempfile.gettempdir()
+            script_temp_files = glob.glob(os.path.join(temp_dir, '*.pyw'))
+            # Only remove files that are likely from our loader (recent and small)
+            for temp_file in script_temp_files:
+                try:
+                    # Check if file is recent (within last hour) and reasonable size
+                    if os.path.exists(temp_file):
+                        file_age = time.time() - os.path.getmtime(temp_file)
+                        file_size = os.path.getsize(temp_file)
+                        if file_age < 3600 and 1000 < file_size < 1000000:  # 1KB to 1MB, less than 1 hour old
+                            os.remove(temp_file)
+                            files_cleaned += 1
+                            print(f"[CLEANUP] Removed temp script: {temp_file}")
+                except Exception as e:
+                    print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
+        except Exception as e:
+            print(f"[CLEANUP] Error cleaning temp scripts: {e}")
+        
+        # 7. Clean up logging
+        cleanup_logging()
+        
+        print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
+        
+    except Exception as e:
+        print(f"[CLEANUP] Error during cleanup: {e}")
+
+def register_cleanup_handlers():
+    """Register cleanup handlers for various exit scenarios"""
+    global CLEANUP_REGISTERED
+    
+    if CLEANUP_REGISTERED:
+        return
+    
+    try:
+        # Register atexit handler for normal exits
+        atexit.register(cleanup_all_temporary_files)
+        
+        # Register signal handlers for forced termination
+        def signal_handler(signum, frame):
+            print(f"[CLEANUP] Signal {signum} received, cleaning up...")
+            cleanup_all_temporary_files()
+            os._exit(1)
+        
+        # Register handlers for common termination signals
+        if hasattr(signal, 'SIGTERM'):
+            signal.signal(signal.SIGTERM, signal_handler)
+        if hasattr(signal, 'SIGINT'):
+            signal.signal(signal.SIGINT, signal_handler)
+        if hasattr(signal, 'SIGBREAK'):  # Windows specific
+            signal.signal(signal.SIGBREAK, signal_handler)
+        
+        CLEANUP_REGISTERED = True
+        print("[CLEANUP] Cleanup handlers registered successfully")
+        
+    except Exception as e:
+        print(f"[CLEANUP] Error registering cleanup handlers: {e}")
+
+def add_temporary_file(file_path):
+    """Add a file to the temporary files tracking list"""
+    global TEMPORARY_FILES
+    if file_path:
+        TEMPORARY_FILES.add(file_path)
+        print(f"[CLEANUP] Tracking temporary file: {file_path}")
+
+def track_process(process):
+    """Add a process to the cleanup tracking list"""
+    global PROCESSES_LIST
+    PROCESSES_LIST.append(process)
+    print(f"[CLEANUP] Tracking process for cleanup")
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
@@ -215,6 +386,7 @@ def version_check_worker():
                 try:
                     with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                         f.write('version_mismatch')
+                    add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
                 except Exception:
                     pass
                                                                               
@@ -418,6 +590,7 @@ def create_lock_file():
     try:
         with open(LOCK_FILE, 'w') as f:
             f.write(str(os.getpid()))
+        add_temporary_file(LOCK_FILE)  # Track for cleanup
         return True
     except Exception:
         return False
@@ -469,6 +642,7 @@ def terminate_existing_instance():
                                  
         with open(TERMINATE_SIGNAL_FILE, 'w') as f:
             f.write('terminate')
+        add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
         
                                                                
         timeout = 10                      
@@ -1251,6 +1425,9 @@ class ConfigWindow(QtWidgets.QWidget):
             
             with open(cooldown_file, 'w') as f:
                 json.dump(cooldown_data, f)
+            
+            # Track the cooldown file for cleanup
+            add_temporary_file(cooldown_file)
         except Exception:
             pass
 
@@ -2730,6 +2907,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
                 with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                     f.write('terminate')
+                add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
             except Exception:
                 pass
             try:
@@ -3964,6 +4142,7 @@ class ConfigWindow(QtWidgets.QWidget):
             try:
                 with open(TERMINATE_SIGNAL_FILE, 'w') as f:
                     f.write('panic_shutdown')
+                add_temporary_file(TERMINATE_SIGNAL_FILE)  # Track for cleanup
             except Exception:
                 pass
             
@@ -7796,7 +7975,9 @@ def auto_accept_main():
 
 if __name__ == "__main__":
     
-                                                  
+    # Register cleanup handlers as early as possible
+    register_cleanup_handlers()
+    
     print("Starting Popsicle CS2 application...")
     
     try:
@@ -7804,7 +7985,7 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-                                              
+    # Version check worker started
     version_thread = threading.Thread(target=version_check_worker, daemon=True)
     version_thread.start()
     pass  # Version check worker started
@@ -7894,49 +8075,34 @@ if __name__ == "__main__":
         procs.append(multiprocessing.Process(target=aim))
         process_names.append("aim")
     
+    # Track all processes for cleanup
+    for proc in procs:
+        track_process(proc)
+    
     def cleanup_and_exit(reason=""):
         """Clean shutdown of all processes and resources"""
         print(f"[DEBUG] Cleanup initiated: {reason}")
         
+        # Use the comprehensive cleanup function
+        cleanup_all_temporary_files()
+        
+        # Legacy cleanup for any missed processes
         if 'procs' in locals() or 'procs' in globals():
             for i, p in enumerate(procs):
                 try:
                     if p.is_alive():
-                        print(f"[DEBUG] Terminating process: {process_names[i]}")
+                        print(f"[DEBUG] Legacy terminating process: {process_names[i]}")
                         p.terminate()
                         p.join(2)  # Wait up to 2 seconds for clean shutdown
                         if p.is_alive():
-                            print(f"[DEBUG] Force killing process: {process_names[i]}")
+                            print(f"[DEBUG] Legacy force killing process: {process_names[i]}")
                             p.kill()
                             p.join(1)
                 except Exception as e:
                     print(f"[DEBUG] Error terminating {process_names[i]}: {e}")
-                    
+        
+        # Final fallback cleanup
         remove_lock_file()
-        try:
-            if os.path.exists(TERMINATE_SIGNAL_FILE):
-                os.remove(TERMINATE_SIGNAL_FILE)
-        except Exception:
-            pass
-        try:
-            # Clean up panic signal file as well
-            panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
-            if os.path.exists(panic_file):
-                os.remove(panic_file)
-        except Exception:
-            pass
-        try:
-            # Clean up mode file
-            if os.path.exists(MODE_FILE):
-                os.remove(MODE_FILE)
-        except Exception:
-            pass
-        try:
-            if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                os.remove(KEYBIND_COOLDOWNS_FILE)
-        except Exception:
-            pass
-        cleanup_logging()
         
     # Start all processes
     print("[DEBUG] Starting all processes...")
