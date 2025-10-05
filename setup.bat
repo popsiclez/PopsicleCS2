@@ -2,6 +2,42 @@
 setlocal
 
 :: -----------------------------
+:: Setup version and version check
+:: -----------------------------
+set "SETUP_VERSION=1"
+set "VERSION_URL=https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/setupversion.txt"
+set "VERSION_FILE=%TEMP%\setupversion.txt"
+
+echo Checking setup version...
+powershell -Command "try { Invoke-WebRequest -Uri '%VERSION_URL%' -OutFile '%VERSION_FILE%' -UseBasicParsing -TimeoutSec 10 } catch { exit 1 }"
+
+if exist "%VERSION_FILE%" (
+    set /p REMOTE_VERSION=<"%VERSION_FILE%"
+    del "%VERSION_FILE%"
+    
+    if not "!REMOTE_VERSION!"=="%SETUP_VERSION%" (
+        echo.
+        echo ===============================================
+        echo   SETUP OUTDATED
+        echo ===============================================
+        echo Current version: %SETUP_VERSION%
+        echo Latest version:  !REMOTE_VERSION!
+        echo.
+        echo This setup file is outdated. Please download
+        echo the latest version to ensure compatibility.
+        echo.
+        echo Press any key to exit...
+        pause >nul
+        exit /b 1
+    )
+    echo Setup version is up to date.
+) else (
+    echo Warning: Could not check setup version. Continuing anyway...
+)
+
+echo.
+
+:: -----------------------------
 :: Start setup
 :: -----------------------------
 echo Press Enter to start setup...
