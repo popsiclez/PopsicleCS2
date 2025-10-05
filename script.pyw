@@ -1,6 +1,6 @@
-#2
+#3
 VERSION = "4"
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
             
 import threading
 import keyboard
@@ -3153,18 +3153,40 @@ class ConfigWindow(QtWidgets.QWidget):
                 # CRITICAL: Reset auto_apply_fov to 0 after reset to prevent automatic FOV application
                 self.settings['auto_apply_fov'] = 0
                 
+                # SECURITY: Enforce legit mode restrictions after reset to prevent bypass
+                self.enforce_legit_mode_restrictions()
+                
+                # Save settings after enforcing restrictions
+                save_settings(self.settings)
+                
                 QtWidgets.QMessageBox.information(self, "Reset Complete", "All settings have been reset to default values.")
                 
             except Exception as e:
                 # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
                 self._loading_config = False
                 self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
+                
+                # SECURITY: Enforce legit mode restrictions even after error
+                try:
+                    self.enforce_legit_mode_restrictions()
+                    save_settings(self.settings)
+                except:
+                    pass
+                    
                 QtWidgets.QMessageBox.critical(self, "Reset Error", f"Settings were reset but UI update failed:\n{str(e)}")
                 
         except Exception as e:
             # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
             self._loading_config = False
             self.settings['auto_apply_fov'] = 0  # Ensure FOV won't auto-apply after error
+            
+            # SECURITY: Enforce legit mode restrictions even after error
+            try:
+                self.enforce_legit_mode_restrictions()
+                save_settings(self.settings)
+            except:
+                pass
+                
             QtWidgets.QMessageBox.critical(self, "Reset Error", f"Failed to reset settings:\n{str(e)}")
         finally:
             self.resume_rainbow_timer()
