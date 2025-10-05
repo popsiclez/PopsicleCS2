@@ -1056,42 +1056,72 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb,
                 self.radar_cb, self.center_dot_cb, self.trigger_bot_active_cb,
                 self.triggerbot_burst_mode_cb, self.triggerbot_head_only_cb,
-                self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb, 
-                self.lock_target_cb, self.disable_crosshair_cb, self.movement_prediction_cb, self.rainbow_fov_cb, 
-                self.rainbow_center_dot_cb, self.rainbow_menu_theme_cb, self.auto_accept_cb, 
-                self.low_cpu_cb
             ]
             
+            # Add aim-related checkboxes only if they exist (full mode)
+            aim_checkboxes = [
+                'aim_active_cb', 'aim_circle_visible_cb', 'aim_visibility_cb', 
+                'lock_target_cb', 'disable_crosshair_cb', 'movement_prediction_cb'
+            ]
+            
+            for attr_name in aim_checkboxes:
+                if hasattr(self, attr_name):
+                    checkboxes.append(getattr(self, attr_name))
+            
+            # Add other checkboxes that should always exist
+            misc_checkboxes = [
+                'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb', 
+                'auto_accept_cb', 'low_cpu_cb'
+            ]
+            
+            for attr_name in misc_checkboxes:
+                if hasattr(self, attr_name):
+                    checkboxes.append(getattr(self, attr_name))
+            
             for cb in checkboxes:
-                if hasattr(self, cb.objectName()) or cb:
+                if cb:
                     cb.setFocusPolicy(QtCore.Qt.NoFocus)
             
 
             sliders = [
-                self.radius_slider, self.opacity_slider, self.thickness_slider,
-                self.smooth_slider, self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
+                self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
                 self.triggerbot_burst_shots_slider, 
                 self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
                 self.fps_limit_slider
             ]
+            
+            # Add aim-related sliders only if they exist (full mode)
+            aim_sliders = [
+                'radius_slider', 'opacity_slider', 'thickness_slider', 'smooth_slider'
+            ]
+            
+            for attr_name in aim_sliders:
+                if hasattr(self, attr_name):
+                    sliders.append(getattr(self, attr_name))
 
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 sliders.append(self.game_fov_slider)
             
             for slider in sliders:
-                if hasattr(self, slider.objectName()) or slider:
+                if slider:
                     slider.setFocusPolicy(QtCore.Qt.NoFocus)
             
 
             buttons = [
                 self.esp_toggle_key_btn, self.trigger_key_btn,
-                self.aim_key_btn, self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
-                self.enemy_color_btn, self.skeleton_color_btn, self.aim_circle_color_btn, self.center_dot_color_btn,
+                self.bhop_key_btn, self.menu_key_btn, self.team_color_btn,
+                self.enemy_color_btn, self.skeleton_color_btn, self.center_dot_color_btn,
                 self.camera_lock_radius_color_btn, self.menu_theme_color_btn, self.reset_btn
             ]
             
+            # Add aim-related buttons only if they exist (full mode)
+            aim_buttons = ['aim_key_btn', 'aim_circle_color_btn']
+            for attr_name in aim_buttons:
+                if hasattr(self, attr_name):
+                    buttons.append(getattr(self, attr_name))
+            
             for btn in buttons:
-                if hasattr(self, btn.objectName()) or btn:
+                if btn:
                     btn.setFocusPolicy(QtCore.Qt.NoFocus)
             
 
@@ -2327,7 +2357,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
             
 
-            self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1)
+            self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1) if hasattr(self, 'aim_active_cb') else None
             if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
                 self.require_aimkey_cb.setChecked(self.settings.get("require_aimkey", 1) == 1)
             if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
@@ -2350,34 +2380,46 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
             if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
                 self.camera_lock_radius_slider.setValue(self.settings.get("camera_lock_radius", 100))
-            self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
-            self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
-            self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
-            self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
-            self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
-            self.radius_slider.setValue(self.settings.get("radius", 50))
-            self.opacity_slider.setValue(self.settings.get("circle_opacity", 127))
-            self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
-            self.smooth_slider.setValue(self.settings.get("aim_smoothness", 0))
+            if hasattr(self, 'aim_circle_visible_cb') and self.aim_circle_visible_cb:
+                self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
+            if hasattr(self, 'aim_visibility_cb') and self.aim_visibility_cb:
+                self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
+            if hasattr(self, 'lock_target_cb') and self.lock_target_cb:
+                self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
+            if hasattr(self, 'disable_crosshair_cb') and self.disable_crosshair_cb:
+                self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
+            if hasattr(self, 'movement_prediction_cb') and self.movement_prediction_cb:
+                self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
+            if hasattr(self, 'radius_slider') and self.radius_slider:
+                self.radius_slider.setValue(self.settings.get("radius", 50))
+            if hasattr(self, 'opacity_slider') and self.opacity_slider:
+                self.opacity_slider.setValue(self.settings.get("circle_opacity", 127))
+            if hasattr(self, 'thickness_slider') and self.thickness_slider:
+                self.thickness_slider.setValue(self.settings.get("circle_thickness", 2))
+            if hasattr(self, 'smooth_slider') and self.smooth_slider:
+                self.smooth_slider.setValue(self.settings.get("aim_smoothness", 0))
             
-
-            aim_bone_target = self.settings.get('aim_bone_target', 1)
-            self.aim_mode_cb.setCurrentIndex(aim_bone_target)
+            if hasattr(self, 'aim_mode_cb') and self.aim_mode_cb:
+                aim_bone_target = self.settings.get('aim_bone_target', 1)
+                self.aim_mode_cb.setCurrentIndex(aim_bone_target)
             
-            aim_mode_distance = self.settings.get('aim_mode_distance', 0)
-            self.aim_mode_distance_cb.setCurrentIndex(aim_mode_distance)
+            if hasattr(self, 'aim_mode_distance_cb') and self.aim_mode_distance_cb:
+                aim_mode_distance = self.settings.get('aim_mode_distance', 0)
+                self.aim_mode_distance_cb.setCurrentIndex(aim_mode_distance)
             
 
             self.update_color_button_style(self.team_color_btn, self.settings.get('team_color', '#47A76A'))
             self.update_color_button_style(self.enemy_color_btn, self.settings.get('enemy_color', '#C41E3A'))
             self.update_color_button_style(self.skeleton_color_btn, self.settings.get('skeleton_color', '#FFFFFF'))
-            self.update_color_button_style(self.aim_circle_color_btn, self.settings.get('aim_circle_color', '#FF0000'))
+            if hasattr(self, 'aim_circle_color_btn') and self.aim_circle_color_btn:
+                self.update_color_button_style(self.aim_circle_color_btn, self.settings.get('aim_circle_color', '#FF0000'))
             self.update_color_button_style(self.center_dot_color_btn, self.settings.get('center_dot_color', '#FFFFFF'))
             self.update_color_button_style(self.camera_lock_radius_color_btn, self.settings.get('camera_lock_radius_color', '#FF0000'))
             self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
             
 
-            self.rainbow_fov_cb.setChecked(self.settings.get("rainbow_fov", 0) == 1)
+            if hasattr(self, 'rainbow_fov_cb') and self.rainbow_fov_cb:
+                self.rainbow_fov_cb.setChecked(self.settings.get("rainbow_fov", 0) == 1)
             self.rainbow_center_dot_cb.setChecked(self.settings.get("rainbow_center_dot", 0) == 1)
             self.rainbow_menu_theme_cb.setChecked(self.settings.get("rainbow_menu_theme", 0) == 1)
             
@@ -2888,7 +2930,7 @@ class ConfigWindow(QtWidgets.QWidget):
     def save_settings(self):
         
         self.settings["esp_rendering"] = 1 if self.esp_rendering_cb.isChecked() else 0
-        self.settings["esp_mode"] = self.esp_mode_cb.currentIndex()
+        self.settings["esp_mode"] = self.esp_mode_cb.currentIndex() if hasattr(self, 'esp_mode_cb') else self.settings.get("esp_mode", 0)
         self.settings["line_rendering"] = 1 if self.line_rendering_cb.isChecked() else 0
         self.settings["lines_position"] = self.lines_position_combo.currentText() if hasattr(self, 'lines_position_combo') else "Bottom"
         low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
@@ -2937,7 +2979,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["show_visibility"] = self.settings.get("show_visibility", 1)
         self.settings["bomb_esp"] = 1 if self.bomb_esp_cb.isChecked() else 0
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
-        self.settings["aim_active"] = 1 if self.aim_active_cb.isChecked() else 0
+        self.settings["aim_active"] = 1 if hasattr(self, 'aim_active_cb') and self.aim_active_cb.isChecked() else 0
         
         try:
             self.settings["require_aimkey"] = 1 if getattr(self, 'require_aimkey_cb', None) and self.require_aimkey_cb.isChecked() else 0
@@ -2956,7 +2998,7 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
         
-        self.settings["radius"] = self.radius_slider.value()
+        self.settings["radius"] = self.radius_slider.value() if hasattr(self, 'radius_slider') else self.settings.get("radius", 50)
         
                         
         if hasattr(self, 'radar_size_slider'):
@@ -3030,8 +3072,8 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-        self.settings["aim_bone_target"] = self.aim_mode_cb.currentIndex()
-        self.settings["aim_mode_distance"] = self.aim_mode_distance_cb.currentIndex()
+        self.settings["aim_bone_target"] = self.aim_mode_cb.currentIndex() if hasattr(self, 'aim_mode_cb') else self.settings.get("aim_bone_target", 1)
+        self.settings["aim_mode_distance"] = self.aim_mode_distance_cb.currentIndex() if hasattr(self, 'aim_mode_distance_cb') else self.settings.get("aim_mode_distance", 0)
 
         
         self.settings["trigger_bot_active"] = 1 if self.trigger_bot_active_cb.isChecked() else 0
@@ -3049,10 +3091,10 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
         
-        self.settings["circle_opacity"] = self.opacity_slider.value()
+        self.settings["circle_opacity"] = self.opacity_slider.value() if hasattr(self, 'opacity_slider') else self.settings.get("circle_opacity", 127)
 
         
-        self.settings["circle_thickness"] = self.thickness_slider.value()
+        self.settings["circle_thickness"] = self.thickness_slider.value() if hasattr(self, 'thickness_slider') else self.settings.get("circle_thickness", 2)
 
                                                                  
         try:
@@ -3075,7 +3117,7 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
         
         try:
-            self.settings["aim_visibility_check"] = 1 if self.aim_visibility_cb.isChecked() else 0
+            self.settings["aim_visibility_check"] = 1 if getattr(self, 'aim_visibility_cb', None) and self.aim_visibility_cb.isChecked() else 0
         except Exception:
             pass
         
@@ -4057,24 +4099,28 @@ class ConfigWindow(QtWidgets.QWidget):
             self._drag_end_time = time.time()
 
     def update_radius_label(self):
-        val = self.radius_slider.value()
-        self.lbl_radius.setText(f"Aim Radius: ({val})")
-        self.save_settings()
+        if hasattr(self, 'radius_slider') and hasattr(self, 'lbl_radius'):
+            val = self.radius_slider.value()
+            self.lbl_radius.setText(f"Aim Radius: ({val})")
+            self.save_settings()
 
     def update_opacity_label(self):
-        val = self.opacity_slider.value()
-        self.lbl_opacity.setText(f"Circle Transparency: ({val})")
-        self.save_settings()
+        if hasattr(self, 'opacity_slider') and hasattr(self, 'lbl_opacity'):
+            val = self.opacity_slider.value()
+            self.lbl_opacity.setText(f"Circle Transparency: ({val})")
+            self.save_settings()
 
     def update_thickness_label(self):
-        val = self.thickness_slider.value()
-        self.lbl_thickness.setText(f"Circle Thickness: ({val})")
-        self.save_settings()
+        if hasattr(self, 'thickness_slider') and hasattr(self, 'lbl_thickness'):
+            val = self.thickness_slider.value()
+            self.lbl_thickness.setText(f"Circle Thickness: ({val})")
+            self.save_settings()
 
     def update_smooth_label(self):
-        val = self.smooth_slider.value()
-        self.lbl_smooth.setText(f"Aim Smoothness: ({val})")
-        self.save_settings()
+        if hasattr(self, 'smooth_slider') and hasattr(self, 'lbl_smooth'):
+            val = self.smooth_slider.value()
+            self.lbl_smooth.setText(f"Aim Smoothness: ({val})")
+            self.save_settings()
 
     def update_camera_lock_smoothness_label(self):
         val = self.camera_lock_smoothness_slider.value()
