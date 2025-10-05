@@ -552,6 +552,10 @@ DEFAULT_SETTINGS = {
     "camera_lock_key": "V",
     "camera_lock_draw_range_lines": 0,
     "camera_lock_line_width": 2,
+    "camera_lock_use_radius": 0,
+    "camera_lock_draw_radius": 0,
+    "camera_lock_radius": 100,
+    "camera_lock_spotted_check": 0,
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -1508,7 +1512,7 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_layout.addWidget(self.camera_lock_draw_range_lines_cb)
 
         # Camera Lock Line Width Slider
-        self.lbl_camera_lock_line_width = QtWidgets.QLabel(f"Camera Lock Line Length: ({self.settings.get('camera_lock_line_width', 2)})")
+        self.lbl_camera_lock_line_width = QtWidgets.QLabel(f"Camera Lock Line Width: ({self.settings.get('camera_lock_line_width', 2)})")
         trigger_layout.addWidget(self.lbl_camera_lock_line_width)
         self.camera_lock_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.camera_lock_line_width_slider.setMinimum(1)
@@ -1517,6 +1521,41 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_line_width_slider.valueChanged.connect(self.update_camera_lock_line_width_label)
         self.set_tooltip_if_enabled(self.camera_lock_line_width_slider, "Adjust the length of camera lock range lines. Higher values make lines wider/longer across the screen.")
         trigger_layout.addWidget(self.camera_lock_line_width_slider)
+
+        # Camera Lock Use Radius Toggle
+        self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
+        self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
+        self.camera_lock_use_radius_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_use_radius_cb, "When enabled, camera lock will only target enemies within the radius circle instead of the entire screen.")
+        self.camera_lock_use_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_use_radius_cb)
+
+        # Camera Lock Draw Radius Toggle
+        self.camera_lock_draw_radius_cb = QtWidgets.QCheckBox("Draw Radius")
+        self.camera_lock_draw_radius_cb.setChecked(self.settings.get("camera_lock_draw_radius", 0) == 1)
+        self.camera_lock_draw_radius_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_draw_radius_cb, "Show a circle on screen indicating the camera lock targeting radius area.")
+        self.camera_lock_draw_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_draw_radius_cb)
+
+        # Camera Lock Radius Size Slider
+        self.lbl_camera_lock_radius = QtWidgets.QLabel(f"Camera Lock Radius: ({self.settings.get('camera_lock_radius', 100)})")
+        trigger_layout.addWidget(self.lbl_camera_lock_radius)
+        self.camera_lock_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.camera_lock_radius_slider.setMinimum(25)
+        self.camera_lock_radius_slider.setMaximum(300)
+        self.camera_lock_radius_slider.setValue(self.settings.get('camera_lock_radius', 100))
+        self.camera_lock_radius_slider.valueChanged.connect(self.update_camera_lock_radius_label)
+        self.set_tooltip_if_enabled(self.camera_lock_radius_slider, "Adjust the size of the camera lock targeting radius. Larger values allow targeting enemies further from the center.")
+        trigger_layout.addWidget(self.camera_lock_radius_slider)
+
+        # Camera Lock Spotted Check Toggle
+        self.camera_lock_spotted_check_cb = QtWidgets.QCheckBox("Camera Lock Spotted Check")
+        self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
+        self.camera_lock_spotted_check_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_spotted_check_cb, "Only lock camera to enemies that are visible/spotted by your team to avoid suspicious targeting through walls.")
+        self.camera_lock_spotted_check_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_spotted_check_cb)
 
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
@@ -2170,6 +2209,9 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
                 widgets_to_block.append(self.camera_lock_smoothness_slider)
             
+            if hasattr(self, 'camera_lock_spotted_check_cb') and self.camera_lock_spotted_check_cb:
+                widgets_to_block.append(self.camera_lock_spotted_check_cb)
+            
 
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 widgets_to_block.append(self.game_fov_slider)
@@ -2234,6 +2276,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
             if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
                 self.camera_lock_line_width_slider.setValue(self.settings.get("camera_lock_line_width", 2))
+            if hasattr(self, 'camera_lock_use_radius_cb') and self.camera_lock_use_radius_cb:
+                self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
+            if hasattr(self, 'camera_lock_draw_radius_cb') and self.camera_lock_draw_radius_cb:
+                self.camera_lock_draw_radius_cb.setChecked(self.settings.get("camera_lock_draw_radius", 0) == 1)
+            if hasattr(self, 'camera_lock_spotted_check_cb') and self.camera_lock_spotted_check_cb:
+                self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
+            if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
+                self.camera_lock_radius_slider.setValue(self.settings.get("camera_lock_radius", 100))
             self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
             self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
             self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
@@ -2886,6 +2936,18 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if getattr(self, "camera_lock_line_width_slider", None):
             self.settings["camera_lock_line_width"] = self.camera_lock_line_width_slider.value()
+        
+        if getattr(self, "camera_lock_use_radius_cb", None):
+            self.settings["camera_lock_use_radius"] = 1 if self.camera_lock_use_radius_cb.isChecked() else 0
+        
+        if getattr(self, "camera_lock_draw_radius_cb", None):
+            self.settings["camera_lock_draw_radius"] = 1 if self.camera_lock_draw_radius_cb.isChecked() else 0
+        
+        if getattr(self, "camera_lock_radius_slider", None):
+            self.settings["camera_lock_radius"] = self.camera_lock_radius_slider.value()
+        
+        if getattr(self, "camera_lock_spotted_check_cb", None):
+            self.settings["camera_lock_spotted_check"] = 1 if self.camera_lock_spotted_check_cb.isChecked() else 0
 
         
         try:
@@ -3943,6 +4005,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Length: ({val})")
         self.save_settings()
 
+    def update_camera_lock_radius_label(self):
+        val = self.camera_lock_radius_slider.value()
+        self.lbl_camera_lock_radius.setText(f"Camera Lock Radius: ({val})")
+        self.save_settings()
+
     def update_triggerbot_delay_label(self):
         val = self.triggerbot_delay_slider.value()
         self.lbl_delay.setText(f"Triggerbot Delay (ms): ({val})")
@@ -4891,6 +4958,11 @@ class ESPWindow(QtWidgets.QWidget):
             if camera_lock_range_lines_enabled:
                 render_camera_lock_range_lines(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
+            # Render camera lock radius circle
+            camera_lock_radius_enabled = self.settings.get('camera_lock_draw_radius', 0) == 1
+            if camera_lock_radius_enabled:
+                render_camera_lock_radius(self.scene, self.window_width, self.window_height, self.settings)
+            
             if radar_enabled:
                 render_radar(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
@@ -5090,6 +5162,7 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
         
         # Find the actual camera lock target position using the same logic as camera_lock function
         target_y = None
+        valid_target_found = False
         
         try:
             # Get view matrix and local player info
@@ -5099,94 +5172,115 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             try:
                 local_player_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
             except:
-                # If we can't get player info, fallback to center
-                target_y = window_height / 2
+                # If we can't get player info, don't show lines
+                return
             
-            if target_y is None:
-                # Scan for valid targets using same logic as camera_lock
-                entity_list = pm.read_longlong(client + dwEntityList)
-                entity_ptr = pm.read_longlong(entity_list + 0x10)
-                
-                closest_target = None
-                min_distance = float('inf')
-                center_x = window_width // 2
-                center_y = window_height // 2
-                
-                for i in range(1, 64):
-                    try:
-                        if entity_ptr == 0:
-                            break
+            # Scan for valid targets using same logic as camera_lock
+            entity_list = pm.read_longlong(client + dwEntityList)
+            entity_ptr = pm.read_longlong(entity_list + 0x10)
+            
+            closest_target = None
+            min_distance = float('inf')
+            center_x = window_width // 2
+            center_y = window_height // 2
+            
+            for i in range(1, 64):
+                try:
+                    if entity_ptr == 0:
+                        break
 
-                        entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-                        if entity_controller == 0:
-                            continue
-
-                        entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-                        if entity_controller_pawn == 0:
-                            continue
-
-                        entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-                        if entity_list_pawn == 0:
-                            continue
-
-                        entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
-                        if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
-                            continue
-
-                        entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
-                        
-                        # Use esp_mode setting: 0 = enemies only, 1 = all players
-                        esp_mode = settings.get('esp_mode', 0)
-                        if esp_mode == 0 and entity_team == local_player_team:
-                            continue  # Skip teammates when in enemies-only mode
-
-                        entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
-                        if entity_alive != 256:
-                            continue
-
-                        # Get target bone position
-                        game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
-                        bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
-                        
-                        # Get selected bone ID from settings
-                        target_bone_mode = settings.get('camera_lock_target_bone', 1)
-                        target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
-                        target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
-                        
-                        # Get target bone position
-                        target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
-                        target_y_world = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
-                        target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
-                        
-                        # Project to screen
-                        target_pos = w2s(view_matrix, target_x, target_y_world, target_z, window_width, window_height)
-                        
-                        # Only consider targets within screen bounds
-                        if (target_pos[0] != -999 and target_pos[1] != -999 and
-                            0 <= target_pos[0] <= window_width and 
-                            0 <= target_pos[1] <= window_height):
-                            
-                            # Calculate distance from center of screen
-                            dx = target_pos[0] - center_x
-                            dy = target_pos[1] - center_y
-                            distance = (dx * dx + dy * dy) ** 0.5
-                            
-                            if distance < min_distance:
-                                min_distance = distance
-                                closest_target = target_pos
-                                
-                    except Exception:
+                    entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
+                    if entity_controller == 0:
                         continue
+
+                    entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
+                    if entity_controller_pawn == 0:
+                        continue
+
+                    entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
+                    if entity_list_pawn == 0:
+                        continue
+
+                    entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                    if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
+                        continue
+
+                    entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
+                    
+                    # Use esp_mode setting: 0 = enemies only, 1 = all players
+                    esp_mode = settings.get('esp_mode', 0)
+                    if esp_mode == 0 and entity_team == local_player_team:
+                        continue  # Skip teammates when in enemies-only mode
+
+                    entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
+                    if entity_alive != 256:
+                        continue
+
+                    # Check spotted status if enabled
+                    spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
+                    if spotted_check_enabled:
+                        try:
+                            spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
+                            is_spotted = spotted_flag != 0
+                        except:
+                            is_spotted = False
+                        
+                        # Skip non-spotted enemies when spotted check is enabled
+                        if not is_spotted:
+                            continue
+
+                    # Get target bone position
+                    game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
+                    bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
+                    
+                    # Get selected bone ID from settings
+                    target_bone_mode = settings.get('camera_lock_target_bone', 1)
+                    target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
+                    target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
+                    
+                    # Get target bone position
+                    target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
+                    target_y_world = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
+                    target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
+                    
+                    # Project to screen
+                    target_pos = w2s(view_matrix, target_x, target_y_world, target_z, window_width, window_height)
+                    
+                    # Only consider targets within screen bounds
+                    if (target_pos[0] != -999 and target_pos[1] != -999 and
+                        0 <= target_pos[0] <= window_width and 
+                        0 <= target_pos[1] <= window_height):
+                        
+                        # Calculate distance from center of screen
+                        dx = target_pos[0] - center_x
+                        dy = target_pos[1] - center_y
+                        distance = (dx * dx + dy * dy) ** 0.5
+                        
+                        # Check if radius targeting is enabled
+                        use_radius = settings.get('camera_lock_use_radius', 0) == 1
+                        if use_radius:
+                            # Only consider targets within the radius
+                            radius = settings.get('camera_lock_radius', 100)
+                            if distance > radius:
+                                continue  # Skip targets outside the radius
+                        
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_target = target_pos
+                            valid_target_found = True
+                            
+                except Exception:
+                    continue
+            
+            # Only proceed if we found a valid target
+            if not valid_target_found or not closest_target:
+                return  # No valid target found, don't show lines
                 
-                # Use the closest target position if found, otherwise fallback to center
-                if closest_target:
-                    target_y = closest_target[1]  # Y coordinate of the target
-                else:
-                    target_y = window_height / 2  # Fallback to center
+            target_y = closest_target[1]  # Y coordinate of the target
                     
         except Exception:
-            # If anything fails, fallback to center
-            target_y = window_height / 2
+            # If anything fails, don't show lines
+            return
         
         # Calculate line positions based on target position and deadzone
         upper_line_y = target_y - tolerance
@@ -5206,12 +5300,14 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             
         # Create pen for drawing lines - keep thickness constant and thin
         pen = QtGui.QPen(line_color)
-        pen.setWidth(1)  # Thin thickness for deadzone lines
+        pen.setWidth(0.1)  # Thinnest possible thickness for deadzone lines
         pen.setStyle(QtCore.Qt.DashLine)
         
         # Calculate line width using user setting - control line length
-        line_width_multiplier = settings.get('camera_lock_line_width', 2) / 10.0  # Convert 1-10 to 0.1-1.0
-        line_width = window_width * (0.1 + line_width_multiplier * 0.4)  # 10% to 50% of screen width
+        line_width_setting = settings.get('camera_lock_line_width', 2)
+        line_width_multiplier = line_width_setting / 10.0  # Convert 1-10 to 0.1-1.0
+        # Modified formula: smaller minimum (5%) and reduced scaling for shorter lines at low values
+        line_width = window_width * (0.05 + line_width_multiplier * 0.3)  # 5% to 35% of screen width
         line_start_x = (window_width - line_width) / 2  # Center the lines
         line_end_x = line_start_x + line_width
         
@@ -5225,9 +5321,54 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             
         # Draw center target line (solid) - same thickness as deadzone lines
         center_pen = QtGui.QPen(line_color)
-        center_pen.setWidth(1)  # Same thickness as deadzone lines
+        center_pen.setWidth(0)  # Thinnest possible thickness for center line
         center_pen.setStyle(QtCore.Qt.SolidLine)
         center_line = scene.addLine(line_start_x, target_y, line_end_x, target_y, center_pen)
+        
+    except Exception:
+        pass
+
+def render_camera_lock_radius(scene, window_width, window_height, settings):
+    """Render camera lock radius circle"""
+    try:
+        # Check if draw radius is enabled
+        if not settings.get('camera_lock_draw_radius', 0) == 1:
+            return
+        
+        # Check if camera lock is enabled
+        if not settings.get('camera_lock_enabled', 0) == 1:
+            return
+            
+        # Get radius size
+        radius = settings.get('camera_lock_radius', 100)
+        
+        # Calculate circle position (center of screen)
+        center_x = window_width / 2
+        center_y = window_height / 2
+        
+        # Get color for the circle
+        try:
+            if settings.get('rainbow_menu_theme', 0) == 1:
+                circle_color_hex = settings.get('current_rainbow_color', '#FF0000')
+            else:
+                circle_color_hex = settings.get('menu_theme_color', '#FF0000')
+            circle_color = QtGui.QColor(circle_color_hex)
+            circle_color.setAlpha(100)  # Semi-transparent
+        except Exception:
+            circle_color = QtGui.QColor('#FF0000')
+            circle_color.setAlpha(100)
+            
+        # Create pen for drawing circle
+        pen = QtGui.QPen(circle_color)
+        pen.setWidth(0.1)  # Thinnest possible thickness for radius circle
+        pen.setStyle(QtCore.Qt.DashLine)
+        
+        # Draw the radius circle
+        scene.addEllipse(
+            QtCore.QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2),
+            pen,
+            QtCore.Qt.NoBrush
+        )
         
     except Exception:
         pass
@@ -7182,6 +7323,19 @@ def aim():
                     if entity_alive != 256:
                         continue
 
+                    # Check spotted status if enabled
+                    spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
+                    if spotted_check_enabled:
+                        try:
+                            spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
+                            is_spotted = spotted_flag != 0
+                        except:
+                            is_spotted = False
+                        
+                        # Skip non-spotted enemies when spotted check is enabled
+                        if not is_spotted:
+                            continue
+
                     # Get target bone position
                     game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
@@ -7208,6 +7362,14 @@ def aim():
                         dx = target_pos[0] - center_x
                         dy = target_pos[1] - center_y
                         distance = (dx * dx + dy * dy) ** 0.5
+                        
+                        # Check if radius targeting is enabled
+                        use_radius = settings.get('camera_lock_use_radius', 0) == 1
+                        if use_radius:
+                            # Only consider targets within the radius
+                            radius = settings.get('camera_lock_radius', 100)
+                            if distance > radius:
+                                continue  # Skip targets outside the radius
                         
                         if distance < min_distance:
                             min_distance = distance
