@@ -30,6 +30,7 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
 import win32api
 import win32con
 import win32gui
+import signal
 from datetime import datetime
 
 CONSOLE_CREATED = False
@@ -545,10 +546,12 @@ DEFAULT_SETTINGS = {
     "aim_movement_prediction": 0,
     "require_aimkey": 1,
     "camera_lock_enabled": 0,
-    "camera_lock_smoothness": 30,
+    "camera_lock_smoothness": 5,
     "camera_lock_tolerance": 5,
     "camera_lock_target_bone": 1,
     "camera_lock_key": "V",
+    "camera_lock_draw_range_lines": 0,
+    "camera_lock_line_width": 2,
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -573,6 +576,7 @@ DEFAULT_SETTINGS = {
                  
     "topmost": 1,
     "MenuToggleKey": "F8",
+    "PanicKey": "NONE",
     "team_color": "#47A76A",
     "enemy_color": "#C41E3A",
     "skeleton_color": "#FFFFFF",
@@ -1470,11 +1474,11 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.camera_lock_smoothness_slider.setMinimum(1)
-        self.camera_lock_smoothness_slider.setMaximum(100)
-        self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 30))
+        self.camera_lock_smoothness_slider.setMaximum(20)
+        self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 5))
         self.camera_lock_smoothness_slider.valueChanged.connect(self.update_camera_lock_smoothness_label)
-        self.set_tooltip_if_enabled(self.camera_lock_smoothness_slider, "Controls how aggressively camera lock adjusts to head level. Lower = smoother/slower, higher = more aggressive/faster.")
-        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({self.settings.get('camera_lock_smoothness', 30)}%)")
+        self.set_tooltip_if_enabled(self.camera_lock_smoothness_slider, "Controls how aggressively camera lock adjusts to head level. Lower = less smoothness/slower, higher = more smoothness/faster.")
+        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({self.settings.get('camera_lock_smoothness', 5)})")
         self.lbl_camera_lock_smoothness.setMinimumHeight(16)
         trigger_layout.addWidget(self.lbl_camera_lock_smoothness)
         self.camera_lock_smoothness_slider.setMinimumHeight(18)
@@ -1495,6 +1499,24 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_tolerance_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.camera_lock_tolerance_slider)
 
+        # Draw Range Lines toggle
+        self.camera_lock_draw_range_lines_cb = QtWidgets.QCheckBox("Draw Range Lines")
+        self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
+        self.camera_lock_draw_range_lines_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.camera_lock_draw_range_lines_cb, "Show horizontal lines indicating the camera lock target's vertical position and deadzone area on screen.")
+        self.camera_lock_draw_range_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.camera_lock_draw_range_lines_cb)
+
+        # Camera Lock Line Width Slider
+        self.lbl_camera_lock_line_width = QtWidgets.QLabel(f"Camera Lock Line Length: ({self.settings.get('camera_lock_line_width', 2)})")
+        trigger_layout.addWidget(self.lbl_camera_lock_line_width)
+        self.camera_lock_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.camera_lock_line_width_slider.setMinimum(1)
+        self.camera_lock_line_width_slider.setMaximum(10)
+        self.camera_lock_line_width_slider.setValue(self.settings.get('camera_lock_line_width', 2))
+        self.camera_lock_line_width_slider.valueChanged.connect(self.update_camera_lock_line_width_label)
+        self.set_tooltip_if_enabled(self.camera_lock_line_width_slider, "Adjust the length of camera lock range lines. Higher values make lines wider/longer across the screen.")
+        trigger_layout.addWidget(self.camera_lock_line_width_slider)
 
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
@@ -1942,6 +1964,16 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
+        # Panic button
+        self.panic_key_btn = QtWidgets.QPushButton(f"Panic Key: {self.settings.get('PanicKey', 'NONE')}")
+        self.panic_key_btn.setObjectName("keybind_button")
+        self.panic_key_btn.clicked.connect(lambda: self.record_key('PanicKey', self.panic_key_btn))
+        self.set_tooltip_if_enabled(self.panic_key_btn, "Emergency key to instantly terminate all script processes. Use for quick shutdown if needed.")
+        self.panic_key_btn.setMinimumHeight(22)
+        self.panic_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.panic_key_btn)
+        self.panic_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'PanicKey', self.panic_key_btn)
+
 
 
         misc_container.setLayout(misc_layout)
@@ -2193,11 +2225,15 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
                 self.camera_lock_cb.setChecked(self.settings.get("camera_lock_enabled", 0) == 1)
             if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
-                self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 30))
+                self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 5))
             if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
                 self.camera_lock_tolerance_slider.setValue(self.settings.get("camera_lock_tolerance", 5))
             if hasattr(self, 'camera_lock_target_combo') and self.camera_lock_target_combo:
                 self.camera_lock_target_combo.setCurrentIndex(self.settings.get("camera_lock_target_bone", 1))
+            if hasattr(self, 'camera_lock_draw_range_lines_cb') and self.camera_lock_draw_range_lines_cb:
+                self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
+            if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
+                self.camera_lock_line_width_slider.setValue(self.settings.get("camera_lock_line_width", 2))
             self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
             self.aim_visibility_cb.setChecked(self.settings.get("aim_visibility_check", 0) == 1)
             self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
@@ -2246,6 +2282,9 @@ class ConfigWindow(QtWidgets.QWidget):
             self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
             self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
             self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
+            
+            if hasattr(self, 'panic_key_btn') and self.panic_key_btn:
+                self.panic_key_btn.setText(f"Panic Key: {self.settings.get('PanicKey', 'NONE')}")
             
 
             for widget in widgets_to_block:
@@ -2841,6 +2880,12 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if getattr(self, "camera_lock_target_combo", None):
             self.settings["camera_lock_target_bone"] = self.camera_lock_target_combo.currentIndex()
+        
+        if getattr(self, "camera_lock_draw_range_lines_cb", None):
+            self.settings["camera_lock_draw_range_lines"] = 1 if self.camera_lock_draw_range_lines_cb.isChecked() else 0
+        
+        if getattr(self, "camera_lock_line_width_slider", None):
+            self.settings["camera_lock_line_width"] = self.camera_lock_line_width_slider.value()
 
         
         try:
@@ -2932,7 +2977,22 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
         
         try:
+            if getattr(self, 'menu_key_btn', None) is not None:
+                text = self.menu_key_btn.text()
+                if ':' in text:
+                    val = text.split(':', 1)[1].strip()
+                    if val:
+                        self.settings["MenuToggleKey"] = val
+        except Exception:
             pass
+        
+        try:
+            if getattr(self, 'panic_key_btn', None) is not None:
+                text = self.panic_key_btn.text()
+                if ':' in text:
+                    val = text.split(':', 1)[1].strip()
+                    if val:
+                        self.settings["PanicKey"] = val
         except Exception:
             pass
         save_settings(self.settings)
@@ -3610,10 +3670,76 @@ class ConfigWindow(QtWidgets.QWidget):
                 
         except Exception:
             pass
+    
+    def check_panic_key(self):
+        """Check for panic key press and terminate all processes if pressed"""
+        try:
+            key = self.settings.get("PanicKey", "NONE")
+            
+            if not key or str(key).upper() == "NONE":
+                return
+                
+            # Check if panic key is on cooldown to prevent accidental double-press
+            if self.is_keybind_on_cooldown("PanicKey"):
+                return
+                
+            vk = key_str_to_vk(key)
+            pressed = (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
+            
+            if pressed:
+                # Set cooldown to prevent multiple activations
+                self.set_keybind_cooldown("PanicKey")
+                
+                # Create panic signal file
+                try:
+                    panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
+                    with open(panic_file, 'w') as f:
+                        f.write(str(time.time()))
+                except Exception:
+                    pass
+                
+                # Force terminate all processes immediately
+                self.panic_shutdown()
+                
+        except Exception:
+            pass
+    
+    def panic_shutdown(self):
+        """Emergency shutdown of all script processes"""
+        try:
+            # Hide the config window immediately
+            self.hide()
+            
+            # Terminate the application
+            import sys
+            import os
+            
+            # Try to terminate parent process and all children
+            try:
+                parent_pid = os.getppid() if hasattr(os, 'getppid') else None
+                current_pid = os.getpid()
+                
+                # Kill current process group
+                if hasattr(os, 'killpg'):
+                    os.killpg(os.getpgrp(), signal.SIGTERM)
+                else:
+                    # Windows - use taskkill to terminate process tree
+                    os.system(f'taskkill /F /T /PID {current_pid}')
+                    
+            except Exception:
+                # Fallback - just exit current process
+                sys.exit(1)
+                
+        except Exception:
+            # Last resort - force exit
+            import os
+            os._exit(1)
 
     def check_menu_toggle(self):
         
         try:
+            # Check panic key first
+            self.check_panic_key()
             
             if getattr(self, "_menu_toggle_ignore_until", 0) > time.time():
                 return
@@ -3804,12 +3930,17 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_camera_lock_smoothness_label(self):
         val = self.camera_lock_smoothness_slider.value()
-        self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({val}%)")
+        self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({val})")
         self.save_settings()
 
     def update_camera_lock_tolerance_label(self):
         val = self.camera_lock_tolerance_slider.value()
         self.lbl_camera_lock_tolerance.setText(f"Camera Lock Tolerance: ({val}px)")
+        self.save_settings()
+
+    def update_camera_lock_line_width_label(self):
+        val = self.camera_lock_line_width_slider.value()
+        self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Length: ({val})")
         self.save_settings()
 
     def update_triggerbot_delay_label(self):
@@ -4755,6 +4886,11 @@ class ESPWindow(QtWidgets.QWidget):
                 # Render Aim Radius
                 render_aim_circle(self.scene, self.window_width, self.window_height, self.settings)
             
+            # Render camera lock range lines if enabled
+            camera_lock_range_lines_enabled = self.settings.get('camera_lock_draw_range_lines', 0) == 1
+            if camera_lock_range_lines_enabled:
+                render_camera_lock_range_lines(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
+            
             if radar_enabled:
                 render_radar(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
@@ -4920,6 +5056,179 @@ def render_aim_circle(scene, window_width, window_height, settings):
                 circle_pen,
                 QtCore.Qt.NoBrush
             )
+    except Exception:
+        pass
+
+def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
+    """Render horizontal lines showing camera lock target position and deadzone"""
+    try:
+        # Check if draw range lines is enabled
+        if not settings.get('camera_lock_draw_range_lines', 0) == 1:
+            return
+        
+        # Check if camera lock is enabled
+        if not settings.get('camera_lock_enabled', 0) == 1:
+            return
+            
+        # Check if trigger key is being held down
+        trigger_key = settings.get('TriggerKey', 'X')
+        trigger_vk = key_str_to_vk(trigger_key)
+        
+        # Only show lines if trigger key is being pressed
+        if trigger_vk != 0:
+            try:
+                import win32api
+                if not (win32api.GetAsyncKeyState(trigger_vk) & 0x8000):
+                    return  # Trigger key is not being held
+            except Exception:
+                return  # Can't check key state, don't show lines
+        else:
+            return  # Invalid trigger key
+            
+        # Get camera lock tolerance (deadzone)
+        tolerance = settings.get('camera_lock_tolerance', 5)
+        
+        # Find the actual camera lock target position using the same logic as camera_lock function
+        target_y = None
+        
+        try:
+            # Get view matrix and local player info
+            view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
+            local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
+            
+            try:
+                local_player_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
+            except:
+                # If we can't get player info, fallback to center
+                target_y = window_height / 2
+            
+            if target_y is None:
+                # Scan for valid targets using same logic as camera_lock
+                entity_list = pm.read_longlong(client + dwEntityList)
+                entity_ptr = pm.read_longlong(entity_list + 0x10)
+                
+                closest_target = None
+                min_distance = float('inf')
+                center_x = window_width // 2
+                center_y = window_height // 2
+                
+                for i in range(1, 64):
+                    try:
+                        if entity_ptr == 0:
+                            break
+
+                        entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
+                        if entity_controller == 0:
+                            continue
+
+                        entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
+                        if entity_controller_pawn == 0:
+                            continue
+
+                        entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
+                        if entity_list_pawn == 0:
+                            continue
+
+                        entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                        if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
+                            continue
+
+                        entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
+                        
+                        # Use esp_mode setting: 0 = enemies only, 1 = all players
+                        esp_mode = settings.get('esp_mode', 0)
+                        if esp_mode == 0 and entity_team == local_player_team:
+                            continue  # Skip teammates when in enemies-only mode
+
+                        entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
+                        if entity_alive != 256:
+                            continue
+
+                        # Get target bone position
+                        game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
+                        bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
+                        
+                        # Get selected bone ID from settings
+                        target_bone_mode = settings.get('camera_lock_target_bone', 1)
+                        target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
+                        target_bone_id = bone_ids.get(target_bone_name, 6)  # Default to head (6) if not found
+                        
+                        # Get target bone position
+                        target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
+                        target_y_world = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
+                        target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
+                        
+                        # Project to screen
+                        target_pos = w2s(view_matrix, target_x, target_y_world, target_z, window_width, window_height)
+                        
+                        # Only consider targets within screen bounds
+                        if (target_pos[0] != -999 and target_pos[1] != -999 and
+                            0 <= target_pos[0] <= window_width and 
+                            0 <= target_pos[1] <= window_height):
+                            
+                            # Calculate distance from center of screen
+                            dx = target_pos[0] - center_x
+                            dy = target_pos[1] - center_y
+                            distance = (dx * dx + dy * dy) ** 0.5
+                            
+                            if distance < min_distance:
+                                min_distance = distance
+                                closest_target = target_pos
+                                
+                    except Exception:
+                        continue
+                
+                # Use the closest target position if found, otherwise fallback to center
+                if closest_target:
+                    target_y = closest_target[1]  # Y coordinate of the target
+                else:
+                    target_y = window_height / 2  # Fallback to center
+                    
+        except Exception:
+            # If anything fails, fallback to center
+            target_y = window_height / 2
+        
+        # Calculate line positions based on target position and deadzone
+        upper_line_y = target_y - tolerance
+        lower_line_y = target_y + tolerance
+        
+        # Get theme color for the lines
+        try:
+            if settings.get('rainbow_menu_theme', 0) == 1:
+                line_color_hex = settings.get('current_rainbow_color', '#FF0000')
+            else:
+                line_color_hex = settings.get('menu_theme_color', '#FF0000')
+            line_color = QtGui.QColor(line_color_hex)
+            line_color.setAlpha(180)  # Semi-transparent
+        except Exception:
+            line_color = QtGui.QColor('#FF0000')
+            line_color.setAlpha(180)
+            
+        # Create pen for drawing lines - keep thickness constant and thin
+        pen = QtGui.QPen(line_color)
+        pen.setWidth(1)  # Thin thickness for deadzone lines
+        pen.setStyle(QtCore.Qt.DashLine)
+        
+        # Calculate line width using user setting - control line length
+        line_width_multiplier = settings.get('camera_lock_line_width', 2) / 10.0  # Convert 1-10 to 0.1-1.0
+        line_width = window_width * (0.1 + line_width_multiplier * 0.4)  # 10% to 50% of screen width
+        line_start_x = (window_width - line_width) / 2  # Center the lines
+        line_end_x = line_start_x + line_width
+        
+        # Draw upper line
+        if 0 <= upper_line_y <= window_height:
+            upper_line = scene.addLine(line_start_x, upper_line_y, line_end_x, upper_line_y, pen)
+            
+        # Draw lower line  
+        if 0 <= lower_line_y <= window_height:
+            lower_line = scene.addLine(line_start_x, lower_line_y, line_end_x, lower_line_y, pen)
+            
+        # Draw center target line (solid) - same thickness as deadzone lines
+        center_pen = QtGui.QPen(line_color)
+        center_pen.setWidth(1)  # Same thickness as deadzone lines
+        center_pen.setStyle(QtCore.Qt.SolidLine)
+        center_line = scene.addLine(line_start_x, target_y, line_end_x, target_y, center_pen)
+        
     except Exception:
         pass
 
@@ -6920,8 +7229,13 @@ def aim():
                 # Only adjust if the difference is significant (more than tolerance pixels)
                 if abs(dy) > tolerance:
                     # Apply smooth camera movement with user-configurable smoothness
-                    smoothness = settings.get('camera_lock_smoothness', 30) / 100.0  # Convert to percentage
-                    move_y = int(dy * smoothness)  # Apply smoothness percentage
+                    smoothness_value = settings.get('camera_lock_smoothness', 5)
+                    if smoothness_value <= 0:
+                        smoothness_value = 1
+                    # Calculate smoothness factor: 1=0.95 (almost instant), 20=1.0 (full movement)
+                    # Use exponential curve for better feel: base + (value-1) * increment
+                    smoothness_factor = 0.95 + (smoothness_value - 1) * 0.00263  # 0.95 to 1.0 range
+                    move_y = int(dy * smoothness_factor)  # Apply smoothness factor
                     
                     # Limit maximum movement to prevent jerky camera
                     if move_y > 8:
