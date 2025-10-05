@@ -1,6 +1,6 @@
 #5
 VERSION = "4"
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
             
 import threading
 import keyboard
