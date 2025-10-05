@@ -2256,6 +2256,61 @@ class ConfigWindow(QtWidgets.QWidget):
         finally:
             self.resume_rainbow_timer()
 
+    def enforce_legit_mode_restrictions(self):
+        """Enforce legit mode restrictions after config loading"""
+        if SELECTED_MODE != 'legit':
+            return
+            
+        try:
+            # Disable all aim-related settings
+            self.settings["aim_active"] = 0
+            if hasattr(self, 'aim_active_cb') and self.aim_active_cb:
+                self.aim_active_cb.setChecked(False)
+            
+            # Enforce triggerbot restrictions (minimum 150ms delay)
+            current_delay = self.settings.get("triggerbot_between_shots_delay", 0)
+            if current_delay < 150:
+                self.settings["triggerbot_between_shots_delay"] = 150
+                if hasattr(self, 'triggerbot_between_shots_delay_slider') and self.triggerbot_between_shots_delay_slider:
+                    self.triggerbot_between_shots_delay_slider.setValue(150)
+            
+            # Enforce smoothness restriction (force to 20)
+            self.settings["aim_smoothness"] = 20
+            if hasattr(self, 'aim_smoothness_slider') and self.aim_smoothness_slider:
+                self.aim_smoothness_slider.setValue(20)
+            
+            # Enforce radius limits (max 200 for legit mode)
+            current_radius = self.settings.get("radius", 0)
+            if current_radius > 200:
+                self.settings["radius"] = 200
+                if hasattr(self, 'radius_slider') and self.radius_slider:
+                    self.radius_slider.setValue(200)
+            
+            # Force use radius setting
+            self.settings["use_radius"] = 1
+            if hasattr(self, 'use_radius_cb') and self.use_radius_cb:
+                self.use_radius_cb.setChecked(True)
+            
+            # Enforce camera lock radius limits
+            current_cam_radius = self.settings.get("camera_lock_radius", 0)
+            if current_cam_radius > 200:
+                self.settings["camera_lock_radius"] = 200
+                if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
+                    self.camera_lock_radius_slider.setValue(200)
+                    
+            # Update labels if they exist
+            if hasattr(self, 'triggerbot_between_shots_delay_label') and self.triggerbot_between_shots_delay_label:
+                self.triggerbot_between_shots_delay_label.setText(f"Between shots delay: {self.settings['triggerbot_between_shots_delay']}ms")
+            if hasattr(self, 'aim_smoothness_label') and self.aim_smoothness_label:
+                self.aim_smoothness_label.setText(f"Smoothness: {self.settings['aim_smoothness']}")
+            if hasattr(self, 'radius_label') and self.radius_label:
+                self.radius_label.setText(f"Radius: {self.settings['radius']}")
+            if hasattr(self, 'camera_lock_radius_label') and self.camera_lock_radius_label:
+                self.camera_lock_radius_label.setText(f"Camera Lock Radius: {self.settings['camera_lock_radius']}")
+                
+        except Exception as e:
+            print(f"Error enforcing legit mode restrictions: {e}")
+
     def reload_all_ui_from_settings(self):
         """Reload all UI elements from current settings"""
         try:
@@ -2498,6 +2553,10 @@ class ConfigWindow(QtWidgets.QWidget):
 
             self.save_settings()
             
+            # Enforce Legit mode restrictions after successful config reload
+            if hasattr(self, 'enforce_legit_mode_restrictions'):
+                self.enforce_legit_mode_restrictions()
+            
         except Exception as e:
             # Make sure to clear loading flag and reset auto_apply_fov even if there's an error
             try:
@@ -2510,6 +2569,10 @@ class ConfigWindow(QtWidgets.QWidget):
             except:
                 pass
             QtWidgets.QMessageBox.critical(self, "Reload Error", f"Failed to reload UI from settings:\n{str(e)}")
+        
+        # Enforce Legit mode restrictions after config reload
+        if hasattr(self, 'enforce_legit_mode_restrictions'):
+            self.enforce_legit_mode_restrictions()
 
     def update_color_button_style(self, button, color):
         """Update color button style to show the color"""
