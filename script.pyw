@@ -1,6 +1,6 @@
-#3
+#4
 VERSION = "4"
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
             
 import threading
 import keyboard
@@ -1085,7 +1085,13 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.fov_enabled = "fov" in load_commands()
         
-        self.header_label = QtWidgets.QLabel(f"{app_title} - {SELECTED_MODE.upper()} Mode")
+        # Only show mode text for legit mode
+        if SELECTED_MODE == 'legit':
+            header_text = f"{app_title} - LEGIT Mode"
+        else:
+            header_text = app_title
+        
+        self.header_label = QtWidgets.QLabel(header_text)
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
         self.header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('MS PGothic', 14, QtGui.QFont.Bold)
