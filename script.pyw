@@ -3764,50 +3764,52 @@ class ConfigWindow(QtWidgets.QWidget):
                 # Set cooldown to prevent multiple activations
                 self.set_keybind_cooldown("PanicKey")
                 
-                # Create panic signal file
-                try:
-                    panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
-                    with open(panic_file, 'w') as f:
-                        f.write(str(time.time()))
-                except Exception:
-                    pass
-                
-                # Force terminate all processes immediately
+                # Force terminate all processes immediately using proper cleanup
                 self.panic_shutdown()
                 
         except Exception:
             pass
     
     def panic_shutdown(self):
-        """Emergency shutdown of all script processes"""
+        """Emergency shutdown of all script processes using proper cleanup mechanism"""
         try:
             # Hide the config window immediately
             self.hide()
             
-            # Terminate the application
-            import sys
-            import os
-            
-            # Try to terminate parent process and all children
+            # Reset FOV to default before shutdown
             try:
-                parent_pid = os.getppid() if hasattr(os, 'getppid') else None
-                current_pid = os.getpid()
-                
-                # Kill current process group
-                if hasattr(os, 'killpg'):
-                    os.killpg(os.getpgrp(), signal.SIGTERM)
-                else:
-                    # Windows - use taskkill to terminate process tree
-                    os.system(f'taskkill /F /T /PID {current_pid}')
-                    
+                self.reset_fov_to_default()
             except Exception:
-                # Fallback - just exit current process
-                sys.exit(1)
+                pass
+            
+            # Create the terminate signal file that the main process monitors
+            try:
+                with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                    f.write('panic_shutdown')
+            except Exception:
+                pass
+            
+            # Clean up panic signal file if it exists
+            try:
+                panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
+                if os.path.exists(panic_file):
+                    os.remove(panic_file)
+            except Exception:
+                pass
+                
+            # Exit this process cleanly and let main process handle cleanup
+            try:
+                import sys
+                sys.exit(0)
+            except Exception:
+                # Last resort - force exit
+                import os
+                os._exit(0)
                 
         except Exception:
             # Last resort - force exit
             import os
-            os._exit(1)
+            os._exit(0)
 
     def check_menu_toggle(self):
         
@@ -7731,6 +7733,13 @@ if __name__ == "__main__":
         except Exception:
             pass
         try:
+            # Clean up panic signal file as well
+            panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
+            if os.path.exists(panic_file):
+                os.remove(panic_file)
+        except Exception:
+            pass
+        try:
             if os.path.exists(KEYBIND_COOLDOWNS_FILE):
                 os.remove(KEYBIND_COOLDOWNS_FILE)
         except Exception:
@@ -7752,9 +7761,19 @@ if __name__ == "__main__":
             time.sleep(1)
             process_check_interval += 1
             
-            # Check for terminate signal
+            # Check for terminate signal (including panic shutdowns)
             if os.path.exists(TERMINATE_SIGNAL_FILE):
                 print("[DEBUG] Terminate signal detected")
+                break
+            
+            # Also check for panic signal file (backup check)
+            panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
+            if os.path.exists(panic_file):
+                print("[DEBUG] Panic shutdown signal detected")
+                try:
+                    os.remove(panic_file)
+                except Exception:
+                    pass
                 break
                                                                                          
             # Check if CS2 is still running
