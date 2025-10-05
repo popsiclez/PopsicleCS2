@@ -375,6 +375,22 @@ LOCK_FILE = os.path.join(os.getcwd(), 'script_running.lock')
 KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
 COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
+MODE_FILE = os.path.join(os.getcwd(), 'selected_mode.txt')
+
+def load_selected_mode():
+    """Load the selected mode from the mode file created by loader"""
+    try:
+        if os.path.exists(MODE_FILE):
+            with open(MODE_FILE, 'r') as f:
+                mode = f.read().strip().lower()
+                if mode in ['legit', 'full']:
+                    return mode
+    except Exception:
+        pass
+    return 'full'  # Default to full mode if no mode file or error
+
+# Load the selected mode at startup
+SELECTED_MODE = load_selected_mode()
 
 
 apply_commands()
@@ -894,7 +910,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.fov_enabled = "fov" in load_commands()
         
-        self.header_label = QtWidgets.QLabel(app_title)
+        self.header_label = QtWidgets.QLabel(f"{app_title} - {SELECTED_MODE.upper()} Mode")
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
         self.header_label.setMinimumHeight(28)
         header_font = QtGui.QFont('MS PGothic', 14, QtGui.QFont.Bold)
@@ -905,7 +921,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
         
         esp_container = self.create_esp_container()
-        aim_container = self.create_aim_container()
         trigger_container = self.create_trigger_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
@@ -914,7 +929,12 @@ class ConfigWindow(QtWidgets.QWidget):
         
         tabs = QtWidgets.QTabWidget()
         tabs.addTab(esp_container, "ESP")
-        tabs.addTab(aim_container, "Aim")
+        
+        # Only add aim tab in full mode
+        if SELECTED_MODE == 'full':
+            aim_container = self.create_aim_container()
+            tabs.addTab(aim_container, "Aim")
+            
         tabs.addTab(trigger_container, "Trigger")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Misc")
@@ -1443,12 +1463,21 @@ class ConfigWindow(QtWidgets.QWidget):
 
 
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.triggerbot_first_shot_delay_slider.setMinimum(0)
+        
+        # Apply legit mode restrictions for first shot delay
+        if SELECTED_MODE == 'legit':
+            self.triggerbot_first_shot_delay_slider.setMinimum(150)
+            # Ensure saved value meets minimum requirement
+            current_value = max(150, self.settings.get("triggerbot_first_shot_delay", 150))
+        else:
+            self.triggerbot_first_shot_delay_slider.setMinimum(0)
+            current_value = self.settings.get("triggerbot_first_shot_delay", 0)
+            
         self.triggerbot_first_shot_delay_slider.setMaximum(1000)
-        self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
+        self.triggerbot_first_shot_delay_slider.setValue(current_value)
         self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_triggerbot_first_shot_delay_label)
         self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Set to 0 for instant shooting, higher values add reaction time delay.")
-        self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({self.settings.get('triggerbot_first_shot_delay', 0)})")
+        self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({current_value})")
         self.lbl_first_shot_delay.setMinimumHeight(16)
         trigger_layout.addWidget(self.lbl_first_shot_delay)
         self.triggerbot_first_shot_delay_slider.setMinimumHeight(18)
@@ -1478,12 +1507,22 @@ class ConfigWindow(QtWidgets.QWidget):
 
 
         self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.camera_lock_smoothness_slider.setMinimum(1)
-        self.camera_lock_smoothness_slider.setMaximum(20)
-        self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 5))
+        
+        # Apply legit mode restrictions for camera lock smoothness
+        if SELECTED_MODE == 'legit':
+            self.camera_lock_smoothness_slider.setMinimum(20)
+            self.camera_lock_smoothness_slider.setMaximum(20)
+            # Force smoothness to 20 in legit mode
+            smoothness_value = 20
+        else:
+            self.camera_lock_smoothness_slider.setMinimum(1)
+            self.camera_lock_smoothness_slider.setMaximum(20)
+            smoothness_value = self.settings.get("camera_lock_smoothness", 5)
+            
+        self.camera_lock_smoothness_slider.setValue(smoothness_value)
         self.camera_lock_smoothness_slider.valueChanged.connect(self.update_camera_lock_smoothness_label)
         self.set_tooltip_if_enabled(self.camera_lock_smoothness_slider, "Controls how aggressively camera lock adjusts to head level. Lower = less smoothness/slower, higher = more smoothness/faster.")
-        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({self.settings.get('camera_lock_smoothness', 5)})")
+        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({smoothness_value})")
         self.lbl_camera_lock_smoothness.setMinimumHeight(16)
         trigger_layout.addWidget(self.lbl_camera_lock_smoothness)
         self.camera_lock_smoothness_slider.setMinimumHeight(18)
@@ -1525,7 +1564,14 @@ class ConfigWindow(QtWidgets.QWidget):
 
         # Camera Lock Use Radius Toggle
         self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
-        self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
+        
+        # Force use radius to be on in legit mode
+        if SELECTED_MODE == 'legit':
+            self.camera_lock_use_radius_cb.setChecked(True)
+            self.camera_lock_use_radius_cb.setEnabled(False)  # Disable the checkbox in legit mode
+        else:
+            self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
+            
         self.camera_lock_use_radius_cb.stateChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.camera_lock_use_radius_cb, "When enabled, camera lock will only target enemies within the radius circle instead of the entire screen.")
         self.camera_lock_use_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
@@ -1540,14 +1586,23 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_layout.addWidget(self.camera_lock_draw_radius_cb)
 
         # Camera Lock Radius Size Slider
-        self.lbl_camera_lock_radius = QtWidgets.QLabel(f"Camera Lock Radius: ({self.settings.get('camera_lock_radius', 100)})")
-        trigger_layout.addWidget(self.lbl_camera_lock_radius)
         self.camera_lock_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.camera_lock_radius_slider.setMinimum(25)
-        self.camera_lock_radius_slider.setMaximum(300)
-        self.camera_lock_radius_slider.setValue(self.settings.get('camera_lock_radius', 100))
+        
+        # Apply legit mode restrictions for radius
+        if SELECTED_MODE == 'legit':
+            self.camera_lock_radius_slider.setMaximum(200)
+            # Ensure saved value doesn't exceed maximum
+            radius_value = min(200, self.settings.get('camera_lock_radius', 100))
+        else:
+            self.camera_lock_radius_slider.setMaximum(300)
+            radius_value = self.settings.get('camera_lock_radius', 100)
+            
+        self.camera_lock_radius_slider.setValue(radius_value)
         self.camera_lock_radius_slider.valueChanged.connect(self.update_camera_lock_radius_label)
         self.set_tooltip_if_enabled(self.camera_lock_radius_slider, "Adjust the size of the camera lock targeting radius. Larger values allow targeting enemies further from the center.")
+        self.lbl_camera_lock_radius = QtWidgets.QLabel(f"Camera Lock Radius: ({radius_value})")
+        trigger_layout.addWidget(self.lbl_camera_lock_radius)
         trigger_layout.addWidget(self.camera_lock_radius_slider)
 
         # Camera Lock Spotted Check Toggle
@@ -3069,6 +3124,23 @@ class ConfigWindow(QtWidgets.QWidget):
                         self.settings["PanicKey"] = val
         except Exception:
             pass
+        
+        # Apply legit mode restrictions before saving
+        if SELECTED_MODE == 'legit':
+            # Force minimum first shot delay of 150ms
+            if self.settings.get("triggerbot_first_shot_delay", 0) < 150:
+                self.settings["triggerbot_first_shot_delay"] = 150
+            
+            # Force camera lock smoothness to 20
+            self.settings["camera_lock_smoothness"] = 20
+            
+            # Force use radius for targeting to be on
+            self.settings["camera_lock_use_radius"] = 1
+            
+            # Limit camera lock radius to maximum 200
+            if self.settings.get("camera_lock_radius", 100) > 200:
+                self.settings["camera_lock_radius"] = 200
+        
         save_settings(self.settings)
 
     def record_key(self, settings_key: str, btn: QtWidgets.QPushButton):
@@ -7701,12 +7773,16 @@ if __name__ == "__main__":
         multiprocessing.Process(target=configurator),
         multiprocessing.Process(target=esp_main),
         multiprocessing.Process(target=triggerbot),
-        multiprocessing.Process(target=aim),
         multiprocessing.Process(target=bhop),
         multiprocessing.Process(target=auto_accept_main),
     ]
     
-    process_names = ["configurator", "esp_main", "triggerbot", "aim", "bhop", "auto_accept_main"]
+    process_names = ["configurator", "esp_main", "triggerbot", "bhop", "auto_accept_main"]
+    
+    # Only add aim process in full mode
+    if SELECTED_MODE == 'full':
+        procs.append(multiprocessing.Process(target=aim))
+        process_names.append("aim")
     
     def cleanup_and_exit(reason=""):
         """Clean shutdown of all processes and resources"""
@@ -7737,6 +7813,12 @@ if __name__ == "__main__":
             panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
             if os.path.exists(panic_file):
                 os.remove(panic_file)
+        except Exception:
+            pass
+        try:
+            # Clean up mode file
+            if os.path.exists(MODE_FILE):
+                os.remove(MODE_FILE)
         except Exception:
             pass
         try:
