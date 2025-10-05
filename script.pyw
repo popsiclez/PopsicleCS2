@@ -567,9 +567,7 @@ SELECTED_MODE = load_selected_mode()
 
 apply_commands()
                        
-RAINBOW_HUE_MENU = 0.0
-RAINBOW_HUE_CENTER_DOT = 0.33
-RAINBOW_HUE_FOV = 0.66
+RAINBOW_HUE = 0.0
 TARGET_POSITIONS = {}                                                                      
 TARGET_POSITION_TIMESTAMPS = {}                                         
 BombPlantedTime = 0
@@ -770,7 +768,7 @@ DEFAULT_SETTINGS = {
                  
     "topmost": 1,
     "MenuToggleKey": "F8",
-    "PanicKey": "NONE",
+    "ExitKey": "F7",
     "team_color": "#47A76A",
     "enemy_color": "#C41E3A",
     "skeleton_color": "#FFFFFF",
@@ -1161,18 +1159,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self._menu_toggle_ignore_until = 0
 
         
-        try:
-            self._escape_hold_start = 0
-            self._escape_hold_timer = QtCore.QTimer(self)
-            self._escape_hold_timer.timeout.connect(self._check_escape_hold)
-            
-            self._escape_hold_timer.start(200)
-        except Exception:
-            
-            try:
-                self._escape_hold_start = 0
-            except Exception:
-                pass
+        # ESC hold timer removed - exit key is now the main closing method
 
                                                                                
         self.setMinimumWidth(480)
@@ -2281,15 +2268,15 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        # Panic button
-        self.panic_key_btn = QtWidgets.QPushButton(f"Panic Key: {self.settings.get('PanicKey', 'NONE')}")
-        self.panic_key_btn.setObjectName("keybind_button")
-        self.panic_key_btn.clicked.connect(lambda: self.record_key('PanicKey', self.panic_key_btn))
-        self.set_tooltip_if_enabled(self.panic_key_btn, "Emergency key to instantly terminate all script processes. Use for quick shutdown if needed.")
-        self.panic_key_btn.setMinimumHeight(22)
-        self.panic_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.panic_key_btn)
-        self.panic_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'PanicKey', self.panic_key_btn)
+        # Exit button
+        self.exit_key_btn = QtWidgets.QPushButton(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
+        self.exit_key_btn.setObjectName("keybind_button")
+        self.exit_key_btn.clicked.connect(lambda: self.record_key('ExitKey', self.exit_key_btn))
+        self.set_tooltip_if_enabled(self.exit_key_btn, "Main key to close the application and terminate all script processes. Press this key to safely exit the program.")
+        self.exit_key_btn.setMinimumHeight(22)
+        self.exit_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.exit_key_btn)
+        self.exit_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'ExitKey', self.exit_key_btn)
 
 
 
@@ -2330,7 +2317,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setup_config_folder_watcher()
 
 
-        export_btn = QtWidgets.QPushButton("Export Config")
+        export_btn = QtWidgets.QPushButton("Export New Config")
         export_btn.clicked.connect(self.on_export_config_clicked)
         export_btn.setMinimumHeight(22)
         export_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
@@ -2350,15 +2337,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.reset_btn.setMinimumHeight(22)
         self.reset_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         config_layout.addWidget(self.reset_btn)
-
-
-        self.exit_script_label = QtWidgets.QLabel("Hold ESC to Exit Script")
-        self.exit_script_label.setObjectName("exit_script_label")
-        self.exit_script_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.exit_script_label.setMinimumHeight(22)
-        self.exit_script_label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        self.set_tooltip_if_enabled(self.exit_script_label, "Hold ESC for 3 seconds to safely exit the script and close all processes.")
-        config_layout.addWidget(self.exit_script_label)
 
         config_container.setLayout(config_layout)
         config_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
@@ -2679,8 +2657,8 @@ class ConfigWindow(QtWidgets.QWidget):
             self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
             self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
             
-            if hasattr(self, 'panic_key_btn') and self.panic_key_btn:
-                self.panic_key_btn.setText(f"Panic Key: {self.settings.get('PanicKey', 'NONE')}")
+            if hasattr(self, 'exit_key_btn') and self.exit_key_btn:
+                self.exit_key_btn.setText(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
             
 
             for widget in widgets_to_block:
@@ -3756,18 +3734,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 font-size: 12px;
             }}
             
-            /* Special styling for exit script label */
-            QLabel[objectName="exit_script_label"] {{
-                color: {theme_color};
-                font-family: "MS PGothic";
-                font-weight: bold;
-                font-size: 13px;
-                border: 1px solid {theme_color};
-                border-radius: 4px;
-                padding: 6px 12px;
-                background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 0.1);
-            }}
-            
             QCheckBox {{
                 color: white;
                 font-family: "MS PGothic";
@@ -3932,7 +3898,10 @@ class ConfigWindow(QtWidgets.QWidget):
             
             QTabWidget::pane {{
                 border: none;
+                border-top: 2px solid {theme_color};
                 background-color: #020203;
+                margin-top: 6px;
+                border-radius: 0px 0px 8px 8px;
             }}
             
             QTabWidget::tab-bar {{
@@ -3946,7 +3915,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 margin: 2px;
                 border-radius: 4px;
                 font-family: "MS PGothic";
-                font-weight: bold;
+                font-weight: normal;
             }}
             
             QTabBar::tab:selected {{
@@ -4087,11 +4056,11 @@ class ConfigWindow(QtWidgets.QWidget):
                 self._rainbow_was_enabled = False
                 
             if rainbow_enabled:
-                global RAINBOW_HUE_MENU
+                global RAINBOW_HUE
                                                                                                
-                RAINBOW_HUE_MENU = (RAINBOW_HUE_MENU + 0.005) % 1.0
+                RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
                 
-                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_MENU, 1.0, 1.0)]
+                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                 rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
                 
                                                                                           
@@ -4127,16 +4096,16 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
     
-    def check_panic_key(self):
-        """Check for panic key press and terminate all processes if pressed"""
+    def check_exit_key(self):
+        """Check for exit key press and terminate all processes if pressed"""
         try:
-            key = self.settings.get("PanicKey", "NONE")
+            key = self.settings.get("ExitKey", "F7")
             
             if not key or str(key).upper() == "NONE":
                 return
                 
-            # Check if panic key is on cooldown to prevent accidental double-press
-            if self.is_keybind_on_cooldown("PanicKey"):
+            # Check if exit key is on cooldown to prevent accidental double-press
+            if self.is_keybind_on_cooldown("ExitKey"):
                 return
                 
             vk = key_str_to_vk(key)
@@ -4144,16 +4113,16 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if pressed:
                 # Set cooldown to prevent multiple activations
-                self.set_keybind_cooldown("PanicKey")
+                self.set_keybind_cooldown("ExitKey")
                 
                 # Force terminate all processes immediately using proper cleanup
-                self.panic_shutdown()
+                self.exit_shutdown()
                 
         except Exception:
             pass
     
-    def panic_shutdown(self):
-        """Emergency shutdown of all script processes using proper cleanup mechanism"""
+    def exit_shutdown(self):
+        """Safe shutdown of all script processes using proper cleanup mechanism"""
         try:
             # Hide the config window immediately
             self.hide()
@@ -4197,8 +4166,8 @@ class ConfigWindow(QtWidgets.QWidget):
     def check_menu_toggle(self):
         
         try:
-            # Check panic key first
-            self.check_panic_key()
+            # Check exit key first
+            self.check_exit_key()
             
             if getattr(self, "_menu_toggle_ignore_until", 0) > time.time():
                 return
@@ -4258,46 +4227,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-    def _check_escape_hold(self):
-        """Poll ESC state; if held continuously for 4 seconds, trigger termination.
-
-        This uses GetAsyncKeyState high-bit detection so it responds while the key is held.
-        """
-        try:
-            
-            app = QtWidgets.QApplication.instance()
-            if app is not None:
-                widget = app.focusWidget()
-                
-                if widget is not None and widget.metaObject().className() in ('QLineEdit', 'QTextEdit', 'QPlainTextEdit'):
-                    self._escape_hold_start = 0
-                    return
-
-            
-            if (win32api.GetAsyncKeyState(win32con.VK_ESCAPE) & 0x8000) != 0:
-                if self._escape_hold_start == 0:
-                    self._escape_hold_start = time.time()
-                else:
-                    if time.time() - self._escape_hold_start >= 2.0:
-                        
-                        try:
-                            self.on_terminate_clicked()
-                        except Exception:
-                            pass
-                        
-                        try:
-                            self._escape_hold_timer.stop()
-                        except Exception:
-                            pass
-            else:
-                
-                self._escape_hold_start = 0
-        except Exception:
-            
-            try:
-                self._escape_hold_start = 0
-            except Exception:
-                pass
+    # ESC hold feature removed - exit key is now the main closing method
 
     
     def hideEvent(self, event: QtGui.QHideEvent):
@@ -5452,10 +5382,10 @@ def render_center_dot(scene, window_width, window_height, settings):
                                        
             if settings.get('rainbow_center_dot', 0) == 1:
                 try:
-                    global RAINBOW_HUE_CENTER_DOT
+                    global RAINBOW_HUE
                                                                     
-                    RAINBOW_HUE_CENTER_DOT = (RAINBOW_HUE_CENTER_DOT + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_CENTER_DOT, 1.0, 1.0)]
+                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                     dot_qcolor = QtGui.QColor(r, g, b)
                 except Exception:
                     dot_hex = settings.get('center_dot_color', '#FFFFFF')
@@ -5496,14 +5426,14 @@ def render_aim_circle(scene, window_width, window_height, settings):
             screen_radius = settings['radius'] / 100.0 * min(center_x, center_y)
             opacity = settings.get("circle_opacity", 16)
             
-            global RAINBOW_HUE_FOV
+            global RAINBOW_HUE
             if settings.get('rainbow_fov', 0) == 1:
                 try:
                                                                                            
                                                                                        
                     # FOV always updates its own hue when enabled
-                    RAINBOW_HUE_FOV = (RAINBOW_HUE_FOV + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE_FOV, 1.0, 1.0)]
+                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                     aim_qcolor = QtGui.QColor(r, g, b)
                     aim_qcolor.setAlpha(opacity)
                 except Exception:
