@@ -383,10 +383,16 @@ def load_selected_mode():
         if os.path.exists(MODE_FILE):
             with open(MODE_FILE, 'r') as f:
                 mode = f.read().strip().lower()
-                if mode in ['legit', 'full']:
-                    return mode
-    except Exception:
-        pass
+            # Auto-delete the mode file immediately after reading
+            try:
+                os.remove(MODE_FILE)
+                print(f"[DEBUG] Mode file deleted after reading: {mode}")
+            except Exception as e:
+                print(f"[DEBUG] Failed to delete mode file: {e}")
+            if mode in ['legit', 'full']:
+                return mode
+    except Exception as e:
+        print(f"[DEBUG] Error loading selected mode: {e}")
     return 'full'  # Default to full mode if no mode file or error
 
 # Load the selected mode at startup
