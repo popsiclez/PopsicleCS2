@@ -1,6 +1,6 @@
-#4
+#5
 VERSION = "4"
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
             
 import threading
 import keyboard
@@ -1956,7 +1956,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.aim_mode_distance_cb = QtWidgets.QComboBox()
         self.aim_mode_distance_cb.addItems(["Closest to Crosshair", "Closest in 3D"])
-        self.aim_mode_distance_cb.setCurrentIndex(self.settings.get("aim_mode_distance", 1))
+        self.aim_mode_distance_cb.setCurrentIndex(self.settings.get("aim_mode_distance", 0))
         self.aim_mode_distance_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
         self.aim_mode_distance_cb.currentIndexChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.aim_mode_distance_cb, "Choose targeting priority: closest to crosshair (2D screen distance) or closest in world space (3D distance).")
