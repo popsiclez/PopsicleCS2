@@ -1,4 +1,4 @@
-#5
+#6
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -1725,13 +1725,12 @@ class ConfigWindow(QtWidgets.QWidget):
         # Apply legit mode restrictions for camera lock smoothness
         if SELECTED_MODE == 'legit':
             self.camera_lock_smoothness_slider.setMinimum(20)
-            self.camera_lock_smoothness_slider.setMaximum(20)
-            # Force smoothness to 20 in legit mode
-            smoothness_value = 20
+            self.camera_lock_smoothness_slider.setMaximum(50)
+            smoothness_value = max(20, min(50, self.settings.get("camera_lock_smoothness", 20)))
         else:
             self.camera_lock_smoothness_slider.setMinimum(1)
-            self.camera_lock_smoothness_slider.setMaximum(20)
-            smoothness_value = self.settings.get("camera_lock_smoothness", 5)
+            self.camera_lock_smoothness_slider.setMaximum(50)
+            smoothness_value = max(1, min(50, self.settings.get("camera_lock_smoothness", 5)))
             
         self.camera_lock_smoothness_slider.setValue(smoothness_value)
         self.camera_lock_smoothness_slider.valueChanged.connect(self.update_camera_lock_smoothness_label)
