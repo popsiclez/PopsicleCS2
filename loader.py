@@ -39,11 +39,12 @@ def cleanup_loader_temp_files():
 atexit.register(cleanup_loader_temp_files)
 
 # Loader version
-LOADER_VERSION = "1"
+LOADER_VERSION = "2"
 
 URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/script.pyw"
 TITLE_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt"
 VERSION_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/loaderversion.txt"
+LOADED_SIGNAL_FILE = "script_loaded.signal"
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -173,15 +174,7 @@ def main():
         selected_mode = show_mode_selection()
         
         print(f"\nSelected mode: {selected_mode.upper()}")
-        
-        # Hide console window immediately after mode selection
-        try:
-            import ctypes
-            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-            if hwnd != 0:
-                ctypes.windll.user32.ShowWindow(hwnd, 0)  # 0 = SW_HIDE
-        except:
-            pass
+        print("Starting script...")
         
         # Exit if no mode selected
         if selected_mode is None:
@@ -226,6 +219,14 @@ def main():
         if python_exe is None:
             return
         
+        # Clean up any existing loaded signal file
+        loaded_signal_path = os.path.join(os.getcwd(), LOADED_SIGNAL_FILE)
+        try:
+            if os.path.exists(loaded_signal_path):
+                os.remove(loaded_signal_path)
+        except OSError:
+            pass
+        
         # Run script using system Python with hidden console
         try:
             # Configure subprocess to hide console window
@@ -236,27 +237,60 @@ def main():
             # Use pythonw.exe instead of python.exe to avoid console window
             pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
             if os.path.exists(pythonw_exe):
-                subprocess.run([pythonw_exe, tmp_path], startupinfo=startupinfo)
+                # Start the script in a non-blocking way
+                subprocess.Popen([pythonw_exe, tmp_path], startupinfo=startupinfo)
             else:
-                subprocess.run([python_exe, tmp_path], startupinfo=startupinfo)
+                # Start the script in a non-blocking way
+                subprocess.Popen([python_exe, tmp_path], startupinfo=startupinfo)
             
-            # Exit immediately after starting script
-            return
-                
-        except Exception as e:
-            pass
-        finally:
-            # Clean up temp file immediately after script starts
+            # Wait for script to signal it's fully loaded
+            import time
+            print("Script starting, waiting for confirmation...")
+            max_wait_time = 30  # Maximum 30 seconds to wait
+            wait_interval = 0.5  # Check every 0.5 seconds
+            waited_time = 0
+            
+            while waited_time < max_wait_time:
+                if os.path.exists(loaded_signal_path):
+                    print("Script confirmed loaded! Cleaning up and closing loader...")
+                    break
+                time.sleep(wait_interval)
+                waited_time += wait_interval
+                if waited_time % 5 == 0:  # Print progress every 5 seconds
+                    print(f"Still waiting... ({int(waited_time)}s/{max_wait_time}s)")
+            
+            if waited_time >= max_wait_time:
+                print("Warning: Script may not have loaded properly (timeout reached)")
+            
+            # Clean up temp file after script has confirmed it's loaded
             try:
-                # Small delay to ensure script has started
-                import time
-                time.sleep(1)
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
                     if tmp_path in LOADER_TEMP_FILES:
                         LOADER_TEMP_FILES.remove(tmp_path)
-            except OSError as e:
+            except OSError:
                 pass
+            
+            # Clean up loaded signal file
+            try:
+                if os.path.exists(loaded_signal_path):
+                    os.remove(loaded_signal_path)
+            except OSError:
+                pass
+            
+            # Exit the loader completely
+            sys.exit(0)
+                
+        except Exception as e:
+            # Only clean up on error
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                    if tmp_path in LOADER_TEMP_FILES:
+                        LOADER_TEMP_FILES.remove(tmp_path)
+            except OSError:
+                pass
+            sys.exit(1)
                 
     except Exception as e:
         pass
