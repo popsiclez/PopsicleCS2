@@ -379,6 +379,21 @@ MODE_FILE = os.path.join(os.getcwd(), 'selected_mode.txt')
 
 def load_selected_mode():
     """Load the selected mode from the mode file created by loader"""
+    import time
+    
+    print(f"[DEBUG] Looking for mode file: {MODE_FILE}")
+    
+    # Wait up to 10 seconds for mode file to exist
+    max_wait = 10
+    wait_time = 0
+    while wait_time < max_wait:
+        if os.path.exists(MODE_FILE):
+            print(f"[DEBUG] Mode file found after {wait_time}s")
+            break
+        time.sleep(0.5)
+        wait_time += 0.5
+        print(f"[DEBUG] Waiting for mode file... ({wait_time}s)")
+    
     try:
         if os.path.exists(MODE_FILE):
             with open(MODE_FILE, 'r') as f:
@@ -395,6 +410,8 @@ def load_selected_mode():
                 return mode
             else:
                 print(f"[DEBUG] Invalid mode in file: '{mode}', defaulting to full")
+        else:
+            print(f"[DEBUG] Mode file not found at: {MODE_FILE}")
     except Exception as e:
         print(f"[DEBUG] Error loading selected mode: {e}")
     print("[DEBUG] No valid mode file found, defaulting to full")
@@ -402,6 +419,7 @@ def load_selected_mode():
 
 # Load the selected mode at startup
 SELECTED_MODE = load_selected_mode()
+print(f"[DEBUG] Final SELECTED_MODE: {SELECTED_MODE}")
 
 
 apply_commands()
