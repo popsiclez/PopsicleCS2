@@ -1,5 +1,6 @@
+#1
 VERSION = "4"
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
             
 import threading
 import keyboard
@@ -1117,7 +1118,7 @@ class ConfigWindow(QtWidgets.QWidget):
         tabs = QtWidgets.QTabWidget()
         tabs.addTab(esp_container, "ESP")
         
-        if SELECTED_MODE == 'full':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
             aim_container = self.create_aim_container()
             tabs.addTab(aim_container, "Aim")
             
@@ -1666,7 +1667,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
-        if SELECTED_MODE == 'legit':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             self.triggerbot_first_shot_delay_slider.setMinimum(150)
             current_value = max(150, self.settings.get("triggerbot_first_shot_delay", 150))
         else:
@@ -1708,7 +1709,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
-        if SELECTED_MODE == 'legit':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             self.camera_lock_smoothness_slider.setMinimum(20)
             self.camera_lock_smoothness_slider.setMaximum(50)
             smoothness_value = max(20, min(50, self.settings.get("camera_lock_smoothness", 20)))
@@ -1760,7 +1761,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
         
-        if SELECTED_MODE == 'legit':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             self.camera_lock_use_radius_cb.setChecked(True)
             self.camera_lock_use_radius_cb.setEnabled(False)
         else:
@@ -1781,7 +1782,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.camera_lock_radius_slider.setMinimum(25)
         
-        if SELECTED_MODE == 'legit':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             self.camera_lock_radius_slider.setMaximum(200)
             radius_value = min(200, self.settings.get('camera_lock_radius', 100))
         else:
@@ -3383,7 +3384,7 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
         
-        if SELECTED_MODE == 'legit':
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             if self.settings.get("triggerbot_first_shot_delay", 0) < 150:
                 self.settings["triggerbot_first_shot_delay"] = 150
             
@@ -7758,7 +7759,7 @@ if __name__ == "__main__":
     
     process_names = ["configurator", "esp_main", "triggerbot", "bhop", "auto_accept_main"]
     
-    if SELECTED_MODE == 'full':
+    if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
         procs.append(multiprocessing.Process(target=aim))
         process_names.append("aim")
     
