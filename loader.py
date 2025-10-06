@@ -39,7 +39,7 @@ def cleanup_loader_temp_files():
 atexit.register(cleanup_loader_temp_files)
 
 # Loader version
-LOADER_VERSION = "2"
+LOADER_VERSION = "3"
 
 URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/script.pyw"
 TITLE_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt"
@@ -245,22 +245,15 @@ def main():
             
             # Wait for script to signal it's fully loaded
             import time
-            print("Script starting, waiting for confirmation...")
-            max_wait_time = 30  # Maximum 30 seconds to wait
             wait_interval = 0.5  # Check every 0.5 seconds
             waited_time = 0
             
-            while waited_time < max_wait_time:
+            while True:
                 if os.path.exists(loaded_signal_path):
                     print("Script confirmed loaded! Cleaning up and closing loader...")
                     break
                 time.sleep(wait_interval)
                 waited_time += wait_interval
-                if waited_time % 5 == 0:  # Print progress every 5 seconds
-                    print(f"Still waiting... ({int(waited_time)}s/{max_wait_time}s)")
-            
-            if waited_time >= max_wait_time:
-                print("Warning: Script may not have loaded properly (timeout reached)")
             
             # Clean up temp file after script has confirmed it's loaded
             try:
