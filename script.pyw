@@ -1,4 +1,3 @@
-#1
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -2408,9 +2407,14 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def enforce_legit_mode_restrictions(self):
         """Enforce legit mode restrictions after config loading"""
-        if SELECTED_MODE != 'legit':
+        print(f"[DEBUG] enforce_legit_mode_restrictions called - SELECTED_MODE: '{SELECTED_MODE}'")
+        
+        # Use case-insensitive comparison and null check
+        if not SELECTED_MODE or SELECTED_MODE.lower() != 'legit':
+            print(f"[DEBUG] Not in legit mode, skipping restrictions")
             return
             
+        print(f"[DEBUG] Applying legit mode restrictions")
         try:
             self.settings["aim_active"] = 0
             if hasattr(self, 'aim_active_cb') and self.aim_active_cb:
