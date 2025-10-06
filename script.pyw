@@ -1,3 +1,4 @@
+#1
 VERSION = "4"
 STARTUP_ENABLED = True
             
@@ -1089,10 +1090,13 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.fov_enabled = "fov" in load_commands()
         
-        if SELECTED_MODE == 'legit':
+        # Ensure proper header text based on selected mode
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             header_text = f"{app_title} - LEGIT Mode"
         else:
             header_text = app_title
+        
+        print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
         
         self.header_label = QtWidgets.QLabel(header_text)
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
