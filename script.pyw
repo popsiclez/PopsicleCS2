@@ -4584,7 +4584,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_camera_lock_tolerance_label(self):
         val = self.camera_lock_tolerance_slider.value()
-        self.lbl_camera_lock_tolerance.setText(f"Camera Lock Smoothness: ({val}px)")
+        self.lbl_camera_lock_tolerance.setText(f"Camera Lock Deadzone: ({val}px)")
         self.save_settings()
 
     def update_camera_lock_line_width_label(self):
