@@ -786,7 +786,6 @@ DEFAULT_SETTINGS = {
     
     # Recoil Control settings
     "recoil_control_enabled": 0,
-    "recoil_control_key": "LMB",
     "recoil_control_strength": 5,
     "recoil_control_delay": 25,
     "recoil_control_smoothness": 3,
@@ -1996,16 +1995,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.recoil_smoothness_slider, "How smooth the recoil control movements are. Higher values = smoother, more gradual movements.")
         recoil_layout.addWidget(self.recoil_smoothness_slider)
 
-        # Recoil Control Key Button
-        self.recoil_control_key_btn = QtWidgets.QPushButton(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
-        self.recoil_control_key_btn.setObjectName("keybind_button")
-        self.recoil_control_key_btn.clicked.connect(lambda: self.record_key('recoil_control_key', self.recoil_control_key_btn))
-        self.set_tooltip_if_enabled(self.recoil_control_key_btn, "Key that activates recoil control. Typically set to your shoot key (Left Mouse Button).")
-        self.recoil_control_key_btn.setMinimumHeight(22)
-        self.recoil_control_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        recoil_layout.addWidget(self.recoil_control_key_btn)
-        self.recoil_control_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'recoil_control_key', self.recoil_control_key_btn)
-
         recoil_container.setLayout(recoil_layout)
         recoil_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return recoil_container
@@ -2937,7 +2926,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
             self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
             self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
-            self.recoil_control_key_btn.setText(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
             self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
             self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
             self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
@@ -3350,8 +3338,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
                 if hasattr(self, 'trigger_key_btn'):
                     self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
-                if hasattr(self, 'recoil_control_key_btn'):
-                    self.recoil_control_key_btn.setText(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
                 if hasattr(self, 'bhop_key_btn'):
                     self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
                 if hasattr(self, 'menu_key_btn'):
@@ -4193,11 +4179,11 @@ class ConfigWindow(QtWidgets.QWidget):
             QTabBar::tab {{
                 background-color: #3c3c3c;
                 color: {theme_color};
-                padding: 8px 20px;
+                padding: 8px 13px;
                 margin: 2px;
                 border-radius: 4px;
                 font-family: "MS PGothic";
-                font-weight: normal;
+                font-weight: bold;
             }}
             
             QTabBar::tab:selected {{
@@ -7959,7 +7945,6 @@ def recoil_control():
     
     default_settings = {
         "recoil_control_enabled": 0,
-        "recoil_control_key": "LMB",
         "recoil_control_strength": 5,
         "recoil_control_delay": 25,
         "recoil_control_smoothness": 3,
@@ -8038,6 +8023,8 @@ def recoil_control():
         is_shooting = False
         shots_fired = 0
         last_ammo_count = -1
+        last_ammo_check_time = 0
+        shooting_timeout = 0.5  # Stop considering "shooting" after 0.5 seconds of no ammo decrease
         last_settings_reload = 0
         
         while True:
@@ -8081,9 +8068,6 @@ def recoil_control():
                 selected_weapon = settings.get('recoil_selected_weapon', 'All weapons')
                 weapon_settings = settings.get('recoil_weapons', {})
                 
-                # Get key setting (global for all weapons)
-                key_code = key_str_to_vk(settings.get('recoil_control_key', 'LMB'))
-                
                 # Use weapon-specific settings if available, otherwise fall back to global settings
                 if selected_weapon in weapon_settings:
                     strength = weapon_settings[selected_weapon].get('strength', settings.get('recoil_control_strength', 5))
@@ -8098,35 +8082,33 @@ def recoil_control():
                 # Calculate polling interval based on response speed (1-50 -> 0.01-0.001 seconds)
                 polling_interval = 0.01 - (response_speed - 1) * 0.009 / 49
                 
-                # Check if the recoil key is pressed
-                key_pressed = win32api.GetAsyncKeyState(key_code) & 0x8000
+                # Check current ammo continuously
+                current_ammo = get_current_ammo()
+                current_time = time.time()
                 
-                if key_pressed:
-                    # Check current ammo
-                    current_ammo = get_current_ammo()
-                    
-                    if current_ammo == 0:
-                        # No ammo, don't apply recoil control
-                        if is_shooting:
-                            is_shooting = False
-                            shots_fired = 0
-                            last_ammo_count = -1
-                            print("[RECOIL] Stopped shooting - No ammo")
-                        time.sleep(0.01)
-                        continue
-                    
-                    if not is_shooting:
-                        # Just started shooting
-                        is_shooting = True
+                if current_ammo == 0:
+                    # No ammo, don't apply recoil control
+                    if is_shooting:
+                        is_shooting = False
                         shots_fired = 0
-                        last_ammo_count = current_ammo
-                        ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
-                        weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "All weapons" else ""
-                        print(f"[RECOIL] Started shooting - Strength: {strength}, Response Speed: {response_speed}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
-                    
+                        last_ammo_count = -1
+                        print("[RECOIL] Stopped shooting - No ammo")
+                    time.sleep(polling_interval)
+                    continue
+                
+                if current_ammo > 0:
                     # Detect shot fired by checking if ammo decreased
                     if current_ammo >= 0 and last_ammo_count >= 0 and current_ammo < last_ammo_count:
+                        if not is_shooting:
+                            # Just started shooting (first shot detected)
+                            is_shooting = True
+                            shots_fired = 0
+                            ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
+                            weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "All weapons" else ""
+                            print(f"[RECOIL] Started shooting - Strength: {strength}, Response Speed: {response_speed}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
+                        
                         shots_fired += 1
+                        last_ammo_check_time = current_time
                         
                         # Calculate recoil compensation based on shots fired
                         base_recoil = strength + (shots_fired * 0.3)  # Increase recoil compensation over time
@@ -8154,15 +8136,21 @@ def recoil_control():
                         
                         print(f"[RECOIL] Shot detected - Shots fired: {shots_fired}, Compensation: {base_recoil:.1f}, Ammo: {current_ammo}")
                     
+                    # Check if we should stop considering the player as "shooting"
+                    elif is_shooting and current_time - last_ammo_check_time > shooting_timeout:
+                        is_shooting = False
+                        shots_fired = 0
+                        print("[RECOIL] Stopped shooting - No shots detected recently")
+                    
                     # Update last ammo count
                     last_ammo_count = current_ammo
                 else:
+                    # Ammo count unknown or negative, reset shooting state
                     if is_shooting:
-                        # Stopped shooting
                         is_shooting = False
                         shots_fired = 0
                         last_ammo_count = -1
-                        print("[RECOIL] Stopped shooting")
+                        print("[RECOIL] Stopped shooting - Ammo unknown")
                 
                 time.sleep(polling_interval)  # Adjust sleep based on response speed setting
                 
