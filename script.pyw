@@ -1,4 +1,4 @@
-VERSION = "4"
+VERSION = "5"
 STARTUP_ENABLED = True
             
 import threading
@@ -88,7 +88,8 @@ def setup_logging():
     
 
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
-    add_temporary_file(LOG_FILE)
+    # DO NOT add LOG_FILE to temporary files when debug logging is enabled
+    # We want to keep the debug log for analysis after script closes
     
 
     original_stdout = sys.stdout
@@ -163,7 +164,7 @@ def cleanup_all_temporary_files():
             KEYBIND_COOLDOWNS_FILE,
             CONSOLE_LOCK_FILE,
             MODE_FILE,
-            os.path.join(os.getcwd(), 'debug_log.txt'),
+            # Debug log is NOT included here - we want to keep it for analysis
             os.path.join(os.getcwd(), 'panic_shutdown.signal')
         ]
         
@@ -424,6 +425,17 @@ m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields'
 m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
 m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
 m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
+
+# Weapon and ammo related offsets
+try:
+    m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
+    m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
+    m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
+except KeyError:
+    # Fallback offsets if not found in JSON
+    m_pWeaponServices = 0x11E8
+    m_hActiveWeapon = 0x58
+    m_iClip1 = 0x1564
           
 m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
 m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
@@ -772,6 +784,52 @@ DEFAULT_SETTINGS = {
                           
     "auto_accept_enabled": 0,
     
+    # Recoil Control settings
+    "recoil_control_enabled": 0,
+    "recoil_control_key": "LMB",
+    "recoil_control_strength": 5,
+    "recoil_control_delay": 25,
+    "recoil_control_smoothness": 3,
+    "recoil_selected_weapon": "All weapons",
+    
+    # Weapon-specific recoil settings
+    "recoil_weapons": {
+        "All weapons": {"strength": 5, "delay": 25, "smoothness": 3},
+        "AK-47": {"strength": 5, "delay": 25, "smoothness": 3},
+        "M4A4": {"strength": 5, "delay": 25, "smoothness": 3},
+        "M4A1-S": {"strength": 5, "delay": 25, "smoothness": 3},
+        "AWP": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Galil AR": {"strength": 5, "delay": 25, "smoothness": 3},
+        "FAMAS": {"strength": 5, "delay": 25, "smoothness": 3},
+        "MP9": {"strength": 5, "delay": 25, "smoothness": 3},
+        "MAC-10": {"strength": 5, "delay": 25, "smoothness": 3},
+        "MP5-SD": {"strength": 5, "delay": 25, "smoothness": 3},
+        "UMP-45": {"strength": 5, "delay": 25, "smoothness": 3},
+        "P90": {"strength": 5, "delay": 25, "smoothness": 3},
+        "PP-Bizon": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Nova": {"strength": 5, "delay": 25, "smoothness": 3},
+        "XM1014": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Sawed-Off": {"strength": 5, "delay": 25, "smoothness": 3},
+        "MAG-7": {"strength": 5, "delay": 25, "smoothness": 3},
+        "M249": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Negev": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Five-SeveN": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Glock-18": {"strength": 5, "delay": 25, "smoothness": 3},
+        "USP-S": {"strength": 5, "delay": 25, "smoothness": 3},
+        "P2000": {"strength": 5, "delay": 25, "smoothness": 3},
+        "P250": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Tec-9": {"strength": 5, "delay": 25, "smoothness": 3},
+        "CZ75-Auto": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Desert Eagle": {"strength": 5, "delay": 25, "smoothness": 3},
+        "Dual Berettas": {"strength": 5, "delay": 25, "smoothness": 3},
+        "R8 Revolver": {"strength": 5, "delay": 25, "smoothness": 3},
+        "SSG 08": {"strength": 5, "delay": 25, "smoothness": 3},
+        "SG 553": {"strength": 5, "delay": 25, "smoothness": 3},
+        "AUG": {"strength": 5, "delay": 25, "smoothness": 3},
+        "G3SG1": {"strength": 5, "delay": 25, "smoothness": 3},
+        "SCAR-20": {"strength": 5, "delay": 25, "smoothness": 3}
+    },
+    
                  
     "topmost": 1,
     "MenuToggleKey": "F8",
@@ -1043,6 +1101,41 @@ def load_settings():
             loaded_settings = json.load(f)
 
             merged_settings.update(loaded_settings)
+            
+            # Migrate legacy recoil settings to weapon-specific format
+            if 'recoil_weapons' not in merged_settings or not isinstance(merged_settings['recoil_weapons'], dict):
+                print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
+                
+                # Get legacy values or defaults
+                legacy_strength = merged_settings.get('recoil_control_strength', 5)
+                legacy_delay = merged_settings.get('recoil_control_delay', 25)
+                legacy_smoothness = merged_settings.get('recoil_control_smoothness', 3)
+                
+                # Create weapon-specific settings using legacy values for all weapons
+                weapon_settings = {}
+                weapon_list = [
+                    "All weapons", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
+                    "MP9", "MAC-10", "MP5-SD", "UMP-45", "P90", "PP-Bizon",
+                    "Nova", "XM1014", "Sawed-Off", "MAG-7", "M249", "Negev",
+                    "Five-SeveN", "Glock-18", "USP-S", "P2000", "P250", "Tec-9",
+                    "CZ75-Auto", "Desert Eagle", "Dual Berettas", "R8 Revolver",
+                    "SSG 08", "SG 553", "AUG", "G3SG1", "SCAR-20"
+                ]
+                
+                for weapon in weapon_list:
+                    weapon_settings[weapon] = {
+                        "strength": legacy_strength,
+                        "delay": legacy_delay,
+                        "smoothness": legacy_smoothness
+                    }
+                
+                merged_settings['recoil_weapons'] = weapon_settings
+                merged_settings['recoil_selected_weapon'] = merged_settings.get('recoil_selected_weapon', 'All weapons')
+                
+                # Save the migrated settings
+                save_settings(merged_settings)
+                print("[DEBUG] Legacy recoil settings migration completed")
+            
             return merged_settings
     except (json.JSONDecodeError, FileNotFoundError, PermissionError):
 
@@ -1109,6 +1202,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         esp_container = self.create_esp_container()
         trigger_container = self.create_trigger_container()
+        recoil_container = self.create_recoil_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
         config_container = self.create_config_container()
@@ -1122,6 +1216,7 @@ class ConfigWindow(QtWidgets.QWidget):
             tabs.addTab(aim_container, "Aim")
             
         tabs.addTab(trigger_container, "Trigger")
+        tabs.addTab(recoil_container, "Recoil")
         tabs.addTab(colors_container, "Colors")
         tabs.addTab(misc_container, "Misc")
         tabs.addTab(config_container, "Config")
@@ -1144,6 +1239,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_radius_label()
         self.update_triggerbot_delay_label()
         self.update_triggerbot_burst_shots_label()
+        self.update_recoil_strength_label()
+        self.update_recoil_delay_label()
+        self.update_recoil_smoothness_label()
         self.update_center_dot_size_label()
         self.update_opacity_label()
         self.update_thickness_label()
@@ -1815,6 +1913,175 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return trigger_container
 
+    def create_recoil_container(self):
+        recoil_container = QtWidgets.QWidget()
+        recoil_layout = QtWidgets.QVBoxLayout()
+        recoil_layout.setSpacing(6)
+        recoil_layout.setContentsMargins(6, 6, 6, 6)
+        recoil_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        recoil_label = QtWidgets.QLabel("Recoil Control")
+        recoil_label.setAlignment(QtCore.Qt.AlignCenter)
+        recoil_label.setMinimumHeight(18)
+        recoil_layout.addWidget(recoil_label)
+
+        self.recoil_control_enabled_cb = QtWidgets.QCheckBox("Enable Recoil Control")
+        self.recoil_control_enabled_cb.setChecked(self.settings.get("recoil_control_enabled", 0) == 1)
+        self.recoil_control_enabled_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.recoil_control_enabled_cb, "Automatically moves mouse down while shooting to counteract weapon recoil.")
+        self.recoil_control_enabled_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        recoil_layout.addWidget(self.recoil_control_enabled_cb)
+
+        # Weapon Selection Dropdown
+        self.recoil_weapon_label = QtWidgets.QLabel("Weapon:")
+        recoil_layout.addWidget(self.recoil_weapon_label)
+        self.recoil_weapon_combo = QtWidgets.QComboBox()
+        weapon_list = [
+            "All weapons", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
+            "MP9", "MAC-10", "MP5-SD", "UMP-45", "P90", "PP-Bizon",
+            "Nova", "XM1014", "Sawed-Off", "MAG-7", "M249", "Negev",
+            "Five-SeveN", "Glock-18", "USP-S", "P2000", "P250", "Tec-9",
+            "CZ75-Auto", "Desert Eagle", "Dual Berettas", "R8 Revolver",
+            "SSG 08", "SG 553", "AUG", "G3SG1", "SCAR-20"
+        ]
+        self.recoil_weapon_combo.addItems(weapon_list)
+        
+        # Set current weapon selection
+        current_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        index = self.recoil_weapon_combo.findText(current_weapon)
+        if index >= 0:
+            self.recoil_weapon_combo.setCurrentIndex(index)
+        
+        self.recoil_weapon_combo.currentTextChanged.connect(self.on_recoil_weapon_changed)
+        self.set_tooltip_if_enabled(self.recoil_weapon_combo, "Select weapon to configure recoil settings for. 'All weapons' applies settings to all weapons.")
+        self.recoil_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        recoil_layout.addWidget(self.recoil_weapon_combo)
+
+        # Load current weapon settings
+        self.load_weapon_recoil_settings(current_weapon)
+
+        # Recoil Strength Slider
+        self.lbl_recoil_strength = QtWidgets.QLabel(f"Recoil Strength: ({self.get_current_weapon_setting('strength')})")
+        recoil_layout.addWidget(self.lbl_recoil_strength)
+        self.recoil_strength_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.recoil_strength_slider.setMinimum(1)
+        self.recoil_strength_slider.setMaximum(100)
+        self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
+        self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
+        self.recoil_strength_slider.valueChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.recoil_strength_slider, "How much the mouse moves down per recoil adjustment. Higher values = more downward movement. (1-100)")
+        recoil_layout.addWidget(self.recoil_strength_slider)
+
+        # Recoil Response Speed Slider (formerly delay)
+        self.lbl_recoil_delay = QtWidgets.QLabel(f"Response Speed: ({self.get_current_weapon_setting('delay')})")
+        recoil_layout.addWidget(self.lbl_recoil_delay)
+        self.recoil_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.recoil_delay_slider.setMinimum(1)
+        self.recoil_delay_slider.setMaximum(50)
+        self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
+        self.recoil_delay_slider.valueChanged.connect(self.update_recoil_delay_label)
+        self.recoil_delay_slider.valueChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.recoil_delay_slider, "Response speed for shot detection. Higher values = faster response but more CPU usage. (1-50)")
+        recoil_layout.addWidget(self.recoil_delay_slider)
+
+        # Recoil Smoothness Slider
+        self.lbl_recoil_smoothness = QtWidgets.QLabel(f"Recoil Smoothness: ({self.get_current_weapon_setting('smoothness')})")
+        recoil_layout.addWidget(self.lbl_recoil_smoothness)
+        self.recoil_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.recoil_smoothness_slider.setMinimum(1)
+        self.recoil_smoothness_slider.setMaximum(10)
+        self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
+        self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
+        self.recoil_smoothness_slider.valueChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.recoil_smoothness_slider, "How smooth the recoil control movements are. Higher values = smoother, more gradual movements.")
+        recoil_layout.addWidget(self.recoil_smoothness_slider)
+
+        # Recoil Control Key Button
+        self.recoil_control_key_btn = QtWidgets.QPushButton(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
+        self.recoil_control_key_btn.setObjectName("keybind_button")
+        self.recoil_control_key_btn.clicked.connect(lambda: self.record_key('recoil_control_key', self.recoil_control_key_btn))
+        self.set_tooltip_if_enabled(self.recoil_control_key_btn, "Key that activates recoil control. Typically set to your shoot key (Left Mouse Button).")
+        self.recoil_control_key_btn.setMinimumHeight(22)
+        self.recoil_control_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        recoil_layout.addWidget(self.recoil_control_key_btn)
+        self.recoil_control_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'recoil_control_key', self.recoil_control_key_btn)
+
+        recoil_container.setLayout(recoil_layout)
+        recoil_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
+        return recoil_container
+
+    def get_current_weapon_setting(self, setting_type):
+        """Get the current weapon's recoil setting"""
+        selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        weapon_settings = self.settings.get('recoil_weapons', {})
+        
+        if selected_weapon in weapon_settings:
+            return weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3)
+        
+        # Fallback to default values
+        return 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3
+
+    def load_weapon_recoil_settings(self, weapon_name):
+        """Load recoil settings for the specified weapon"""
+        weapon_settings = self.settings.get('recoil_weapons', {})
+        
+        # Ensure weapon exists in settings
+        if weapon_name not in weapon_settings:
+            weapon_settings[weapon_name] = {"strength": 5, "delay": 10, "smoothness": 3}
+            self.settings['recoil_weapons'] = weapon_settings
+
+    def save_current_weapon_settings(self):
+        """Save current slider values to the selected weapon's settings"""
+        selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        weapon_settings = self.settings.get('recoil_weapons', {})
+        
+        if selected_weapon not in weapon_settings:
+            weapon_settings[selected_weapon] = {}
+        
+        # Save current slider values
+        if hasattr(self, 'recoil_strength_slider'):
+            weapon_settings[selected_weapon]['strength'] = self.recoil_strength_slider.value()
+        if hasattr(self, 'recoil_delay_slider'):
+            weapon_settings[selected_weapon]['delay'] = self.recoil_delay_slider.value()
+        if hasattr(self, 'recoil_smoothness_slider'):
+            weapon_settings[selected_weapon]['smoothness'] = self.recoil_smoothness_slider.value()
+        
+        self.settings['recoil_weapons'] = weapon_settings
+
+    def on_recoil_weapon_changed(self):
+        """Handle weapon selection change"""
+        # Save current weapon settings before switching
+        if hasattr(self, 'recoil_strength_slider'):
+            self.save_current_weapon_settings()
+        
+        # Update selected weapon
+        selected_weapon = self.recoil_weapon_combo.currentText()
+        self.settings['recoil_selected_weapon'] = selected_weapon
+        
+        # Load new weapon settings
+        self.load_weapon_recoil_settings(selected_weapon)
+        
+        # Update sliders with new weapon settings
+        if hasattr(self, 'recoil_strength_slider'):
+            self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
+            self.update_recoil_strength_label()
+        
+        if hasattr(self, 'recoil_delay_slider'):
+            self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
+            self.update_recoil_delay_label()
+        
+        if hasattr(self, 'recoil_smoothness_slider'):
+            self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
+            self.update_recoil_smoothness_label()
+        
+        # Update main recoil control settings to match current weapon
+        self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
+        self.settings["recoil_control_delay"] = self.get_current_weapon_setting('delay')
+        self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
+        
+        # Save settings
+        self.save_settings()
+
     def create_aim_container(self):
         aim_container = QtWidgets.QWidget()
         aim_layout = QtWidgets.QVBoxLayout()
@@ -2481,6 +2748,10 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
                 self.triggerbot_burst_shots_slider,
                 
+                # Recoil Control widgets
+                self.recoil_control_enabled_cb, self.recoil_strength_slider,
+                self.recoil_delay_slider, self.recoil_smoothness_slider,
+                
 
                 self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb,
                 self.lock_target_cb, self.disable_crosshair_cb, self.radius_slider,
@@ -2513,6 +2784,10 @@ class ConfigWindow(QtWidgets.QWidget):
 
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 widgets_to_block.append(self.game_fov_slider)
+            
+            # Add recoil weapon combo if it exists
+            if hasattr(self, 'recoil_weapon_combo') and self.recoil_weapon_combo:
+                widgets_to_block.append(self.recoil_weapon_combo)
             
             for widget in widgets_to_block:
                 if widget is not None:
@@ -2557,6 +2832,28 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
             self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
             self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
+            
+            # Recoil Control settings
+            self.recoil_control_enabled_cb.setChecked(self.settings.get("recoil_control_enabled", 0) == 1)
+            
+            # Handle weapon-specific recoil settings
+            if hasattr(self, 'recoil_weapon_combo'):
+                # Set weapon selection
+                selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+                index = self.recoil_weapon_combo.findText(selected_weapon)
+                if index >= 0:
+                    self.recoil_weapon_combo.setCurrentIndex(index)
+                
+                # Load weapon settings and update sliders
+                self.load_weapon_recoil_settings(selected_weapon)
+                self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
+                self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
+                self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
+            else:
+                # Fallback to legacy settings if weapon combo doesn't exist yet
+                self.recoil_strength_slider.setValue(self.settings.get("recoil_control_strength", 5))
+                self.recoil_delay_slider.setValue(self.settings.get("recoil_control_delay", 25))
+                self.recoil_smoothness_slider.setValue(self.settings.get("recoil_control_smoothness", 3))
             
 
             self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1) if hasattr(self, 'aim_active_cb') else None
@@ -2640,6 +2937,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
             self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
             self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+            self.recoil_control_key_btn.setText(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
             self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
             self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
             self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
@@ -3052,6 +3350,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
                 if hasattr(self, 'trigger_key_btn'):
                     self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+                if hasattr(self, 'recoil_control_key_btn'):
+                    self.recoil_control_key_btn.setText(f"Recoil Key: {self.settings.get('recoil_control_key', 'LMB')}")
                 if hasattr(self, 'bhop_key_btn'):
                     self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
                 if hasattr(self, 'menu_key_btn'):
@@ -3273,6 +3573,25 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if getattr(self, "camera_lock_spotted_check_cb", None):
             self.settings["camera_lock_spotted_check"] = 1 if self.camera_lock_spotted_check_cb.isChecked() else 0
+
+        # Recoil Control Settings
+        if getattr(self, "recoil_control_enabled_cb", None):
+            self.settings["recoil_control_enabled"] = 1 if self.recoil_control_enabled_cb.isChecked() else 0
+        
+        # Save weapon-specific recoil settings
+        if hasattr(self, 'recoil_weapon_combo'):
+            self.settings["recoil_selected_weapon"] = self.recoil_weapon_combo.currentText()
+            self.save_current_weapon_settings()
+        
+        # Keep legacy settings for backward compatibility
+        if getattr(self, "recoil_strength_slider", None):
+            self.settings["recoil_control_strength"] = self.recoil_strength_slider.value()
+        
+        if getattr(self, "recoil_delay_slider", None):
+            self.settings["recoil_control_delay"] = self.recoil_delay_slider.value()
+        
+        if getattr(self, "recoil_smoothness_slider", None):
+            self.settings["recoil_control_smoothness"] = self.recoil_smoothness_slider.value()
 
         
         try:
@@ -4304,6 +4623,21 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_triggerbot_burst_shots_label(self):
         self.lbl_burst_shots.setText(f"Burst Shots: ({self.triggerbot_burst_shots_slider.value()})")
+        self.save_settings()
+
+    def update_recoil_strength_label(self):
+        val = self.recoil_strength_slider.value()
+        self.lbl_recoil_strength.setText(f"Recoil Strength: ({val})")
+        self.save_settings()
+
+    def update_recoil_delay_label(self):
+        val = self.recoil_delay_slider.value()
+        self.lbl_recoil_delay.setText(f"Response Speed: ({val})")
+        self.save_settings()
+
+    def update_recoil_smoothness_label(self):
+        val = self.recoil_smoothness_slider.value()
+        self.lbl_recoil_smoothness.setText(f"Recoil Smoothness: ({val})")
         self.save_settings()
 
     def update_center_dot_size_label(self):
@@ -7617,6 +7951,248 @@ def find_accept_button():
         pass
     return None
 
+def recoil_control():
+    """Recoil control function that moves mouse down while shooting"""
+    
+    # Import necessary globals for ammo checking
+    global dwLocalPlayerPawn, dwEntityList, m_pWeaponServices, m_hActiveWeapon, m_iClip1
+    
+    default_settings = {
+        "recoil_control_enabled": 0,
+        "recoil_control_key": "LMB",
+        "recoil_control_strength": 5,
+        "recoil_control_delay": 25,
+        "recoil_control_smoothness": 3,
+        "recoil_selected_weapon": "All weapons",
+        "recoil_weapons": {
+            "All weapons": {"strength": 5, "delay": 25, "smoothness": 3}
+        }
+    }
+    
+    def load_settings():
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                loaded_settings = json.load(f)
+                return {**default_settings, **loaded_settings}
+        except:
+            return default_settings
+    
+    def is_cs2_window_active():
+        """Check if CS2 window is active"""
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            window_title = win32gui.GetWindowText(hwnd).lower()
+            return "counter-strike 2" in window_title
+        except:
+            return False
+    
+    def get_current_ammo():
+        """Get current weapon ammo count"""
+        try:
+            # Connect to CS2 process
+            pm = pymem.Pymem("cs2.exe")
+            client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+            
+            # Get local player
+            local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
+            if not local_player_pawn_addr:
+                return -1
+            
+            # Get weapon services
+            weapon_services = pm.read_longlong(local_player_pawn_addr + m_pWeaponServices)
+            if not weapon_services:
+                return -1
+            
+            # Get active weapon handle
+            active_weapon_handle = pm.read_int(weapon_services + m_hActiveWeapon)
+            if not active_weapon_handle or active_weapon_handle == -1:
+                return -1
+            
+            # Get active weapon entity
+            entity_list = pm.read_longlong(client + dwEntityList)
+            if not entity_list:
+                return -1
+            
+            # Calculate weapon entity address from handle
+            weapon_index = active_weapon_handle & 0x1FF
+            weapon_entry = pm.read_longlong(entity_list + 0x8 * ((active_weapon_handle & 0x7FFF) >> 9) + 0x10)
+            if not weapon_entry:
+                return -1
+            
+            weapon_entity = pm.read_longlong(weapon_entry + 0x78 * weapon_index)
+            if not weapon_entity:
+                return -1
+            
+            # Read ammo count
+            ammo = pm.read_int(weapon_entity + m_iClip1)
+            return ammo
+            
+        except Exception as e:
+            print(f"[RECOIL] Error getting ammo: {e}")
+            return -1
+    
+    def main(settings):
+        """Main recoil control loop"""
+        print("[RECOIL] Recoil control system started")
+        
+        is_shooting = False
+        shots_fired = 0
+        last_ammo_count = -1
+        last_settings_reload = 0
+        
+        while True:
+            try:
+                # Check for termination signal
+                if os.path.exists(TERMINATE_SIGNAL_FILE):
+                    print("[RECOIL] Termination signal received")
+                    break
+                
+                # Reload settings every 100ms
+                current_time = time.time()
+                if current_time - last_settings_reload > 0.1:
+                    settings = load_settings()
+                    last_settings_reload = current_time
+                
+                # Only work when CS2 is active and recoil control is enabled
+                if not is_cs2_window_active():
+                    time.sleep(0.01)
+                    continue
+                
+                enabled = settings.get('recoil_control_enabled', 0)
+                if enabled == 0:
+                    if is_shooting:
+                        is_shooting = False
+                        shots_fired = 0
+                        last_ammo_count = -1
+                        print("[RECOIL] Recoil control disabled - stopped shooting")
+                    time.sleep(0.01)
+                    continue
+                
+                # Debug: Print when recoil control is enabled (only once per state change)
+                if not hasattr(main, '_last_enabled_state'):
+                    main._last_enabled_state = False
+                if enabled == 1 and not main._last_enabled_state:
+                    print("[RECOIL] Recoil control is now ENABLED")
+                    main._last_enabled_state = True
+                elif enabled == 0 and main._last_enabled_state:
+                    main._last_enabled_state = False
+                
+                # Get weapon-specific settings
+                selected_weapon = settings.get('recoil_selected_weapon', 'All weapons')
+                weapon_settings = settings.get('recoil_weapons', {})
+                
+                # Get key setting (global for all weapons)
+                key_code = key_str_to_vk(settings.get('recoil_control_key', 'LMB'))
+                
+                # Use weapon-specific settings if available, otherwise fall back to global settings
+                if selected_weapon in weapon_settings:
+                    strength = weapon_settings[selected_weapon].get('strength', settings.get('recoil_control_strength', 5))
+                    response_speed = weapon_settings[selected_weapon].get('delay', settings.get('recoil_control_delay', 25))
+                    smoothness = weapon_settings[selected_weapon].get('smoothness', settings.get('recoil_control_smoothness', 3))
+                else:
+                    # Fallback to global/legacy settings
+                    strength = settings.get('recoil_control_strength', 5)
+                    response_speed = settings.get('recoil_control_delay', 25)
+                    smoothness = settings.get('recoil_control_smoothness', 3)
+                
+                # Calculate polling interval based on response speed (1-50 -> 0.01-0.001 seconds)
+                polling_interval = 0.01 - (response_speed - 1) * 0.009 / 49
+                
+                # Check if the recoil key is pressed
+                key_pressed = win32api.GetAsyncKeyState(key_code) & 0x8000
+                
+                if key_pressed:
+                    # Check current ammo
+                    current_ammo = get_current_ammo()
+                    
+                    if current_ammo == 0:
+                        # No ammo, don't apply recoil control
+                        if is_shooting:
+                            is_shooting = False
+                            shots_fired = 0
+                            last_ammo_count = -1
+                            print("[RECOIL] Stopped shooting - No ammo")
+                        time.sleep(0.01)
+                        continue
+                    
+                    if not is_shooting:
+                        # Just started shooting
+                        is_shooting = True
+                        shots_fired = 0
+                        last_ammo_count = current_ammo
+                        ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
+                        weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "All weapons" else ""
+                        print(f"[RECOIL] Started shooting - Strength: {strength}, Response Speed: {response_speed}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
+                    
+                    # Detect shot fired by checking if ammo decreased
+                    if current_ammo >= 0 and last_ammo_count >= 0 and current_ammo < last_ammo_count:
+                        shots_fired += 1
+                        
+                        # Calculate recoil compensation based on shots fired
+                        base_recoil = strength + (shots_fired * 0.3)  # Increase recoil compensation over time
+                        
+                        # Apply smoothness by dividing the movement into smaller steps
+                        total_move_y = int(base_recoil)
+                        steps = max(1, smoothness)
+                        
+                        for step in range(steps):
+                            step_move_y = total_move_y // steps
+                            if step < (total_move_y % steps):
+                                step_move_y += 1
+                            
+                            # Use the same mouse movement method as aimbot
+                            if step_move_y > 0:
+                                win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, step_move_y, 0, 0)
+                            
+                            # Small delay between steps for smoothness
+                            if steps > 1:
+                                time.sleep(0.001)  # Very small delay for smoothness
+                        
+                        # Cap the shots counter to prevent infinite scaling
+                        if shots_fired > 30:
+                            shots_fired = 30
+                        
+                        print(f"[RECOIL] Shot detected - Shots fired: {shots_fired}, Compensation: {base_recoil:.1f}, Ammo: {current_ammo}")
+                    
+                    # Update last ammo count
+                    last_ammo_count = current_ammo
+                else:
+                    if is_shooting:
+                        # Stopped shooting
+                        is_shooting = False
+                        shots_fired = 0
+                        last_ammo_count = -1
+                        print("[RECOIL] Stopped shooting")
+                
+                time.sleep(polling_interval)  # Adjust sleep based on response speed setting
+                
+            except Exception as e:
+                print(f"[RECOIL] Error in recoil control: {e}")
+                time.sleep(0.1)
+    
+    def start_main_thread(settings):
+        thread = threading.Thread(target=main, args=(settings,), daemon=True)
+        thread.start()
+        return thread
+    
+    def setup_watcher(app, settings):
+        watcher = QFileSystemWatcher([CONFIG_FILE])
+        # Note: The settings are reloaded inside the main loop now
+        # so we don't need to restart the thread on file changes
+        return watcher
+    
+    def main_program():
+        app = QCoreApplication([])
+        settings = load_settings()
+        thread = start_main_thread(settings)
+        watcher = setup_watcher(app, settings)
+        app.exec()
+    
+    try:
+        main_program()
+    except Exception as e:
+        print(f"[RECOIL] Error in recoil control program: {e}")
+
 def auto_accept_main():
     """Main auto accept loop"""
     while True:
@@ -7752,11 +8328,12 @@ if __name__ == "__main__":
         multiprocessing.Process(target=configurator),
         multiprocessing.Process(target=esp_main),
         multiprocessing.Process(target=triggerbot),
+        multiprocessing.Process(target=recoil_control),
         multiprocessing.Process(target=bhop),
         multiprocessing.Process(target=auto_accept_main),
     ]
     
-    process_names = ["configurator", "esp_main", "triggerbot", "bhop", "auto_accept_main"]
+    process_names = ["configurator", "esp_main", "triggerbot", "recoil_control", "bhop", "auto_accept_main"]
     
     if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
         procs.append(multiprocessing.Process(target=aim))
