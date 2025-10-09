@@ -1,4 +1,4 @@
-VERSION = "5"
+VERSION = "6"
 STARTUP_ENABLED = True
             
 import threading
@@ -1988,7 +1988,7 @@ class ConfigWindow(QtWidgets.QWidget):
         recoil_layout.addWidget(self.lbl_recoil_smoothness)
         self.recoil_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.recoil_smoothness_slider.setMinimum(1)
-        self.recoil_smoothness_slider.setMaximum(10)
+        self.recoil_smoothness_slider.setMaximum(30)
         self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
         self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
         self.recoil_smoothness_slider.valueChanged.connect(self.save_settings)
@@ -5789,10 +5789,10 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             else:
                 line_color_hex = settings.get('menu_theme_color', '#FF0000')
             line_color = QtGui.QColor(line_color_hex)
-            line_color.setAlpha(180)
+            line_color.setAlpha(80)  # Made more transparent (was 180)
         except Exception:
             line_color = QtGui.QColor('#FF0000')
-            line_color.setAlpha(180)
+            line_color.setAlpha(80)  # Made more transparent (was 180)
             
         pen = QtGui.QPen(line_color)
         pen.setWidth(0.1)
