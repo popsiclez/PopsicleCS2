@@ -426,16 +426,10 @@ m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields
 m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
 m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
 
-# Weapon and ammo related offsets
-try:
-    m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
-    m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
-    m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
-except KeyError:
-    # Fallback offsets if not found in JSON
-    m_pWeaponServices = 0x11E8
-    m_hActiveWeapon = 0x58
-    m_iClip1 = 0x1564
+
+m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
+m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
+m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
           
 m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
 m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
@@ -447,9 +441,9 @@ m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['
 
 
 try:
-    m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']
+    m_iFOV = client_dll['client.dll']['classes']['CCSPlayerBase_CameraServices']['fields']['m_iFOV']
 except KeyError:
-    m_iDesiredFOV = 0x194
+    m_iFOV = 0x194
                                
 bone_ids = {
     "head": 6,
@@ -1162,6 +1156,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self._fov_dialog_showing = False
         self._pending_fov_value = None
         self._is_initializing = True
+        self._shutting_down = False  # Add shutdown flag to prevent FOV interference
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -1288,6 +1283,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self._rainbow_menu_timer = QtCore.QTimer(self)
         self._rainbow_menu_timer.timeout.connect(self._update_rainbow_menu_theme)
         self._rainbow_menu_timer.start(50)                     
+        
+        # FOV continuous application timer
+        self._fov_apply_timer = QtCore.QTimer(self)
+        self._fov_apply_timer.timeout.connect(self._apply_fov_continuously)
+        if not getattr(self, '_shutting_down', False):  # Only start if not shutting down
+            self._fov_apply_timer.start(1000)  # Apply every 1 second
         
                                                           
         if not self.is_game_window_active():
@@ -3147,11 +3148,19 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             self.pause_rainbow_timer()
             
-
+            # Set shutdown flag and stop continuous FOV application
+            self._shutting_down = True
+            if hasattr(self, '_fov_apply_timer') and self._fov_apply_timer:
+                self._fov_apply_timer.stop()
+                print("[DEBUG] Stopped continuous FOV application timer for termination")
+            
+            # Wait a moment to ensure any pending FOV applications complete
+            import time
+            time.sleep(0.1)
+            
             self.reset_fov_to_default()
             
-
-            import time
+            # Additional wait for FOV reset
             time.sleep(0.2)
             
             try:
@@ -4391,6 +4400,16 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             self.hide()
             
+            # Set shutdown flag and stop continuous FOV application
+            self._shutting_down = True
+            if hasattr(self, '_fov_apply_timer') and self._fov_apply_timer:
+                self._fov_apply_timer.stop()
+                print("[DEBUG] Stopped continuous FOV application timer for shutdown")
+            
+            # Wait a moment to ensure any pending FOV applications complete
+            import time
+            time.sleep(0.1)
+            
             try:
                 self.reset_fov_to_default()
             except Exception:
@@ -4553,6 +4572,35 @@ class ConfigWindow(QtWidgets.QWidget):
             import time
             self._drag_end_time = time.time()
 
+    def closeEvent(self, event: QtGui.QCloseEvent):
+        """Handle window close event with proper cleanup"""
+        try:
+            print("[DEBUG] ConfigWindow closeEvent triggered")
+            
+            # Set shutdown flag and stop continuous FOV application
+            self._shutting_down = True
+            if hasattr(self, '_fov_apply_timer') and self._fov_apply_timer:
+                self._fov_apply_timer.stop()
+                print("[DEBUG] Stopped continuous FOV timer for window close")
+            
+            # Wait briefly for any pending operations
+            import time
+            time.sleep(0.05)
+            
+            # Reset FOV if needed
+            try:
+                if hasattr(self, '_fov_changed_during_runtime') and self._fov_changed_during_runtime:
+                    self.reset_fov_to_default()
+            except Exception as e:
+                print(f"[DEBUG] Exception during FOV reset in closeEvent: {e}")
+            
+            # Accept the close event
+            event.accept()
+            
+        except Exception as e:
+            print(f"[DEBUG] Exception in closeEvent: {e}")
+            event.accept()
+
     def update_radius_label(self):
         if hasattr(self, 'radius_slider') and hasattr(self, 'lbl_radius'):
             val = self.radius_slider.value()
@@ -4712,15 +4760,30 @@ class ConfigWindow(QtWidgets.QWidget):
                 print("[DEBUG] Warning accepted, applying change immediately")
                 new_value = self.game_fov_slider.value()
                 self.settings['game_fov'] = new_value
-                self.settings['auto_apply_fov'] = 1
+                
+                # If user sets FOV back to 90, disable auto-apply
+                if new_value == 90:
+                    self.settings['auto_apply_fov'] = 0
+                    print("[DEBUG] FOV set to 90, disabling auto-apply")
+                else:
+                    self.settings['auto_apply_fov'] = 1
+                
                 self.save_settings()
                 self._fov_manual_change = True
                 self.update_game_fov_label()
+                # Apply immediately and enable continuous application
+                self.apply_fov_change(new_value)
                 return
             
             print("[DEBUG] Updating label only (warning not accepted)")
             new_value = self.game_fov_slider.value()
             self.settings['game_fov'] = new_value
+            
+            # If user manually sets FOV back to 90, disable auto-apply
+            if new_value == 90 and self.settings.get('auto_apply_fov', 0) == 1:
+                self.settings['auto_apply_fov'] = 0
+                print("[DEBUG] FOV set to 90, disabling auto-apply")
+            
             self.save_settings()
             self.update_game_fov_label_only()
             
@@ -4802,11 +4865,21 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 if clicked_button == yes_button:
                     self._fov_warning_accepted = True
-                    self.settings['auto_apply_fov'] = 1
+                    
+                    # Only enable auto-apply if FOV is not 90 (default)
+                    if new_fov_value == 90:
+                        self.settings['auto_apply_fov'] = 0
+                        print("[DEBUG] FOV accepted but value is 90, disabling auto-apply")
+                    else:
+                        self.settings['auto_apply_fov'] = 1
+                        print("[DEBUG] FOV accepted and non-default, enabling auto-apply")
+                    
                     self.settings['game_fov'] = new_fov_value
                     self.save_settings()
                     self._fov_manual_change = True
                     self.update_game_fov_label()
+                    # Apply immediately when warning is accepted
+                    self.apply_fov_change(new_fov_value)
                 else:
                     original_value = getattr(self, '_fov_original_value', 90)
                     self.game_fov_slider.blockSignals(True)
@@ -4831,6 +4904,11 @@ class ConfigWindow(QtWidgets.QWidget):
     def apply_fov_change(self, fov_value):
         """Apply FOV change to the game"""
         try:
+            # Don't apply FOV changes during shutdown to avoid conflicts
+            if getattr(self, '_shutting_down', False):
+                print(f"[DEBUG] Skipping FOV change to {fov_value} - shutting down")
+                return
+                
             import pymem
             pm = None
             client = None
@@ -4840,11 +4918,15 @@ class ConfigWindow(QtWidgets.QWidget):
                 client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
                 
                 if pm and client:
-                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                    if local_player_controller:
-                        pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
-                        self._fov_changed_during_runtime = True
-                        print(f"[DEBUG] FOV changed to {fov_value}, flag set to True")
+                    # Get local player pawn instead of controller for camera services
+                    local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                    if local_player_pawn:
+                        # Access camera services through the pawn
+                        camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
+                        if camera_services:
+                            pm.write_int(camera_services + m_iFOV, int(fov_value))
+                            self._fov_changed_during_runtime = True
+                            print(f"[DEBUG] FOV changed to {fov_value} via camera services, flag set to True")
             except Exception:
                 pass
         except Exception:
@@ -4854,76 +4936,93 @@ class ConfigWindow(QtWidgets.QWidget):
         """Reset FOV to default value (90) when terminating, but only if FOV was changed during runtime"""
         print(f"[DEBUG] reset_fov_to_default called: force={force}, _fov_changed_during_runtime={self._fov_changed_during_runtime}")
         
+        # Stop continuous FOV application immediately
+        self._shutting_down = True
+        if hasattr(self, '_fov_apply_timer') and self._fov_apply_timer:
+            self._fov_apply_timer.stop()
+            print("[DEBUG] Stopped continuous FOV timer for reset")
+        
+        # Disable auto-apply FOV immediately to prevent conflicts
+        self.settings['auto_apply_fov'] = 0
+        print("[DEBUG] Disabled auto-apply FOV for reset")
+        
         if not force and not self._fov_changed_during_runtime:
             print("[DEBUG] FOV reset skipped - not changed during runtime")
+            self.save_settings()
             return
             
         print("[DEBUG] Attempting FOV reset to 90...")
         try:
             import pymem
             
-            global dwLocalPlayerController, m_iDesiredFOV
+            global dwLocalPlayerPawn, m_pCameraServices, m_iFOV
             
             try:
                 pm = pymem.Pymem("cs2.exe")
                 client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
                 
                 if pm and client:
-                    print(f"[DEBUG] Using dwLocalPlayerController offset: {dwLocalPlayerController}")
-                    print(f"[DEBUG] Using m_iDesiredFOV offset: {m_iDesiredFOV}")
+                    print(f"[DEBUG] Using dwLocalPlayerPawn offset: {dwLocalPlayerPawn}")
+                    print(f"[DEBUG] Using m_pCameraServices offset: {m_pCameraServices}")
+                    print(f"[DEBUG] Using m_iFOV offset: {m_iFOV}")
                     
-                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                    if local_player_controller:
-                        print(f"[DEBUG] Local player controller found at: 0x{local_player_controller:X}")
+                    local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                    if local_player_pawn:
+                        print(f"[DEBUG] Local player pawn found at: 0x{local_player_pawn:X}")
                         
-                        current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                        print(f"[DEBUG] Current FOV before reset: {current_fov}")
+                        # Access camera services through the pawn
+                        camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
+                        if camera_services:
+                            print(f"[DEBUG] Camera services found at: 0x{camera_services:X}")
+                            
+                            current_fov = pm.read_int(camera_services + m_iFOV)
+                            print(f"[DEBUG] Current FOV before reset: {current_fov}")
+                            
+                            reset_success = False
+                            
+                            for attempt in range(3):
+                                pm.write_int(camera_services + m_iFOV, 90)
+                                time.sleep(0.02)
+                                verify_fov = pm.read_int(camera_services + m_iFOV)
+                                print(f"[DEBUG] Reset attempt {attempt + 1}: FOV now shows {verify_fov}")
+                                if verify_fov == 90:
+                                    reset_success = True
+                                    break
                         
-                        reset_success = False
-                        
-                        for attempt in range(3):
-                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
-                            time.sleep(0.02)
-                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                            print(f"[DEBUG] Reset attempt {attempt + 1}: FOV now shows {verify_fov}")
-                            if verify_fov == 90:
-                                reset_success = True
-                                break
-                        
-                        if not reset_success:
-                            print("[DEBUG] Trying alternative reset method...")
-                            pm.write_int(local_player_controller + m_iDesiredFOV, 0)
-                            time.sleep(0.05)
-                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
-                            time.sleep(0.05)
-                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                            print(f"[DEBUG] Alternative method result: FOV now shows {verify_fov}")
-                            if verify_fov == 90:
-                                reset_success = True
-                        
-                        if not reset_success:
-                            print("[DEBUG] Trying UI slider sync method...")
-                            self.settings['game_fov'] = 90
+                            if not reset_success:
+                                print("[DEBUG] Trying alternative reset method...")
+                                pm.write_int(camera_services + m_iFOV, 0)
+                                time.sleep(0.05)
+                                pm.write_int(camera_services + m_iFOV, 90)
+                                time.sleep(0.05)
+                                verify_fov = pm.read_int(camera_services + m_iFOV)
+                                print(f"[DEBUG] Alternative method result: FOV now shows {verify_fov}")
+                                if verify_fov == 90:
+                                    reset_success = True
+                            
+                            if not reset_success:
+                                print("[DEBUG] Trying UI slider sync method...")
+                                self.settings['game_fov'] = 90
                             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                                 self.game_fov_slider.setValue(90)
                             if hasattr(self, 'update_game_fov_label_only'):
                                 self.update_game_fov_label_only()
                             
-                            pm.write_int(local_player_controller + m_iDesiredFOV, 90)
-                            time.sleep(0.1)
-                            verify_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                            print(f"[DEBUG] UI sync method result: FOV now shows {verify_fov}")
-                            if verify_fov == 90:
-                                reset_success = True
-                        
-                        final_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                        print(f"[DEBUG] Final FOV check: {final_fov}")
-                        
-                        if reset_success or final_fov == 90:
-                            print("[DEBUG] FOV successfully reset to 90")
-                            self.settings['auto_apply_fov'] = 0
-                            self.save_settings()
-                            print("[DEBUG] Auto-apply FOV disabled")
+                                pm.write_int(camera_services + m_iFOV, 90)
+                                time.sleep(0.1)
+                                verify_fov = pm.read_int(camera_services + m_iFOV)
+                                print(f"[DEBUG] UI sync method result: FOV now shows {verify_fov}")
+                                if verify_fov == 90:
+                                    reset_success = True
+                            
+                            final_fov = pm.read_int(camera_services + m_iFOV)
+                            print(f"[DEBUG] Final FOV check: {final_fov}")
+                            
+                            if reset_success or final_fov == 90:
+                                print("[DEBUG] FOV successfully reset to 90")
+                                self.settings['auto_apply_fov'] = 0
+                                self.save_settings()
+                                print("[DEBUG] Auto-apply FOV disabled")
                         else:
                             print(f"[DEBUG] FOV reset failed - CS2 may be preventing FOV changes. Final value: {final_fov}")
                             print("[DEBUG] Note: You may need to manually reset FOV in-game or restart CS2")
@@ -4939,6 +5038,44 @@ class ConfigWindow(QtWidgets.QWidget):
             print(f"[DEBUG] Outer exception in FOV reset: {e}")
             import traceback
             print(f"[DEBUG] Outer traceback: {traceback.format_exc()}")
+    
+    def _apply_fov_continuously(self):
+        """Continuously apply FOV setting if auto_apply_fov is enabled and warning accepted"""
+        try:
+            # Stop continuous application if shutting down
+            if getattr(self, '_shutting_down', False):
+                return
+                
+            # Only apply if all safety conditions are met
+            if not (hasattr(self, 'fov_enabled') and self.fov_enabled):
+                return
+                
+            if getattr(self, '_is_initializing', False):
+                return
+                
+            if not getattr(self, '_fov_warning_accepted', False):
+                return
+                
+            auto_apply_enabled = self.settings.get('auto_apply_fov', 0)
+            if not auto_apply_enabled:
+                return
+                
+            if not hasattr(self, 'game_fov_slider') or not self.game_fov_slider:
+                return
+                
+            # Apply the current FOV value continuously
+            current_fov = self.settings.get('game_fov', 90)
+            
+            # Skip if FOV is default value
+            if current_fov == 90:
+                return
+                
+            print(f"[DEBUG] Continuously applying FOV: {current_fov}")
+            self.apply_fov_change(current_fov)
+            
+        except Exception as e:
+            print(f"[DEBUG] Exception in _apply_fov_continuously: {e}")
+            pass
     
     def setup_config_folder_watcher(self):
         """Setup file system watcher for the configs folder and commands.txt"""
@@ -7389,9 +7526,11 @@ def aim():
                 client = self.cheat_loop.client
                 
                 if pm and client:
-                    local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                    if local_player_controller:
-                        pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
+                    local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                    if local_player_pawn:
+                        camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
+                        if camera_services:
+                            pm.write_int(camera_services + m_iFOV, int(fov_value))
         except Exception:
             pass
 
@@ -7417,11 +7556,13 @@ def aim():
         current_fov = 90
         try:
             if pm and client:
-                local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                if local_player_controller:
-                    current_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                    if current_fov < 60 or current_fov > 160:
-                        current_fov = 90
+                local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                if local_player_pawn:
+                    camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
+                    if camera_services:
+                        current_fov = pm.read_int(camera_services + m_iFOV)
+                        if current_fov < 60 or current_fov > 160:
+                            current_fov = 90
         except Exception:
             pass
 
@@ -7823,9 +7964,11 @@ def aim():
                 try:
                     if settings.get('auto_apply_fov', 0) == 1:
                         game_fov = settings.get('game_fov', 90)
-                        local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                        if local_player_controller:
-                            pm.write_int(local_player_controller + m_iDesiredFOV, int(game_fov))
+                        local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                        if local_player_pawn:
+                            camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
+                            if camera_services:
+                                pm.write_int(camera_services + m_iFOV, int(game_fov))
                 except Exception:
                     pass
                 
