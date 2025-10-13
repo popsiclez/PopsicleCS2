@@ -39,7 +39,7 @@ def cleanup_loader_temp_files():
 atexit.register(cleanup_loader_temp_files)
 
 # Loader version
-LOADER_VERSION = "3"
+LOADER_VERSION = "4"
 
 URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/script.pyw"
 TITLE_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt"
@@ -114,6 +114,45 @@ def show_mode_selection():
         print(f"Error in mode selection: {e}")
         return "full"  # Ultimate fallback
 
+def show_debug_prompt():
+    """Show debug menu prompt and return debug mode choice"""
+    try:
+        print("\n" + "=" * 40)
+        print("Launch with debug menu?")
+        print("1. Yes")
+        print("2. No")
+        
+        while True:
+            try:
+                choice = input("\nEnter your choice (1 or 2): ").strip()
+                if choice == "1":
+                    # Password protection for debug mode
+                    attempts = 3
+                    while attempts > 0:
+                        password = input("Enter password for debug mode: ").strip()
+                        if password == "bert":
+                            print("\nDebug mode enabled!")
+                            return True
+                        else:
+                            attempts -= 1
+                            if attempts > 0:
+                                print(f"Incorrect password. {attempts} attempts remaining.")
+                            else:
+                                print("Too many incorrect attempts. Defaulting to normal mode.")
+                                return False
+                elif choice == "2":
+                    print("\nNormal mode selected!")
+                    return False
+                else:
+                    print("Invalid choice. Please enter 1 or 2.")
+            except (KeyboardInterrupt, EOFError):
+                print("\nSelection cancelled. Defaulting to normal mode.")
+                return False
+                
+    except Exception as e:
+        print(f"Error in debug selection: {e}")
+        return False  # Ultimate fallback
+
 def download_with_urllib(url):
     """Fallback download method using built-in urllib"""
     try:
@@ -173,7 +212,14 @@ def main():
         # Show mode selection dialog
         selected_mode = show_mode_selection()
         
+        # Show debug menu prompt
+        debug_mode = show_debug_prompt()
+        
         print(f"\nSelected mode: {selected_mode.upper()}")
+        if debug_mode:
+            print("Debug mode: ENABLED (console visible)")
+        else:
+            print("Debug mode: DISABLED (hidden)")
         print("Starting script...")
         
         # Exit if no mode selected
@@ -197,8 +243,9 @@ def main():
         if script_content is None:
             return
         
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pyw", mode='w', encoding='utf-8') as tmp:
+        # Save to temp file with appropriate extension based on debug mode
+        file_suffix = ".py" if debug_mode else ".pyw"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix, mode='w', encoding='utf-8') as tmp:
             tmp.write(script_content)
             tmp_path = tmp.name
         
@@ -227,21 +274,26 @@ def main():
         except OSError:
             pass
         
-        # Run script using system Python with hidden console
+        # Run script using system Python
         try:
-            # Configure subprocess to hide console window
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            
-            # Use pythonw.exe instead of python.exe to avoid console window
-            pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
-            if os.path.exists(pythonw_exe):
-                # Start the script in a non-blocking way
-                subprocess.Popen([pythonw_exe, tmp_path], startupinfo=startupinfo)
-            else:
-                # Start the script in a non-blocking way
+            if debug_mode:
+                # Debug mode: show console window using python.exe
+                startupinfo = None  # Don't hide the console
                 subprocess.Popen([python_exe, tmp_path], startupinfo=startupinfo)
+            else:
+                # Normal mode: hide console window
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+                
+                # Use pythonw.exe instead of python.exe to avoid console window
+                pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
+                if os.path.exists(pythonw_exe):
+                    # Start the script in a non-blocking way
+                    subprocess.Popen([pythonw_exe, tmp_path], startupinfo=startupinfo)
+                else:
+                    # Start the script in a non-blocking way
+                    subprocess.Popen([python_exe, tmp_path], startupinfo=startupinfo)
             
             # Wait for script to signal it's fully loaded
             import time
