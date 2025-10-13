@@ -4599,7 +4599,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def update_camera_lock_line_width_label(self):
         val = self.camera_lock_line_width_slider.value()
-        self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Length: ({val})")
+        self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Width: ({val})")
         self.save_settings()
 
     def update_camera_lock_radius_label(self):
@@ -5820,9 +5820,6 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
     """Render horizontal lines showing camera lock target position and deadzone"""
     try:
         if not settings.get('camera_lock_draw_range_lines', 0) == 1:
-            return
-        
-        if not settings.get('camera_lock_enabled', 0) == 1:
             return
             
         trigger_key = settings.get('TriggerKey', 'X')
