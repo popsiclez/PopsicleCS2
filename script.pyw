@@ -8259,8 +8259,8 @@ def recoil_control():
                     continue
                 
                 if current_ammo > 0:
-                    # Detect shot fired by checking if ammo decreased
-                    if current_ammo >= 0 and last_ammo_count >= 0 and current_ammo < last_ammo_count:
+                    # Detect shot fired by checking if ammo decreased by exactly 1
+                    if current_ammo >= 0 and last_ammo_count >= 0 and (last_ammo_count - current_ammo) == 1:
                         if not is_shooting:
                             # Just started shooting (first shot detected)
                             is_shooting = True
