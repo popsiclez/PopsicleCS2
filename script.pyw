@@ -1,7 +1,7 @@
 VERSION = "6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#1         
+         #2
 import threading
 import keyboard
 import os
@@ -2517,7 +2517,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
 
-
+        # 1. Targeting type
         targeting_label = QtWidgets.QLabel("Targeting Type:")
         targeting_label.setAlignment(QtCore.Qt.AlignLeft)
         misc_layout.addWidget(targeting_label)
@@ -2532,30 +2532,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.esp_mode_cb)
 
-                                    
-        self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
-        self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
-        self.auto_accept_cb.stateChanged.connect(self.on_auto_accept_changed)
-        self.set_tooltip_if_enabled(self.auto_accept_cb, "Automatically clicks the accept button when a match is found in competitive queue.")
-        self.auto_accept_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.auto_accept_cb)
-
-
-
-        self.low_cpu_cb = QtWidgets.QCheckBox("Low CPU Mode (Performance Mode)")
-        self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
-        self.low_cpu_cb.stateChanged.connect(self.on_low_cpu_changed)
-        self.set_tooltip_if_enabled(self.low_cpu_cb, "Reduces CPU usage by limiting frame rate and reducing update frequency for better performance on lower-end systems.")
-        self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.low_cpu_cb)
-
-                          
+        # 2. FPS limit
         self.lbl_fps_limit = QtWidgets.QLabel(f"FPS Limit: ({self.settings.get('fps_limit', 60)})")
         self.lbl_fps_limit.setMinimumHeight(16)
         misc_layout.addWidget(self.lbl_fps_limit)
         
         self.fps_limit_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.fps_limit_slider.setMinimum(20)                                                       
+        self.fps_limit_slider.setMinimum(20)
         self.fps_limit_slider.setMaximum(100)
         self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
         self.fps_limit_slider.valueChanged.connect(self.update_fps_limit_label)
@@ -2564,9 +2547,15 @@ class ConfigWindow(QtWidgets.QWidget):
         self.fps_limit_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.fps_limit_slider)
 
-                              
+        # 3. Low CPU mode
+        self.low_cpu_cb = QtWidgets.QCheckBox("Low CPU Mode (Performance Mode)")
+        self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
+        self.low_cpu_cb.stateChanged.connect(self.on_low_cpu_changed)
+        self.set_tooltip_if_enabled(self.low_cpu_cb, "Reduces CPU usage by limiting frame rate and reducing update frequency for better performance on lower-end systems.")
+        self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.low_cpu_cb)
 
-        # FOV controls are always enabled (no longer command-dependent)
+        # 4. Camera FOV
         self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
         self.lbl_game_fov.setMinimumHeight(16)
         misc_layout.addWidget(self.lbl_game_fov)
@@ -2574,9 +2563,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.game_fov_slider.setMinimum(60)
         self.game_fov_slider.setMaximum(160)
-
         self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
-
         self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
         self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
         self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
@@ -2584,7 +2571,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.game_fov_slider)
 
-                             
+        # 5. Draw center dot
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
         self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
         self.center_dot_cb.stateChanged.connect(self.save_settings)
@@ -2592,29 +2579,22 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.center_dot_cb)
 
-                                
+        # 6. Center dot size
+        self.lbl_center_dot_size = QtWidgets.QLabel(f"Center Dot Size: ({self.settings.get('center_dot_size', 3)})")
+        self.lbl_center_dot_size.setMinimumHeight(16)
+        misc_layout.addWidget(self.lbl_center_dot_size)
+        
         self.center_dot_size_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.center_dot_size_slider.setMinimum(1)
         self.center_dot_size_slider.setMaximum(20)
         self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
         self.center_dot_size_slider.valueChanged.connect(self.update_center_dot_size_label)
         self.set_tooltip_if_enabled(self.center_dot_size_slider, "Adjust the size of the center dot crosshair from 1 (smallest) to 20 (largest) pixels.")
-        self.lbl_center_dot_size = QtWidgets.QLabel(f"Center Dot Size: ({self.settings.get('center_dot_size', 3)})")
-        self.lbl_center_dot_size.setMinimumHeight(16)
-        misc_layout.addWidget(self.lbl_center_dot_size)
         self.center_dot_size_slider.setMinimumHeight(18)
         self.center_dot_size_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.center_dot_size_slider)
 
-                              
-        self.bhop_cb = QtWidgets.QCheckBox("Bhop")
-        self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
-        self.bhop_cb.stateChanged.connect(self.on_bhop_changed)
-        self.set_tooltip_if_enabled(self.bhop_cb, "Automatically times jump inputs for bunny hopping when holding the bhop key.")
-        self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.bhop_cb)
-
-        # Anti-flash checkbox
+        # 7. Anti-flash
         self.anti_flash_cb = QtWidgets.QCheckBox("Anti-Flash")
         self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
         self.anti_flash_cb.stateChanged.connect(self.on_anti_flash_changed)
@@ -2622,7 +2602,23 @@ class ConfigWindow(QtWidgets.QWidget):
         self.anti_flash_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.anti_flash_cb)
 
-                         
+        # 8. Auto-accept match
+        self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
+        self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
+        self.auto_accept_cb.stateChanged.connect(self.on_auto_accept_changed)
+        self.set_tooltip_if_enabled(self.auto_accept_cb, "Automatically clicks the accept button when a match is found in competitive queue.")
+        self.auto_accept_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.auto_accept_cb)
+
+        # 9. Bhop
+        self.bhop_cb = QtWidgets.QCheckBox("Bhop")
+        self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
+        self.bhop_cb.stateChanged.connect(self.on_bhop_changed)
+        self.set_tooltip_if_enabled(self.bhop_cb, "Automatically times jump inputs for bunny hopping when holding the bhop key.")
+        self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.bhop_cb)
+
+        # 10. Bhop key
         self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
         self.bhop_key_btn.setObjectName("keybind_button")
         self.bhop_key_btn.clicked.connect(lambda: self.record_key('BhopKey', self.bhop_key_btn))
@@ -2632,7 +2628,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.bhop_key_btn)
         self.bhop_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'BhopKey', self.bhop_key_btn)
 
-                                
+        # 11. Menu toggle key
         self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
         self.menu_key_btn.setObjectName("keybind_button")
         self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
@@ -2642,6 +2638,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
+        # 12. Exit key
         self.exit_key_btn = QtWidgets.QPushButton(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
         self.exit_key_btn.setObjectName("keybind_button")
         self.exit_key_btn.clicked.connect(lambda: self.record_key('ExitKey', self.exit_key_btn))
@@ -2651,7 +2648,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.exit_key_btn)
         self.exit_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'ExitKey', self.exit_key_btn)
 
-        # Add offsets update information
+        # 13. Offsets information
         separator_line = QtWidgets.QFrame()
         separator_line.setFrameShape(QtWidgets.QFrame.HLine)
         separator_line.setFrameShadow(QtWidgets.QFrame.Sunken)
