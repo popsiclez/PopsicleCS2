@@ -1,7 +1,7 @@
 VERSION = "6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+#e         
 import threading
 import keyboard
 import os
@@ -1206,9 +1206,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.tooltips_enabled = "tooltips" in load_commands()
         
-
-        self.fov_enabled = "fov" in load_commands()
-        
         # Ensure proper header text based on selected mode
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             header_text = f"{app_title} - LEGIT Mode"
@@ -1357,8 +1354,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_thickness_label()
         self.update_smooth_label()
 
-        if self.fov_enabled:
-            self.update_game_fov_label_only()
+        self.update_game_fov_label_only()
 
                                                            
         self.initialize_fps_slider_state()
@@ -1493,7 +1489,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, attr_name):
                     sliders.append(getattr(self, attr_name))
 
-            if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+            if hasattr(self, 'game_fov_slider'):
                 sliders.append(self.game_fov_slider)
             
             for slider in sliders:
@@ -2568,27 +2564,23 @@ class ConfigWindow(QtWidgets.QWidget):
 
                               
 
-        if self.fov_enabled:
-            self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
-            self.lbl_game_fov.setMinimumHeight(16)
-            misc_layout.addWidget(self.lbl_game_fov)
-            
-            self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            self.game_fov_slider.setMinimum(60)
-            self.game_fov_slider.setMaximum(160)
+        # FOV controls are always enabled (no longer command-dependent)
+        self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
+        self.lbl_game_fov.setMinimumHeight(16)
+        misc_layout.addWidget(self.lbl_game_fov)
+        
+        self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.game_fov_slider.setMinimum(60)
+        self.game_fov_slider.setMaximum(160)
 
-            self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+        self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
 
-            self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
-            self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
-            self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
-            self.game_fov_slider.setMinimumHeight(18)
-            self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-            misc_layout.addWidget(self.game_fov_slider)
-        else:
-
-            self.lbl_game_fov = None
-            self.game_fov_slider = None
+        self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
+        self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
+        self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
+        self.game_fov_slider.setMinimumHeight(18)
+        self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.game_fov_slider)
 
                              
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
@@ -3538,7 +3530,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.update_radar_size_label()
                 if hasattr(self, 'update_radar_scale_label'):
                     self.update_radar_scale_label()
-                if hasattr(self, 'update_game_fov_label_only') and hasattr(self, 'game_fov_slider') and self.game_fov_slider:
+                if hasattr(self, 'update_game_fov_label_only'):
                     self.update_game_fov_label_only()
                 
                 if hasattr(self, 'apply_topmost'):
