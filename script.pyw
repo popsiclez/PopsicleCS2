@@ -123,14 +123,14 @@ def cleanup_logging():
 
     LOG_FILE = None
 
-def cleanup_all_temporary_files():
+def cleanup_all_temporary_files(final_cleanup=True):
     """Comprehensive cleanup of all temporary files created by the script"""
     global TEMPORARY_FILES, PROCESSES_LIST
     
     try:
         debug_mode = is_debug_mode()
         if debug_mode:
-            print("[CLEANUP] Starting comprehensive cleanup...")
+            print(f"[CLEANUP] Starting comprehensive cleanup (final_cleanup={final_cleanup})...")
         
         if PROCESSES_LIST:
             if debug_mode:
@@ -164,16 +164,25 @@ def cleanup_all_temporary_files():
                     if debug_mode:
                         print(f"[CLEANUP] Error removing {temp_file}: {e}")
         
+        # Build list of standard temp files - only include commands.txt on final cleanup
         standard_temp_files = [
             LOCK_FILE,
             TERMINATE_SIGNAL_FILE,
             KEYBIND_COOLDOWNS_FILE,
             CONSOLE_LOCK_FILE,
             MODE_FILE,
-            COMMANDS_FILE,  # Clean up commands.txt file created by loader
             # Debug log is NOT included here - we want to keep it for analysis
             os.path.join(os.getcwd(), 'panic_shutdown.signal')
         ]
+        
+        # Only delete commands.txt on final cleanup (when script is actually exiting)
+        if final_cleanup:
+            standard_temp_files.append(COMMANDS_FILE)  # Clean up commands.txt file created by loader
+            if debug_mode:
+                print("[CLEANUP] Final cleanup - including commands.txt")
+        else:
+            if debug_mode:
+                print("[CLEANUP] Intermediate cleanup - preserving commands.txt")
         
         if debug_mode:
             print("[CLEANUP] Cleaning standard temporary files...")
@@ -266,11 +275,12 @@ def register_cleanup_handlers():
         return
     
     try:
-        atexit.register(cleanup_all_temporary_files)
+        # Register final cleanup for normal exit
+        atexit.register(lambda: cleanup_all_temporary_files(final_cleanup=True))
         
         def signal_handler(signum, frame):
             print(f"[CLEANUP] Signal {signum} received, cleaning up...")
-            cleanup_all_temporary_files()
+            cleanup_all_temporary_files(final_cleanup=False)  # Don't delete commands.txt on signal
             os._exit(1)
         
         if hasattr(signal, 'SIGTERM'):
@@ -8765,7 +8775,7 @@ if __name__ == "__main__":
         """Clean shutdown of all processes and resources"""
         print(f"[DEBUG] Cleanup initiated: {reason}")
         
-        cleanup_all_temporary_files()
+        cleanup_all_temporary_files(final_cleanup=True)  # Final cleanup - delete commands.txt
         
         if 'procs' in locals() or 'procs' in globals():
             for i, p in enumerate(procs):
