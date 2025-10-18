@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         #
+#1         
 import threading
 import keyboard
 import os
@@ -1446,15 +1446,6 @@ class ConfigWindow(QtWidgets.QWidget):
             # Mark dialog as active to prevent window monitoring interference
             self._memory_dialog_active = True
             
-            # Create flag file to signal other processes that dialog is active
-            dialog_flag_file = os.path.join(os.getcwd(), 'memory_dialog_active.flag')
-            try:
-                with open(dialog_flag_file, 'w') as f:
-                    f.write('1')
-                add_temporary_file(dialog_flag_file)
-            except Exception:
-                pass
-            
             # Create warning message box as child of this window
             msg_box = QtWidgets.QMessageBox(self)
             msg_box.setWindowTitle("Memory Modification Warning")
@@ -1470,13 +1461,8 @@ class ConfigWindow(QtWidgets.QWidget):
             # Show dialog and get result
             result = msg_box.exec_()
             
-            # Mark dialog as no longer active and remove flag file
+            # Mark dialog as no longer active
             self._memory_dialog_active = False
-            try:
-                if os.path.exists(dialog_flag_file):
-                    os.remove(dialog_flag_file)
-            except Exception:
-                pass
             
             # Resume rainbow timer
             self.resume_rainbow_timer()
@@ -1619,6 +1605,10 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                                                      
                 if "Popsicle CS2 Config" in window_title:
+                    return True
+                
+                # Also accept warning dialogs
+                if "Memory Modification Warning" in window_title:
                     return True
             except Exception:
                 pass
@@ -5923,11 +5913,6 @@ class ESPWindow(QtWidgets.QWidget):
     def is_game_window_active(self):
         """Check if CS2 or config UI is the currently active window"""
         try:
-            # Check if memory dialog is active - if so, consider game window as active
-            dialog_flag_file = os.path.join(os.getcwd(), 'memory_dialog_active.flag')
-            if os.path.exists(dialog_flag_file):
-                return True
-            
             foreground_hwnd = win32gui.GetForegroundWindow()
             if not foreground_hwnd:
                 return False
@@ -5940,7 +5925,8 @@ class ESPWindow(QtWidgets.QWidget):
                                                           
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
-                if "Popsicle CS2 Config" in window_title:
+                # Accept config window and any warning dialogs
+                if "Popsicle CS2 Config" in window_title or "Memory Modification Warning" in window_title:
                     return True
             except Exception:
                 pass
