@@ -1,4 +1,4 @@
-VERSION = "6"
+VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
@@ -1401,6 +1401,11 @@ class ConfigWindow(QtWidgets.QWidget):
         self._fov_timer = QtCore.QTimer(self)
         self._fov_timer.timeout.connect(self._apply_continuous_fov)
         self._fov_timer.start(1)  # Check every 100ms
+        
+        # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
+        self._anti_flash_timer = QtCore.QTimer(self)
+        self._anti_flash_timer.timeout.connect(self._apply_continuous_anti_flash)
+        self._anti_flash_timer.start(10)  # Check every 10ms for responsive anti-flash
         
                                                           
         if not self.is_game_window_active():
@@ -3172,17 +3177,6 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["anti_flash_enabled"] = 1 if self.anti_flash_cb.isChecked() else 0
             # Mark that anti-flash has been interacted with this session only
             self._anti_flash_interacted = True
-            
-            # Create/remove interaction flag file to communicate with misc_features process
-            interaction_file = os.path.join(os.getcwd(), 'anti_flash_session_interacted.flag')
-            try:
-                if self._anti_flash_interacted:
-                    with open(interaction_file, 'w') as f:
-                        f.write('1')
-                    add_temporary_file(interaction_file)
-            except Exception:
-                pass
-                
             save_settings(self.settings)
         except Exception:
             pass
@@ -5271,6 +5265,48 @@ class ConfigWindow(QtWidgets.QWidget):
             # Silently handle outer exceptions
             pass
     
+    def _apply_continuous_anti_flash(self):
+        """Continuously apply anti-flash when enabled and interacted with"""
+        try:
+            # Only apply if anti-flash has been interacted with this session
+            if not self._anti_flash_interacted:
+                return
+                
+            # Only apply if anti-flash is currently enabled
+            if not self.settings.get("anti_flash_enabled", 0):
+                return
+                
+            # Check if CS2 is running
+            if not is_cs2_running():
+                return
+                
+            # Check if m_flFlashMaxAlpha offset is available
+            if not m_flFlashMaxAlpha or m_flFlashMaxAlpha == "":
+                return
+                
+            import pymem
+            pm = None
+            client = None
+            
+            try:
+                pm = pymem.Pymem("cs2.exe")
+                client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                
+                if pm and client:
+                    # Get local player pawn
+                    local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                    if local_player_pawn:
+                        # Set flash alpha to 0 to prevent flash effects
+                        pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
+                            
+            except Exception:
+                # Silently handle exceptions to avoid spam in continuous operation
+                pass
+                
+        except Exception:
+            # Silently handle outer exceptions
+            pass
+    
     def setup_config_folder_watcher(self):
         """Setup file system watcher for the configs folder and commands.txt"""
         try:
@@ -5841,7 +5877,7 @@ class ESPWindow(QtWidgets.QWidget):
             try:
                 fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
                 fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
-                fps_item = self.scene.addText(f"OVERLAY | FPS: {self.fps}", fps_font)
+                fps_item = self.scene.addText(f"V{VERSION} | Overlay FPS: {self.fps}", fps_font)
                 
                                                                
                 if self.settings.get('rainbow_menu_theme', 0) == 1:
@@ -7574,20 +7610,13 @@ def bhop():
         sys.exit(0)
 
 def misc_features():
-    """Miscellaneous features function - handles anti-flash and other misc features"""
+    """Miscellaneous features function - placeholder for future misc features"""
     import time
-    import pymem
-    import pymem.process
-    import threading
-    import json
     import os
-    import sys
-    import ctypes
+    import json
     from PySide6.QtCore import QFileSystemWatcher, QCoreApplication
     
-    default_settings = {
-        "anti_flash_enabled": 0
-    }
+    default_settings = {}
 
     def load_settings():
         if os.path.exists(CONFIG_FILE):
@@ -7601,69 +7630,16 @@ def misc_features():
                 pass
         return default_settings
 
-    def is_cs2_running():
-        try:
-            pymem.Pymem("cs2.exe")
-            return True
-        except Exception:
-            return False
-
     def main(settings):
-        pm = None
-        client = None
-        previous_anti_flash_state = None
-        
-        while pm is None or client is None:
-            if is_cs2_running():
-                try:
-                    pm = pymem.Pymem("cs2.exe")
-                    client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
-                except Exception:
-                    pm = None
-                    client = None
-                    time.sleep(1)
-            else:
-                pm = None
-                client = None
-                time.sleep(1)
-                
+        # Placeholder for future misc features
+        # Anti-flash is now handled directly in the ConfigWindow
         while True:
             try:
-                anti_flash_enabled = settings.get("anti_flash_enabled", 0)
-                
-                # Check if anti-flash has been interacted with this session
-                interaction_file = os.path.join(os.getcwd(), 'anti_flash_session_interacted.flag')
-                anti_flash_interacted = os.path.exists(interaction_file)
-                
-                # Only apply anti-flash values if it has been interacted with this session
-                if anti_flash_interacted:
-                    # Check if anti-flash state changed
-                    if previous_anti_flash_state is not None and previous_anti_flash_state != anti_flash_enabled:
-                        # State changed - need to handle transition
-                        if not anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
-                            # Anti-flash was disabled - restore normal flash behavior
-                            try:
-                                local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
-                                if local_player_pawn:
-                                    # Reset flash alpha to allow normal flashes (255 is max)
-                                    pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 255.0)
-                            except Exception:
-                                pass
-                    
-                    # Handle anti-flash - only write once per frame if enabled
-                    if anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
-                        try:
-                            local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
-                            if local_player_pawn:
-                                pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
-                        except Exception:
-                            pass
-                
-                previous_anti_flash_state = anti_flash_enabled
-                time.sleep(0.01)  # Small delay to prevent excessive CPU usage
+                # Future misc features can be added here
+                time.sleep(0.1)  # Keep the process alive but minimal CPU usage
                 
             except Exception:
-                time.sleep(1)
+                time.sleep(0.1)
 
     def start_main_thread(settings):
         while True:
