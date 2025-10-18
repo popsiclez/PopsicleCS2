@@ -4,6 +4,8 @@ import sys
 import subprocess
 import atexit
 
+LOADER_VERSION = "5"
+
 # Try to import requests, fallback if not available
 try:
     import requests
@@ -39,7 +41,7 @@ def cleanup_loader_temp_files():
 atexit.register(cleanup_loader_temp_files)
 
 # Loader version
-LOADER_VERSION = "4"
+
 
 URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/script.pyw"
 TITLE_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt"
@@ -114,10 +116,70 @@ def show_mode_selection():
         print(f"Error in mode selection: {e}")
         return "full"  # Ultimate fallback
 
+def show_commands_selection():
+    """Show commands selection menu and return list of selected commands"""
+    try:
+        print("\nAvailable commands:")
+        print("1. debuglog - Enable logging to debug_log.txt")
+        print("2. tooltips - Enable tooltips")
+        print("3. fov - Enable FOV slider in misc")
+        print("4. Skip - None")
+        
+        selected_commands = []
+        
+        while True:
+            try:
+                choice = input("\nEnter command numbers (comma-separated) or 4 to skip: ").strip()
+                
+                if choice == "4":
+                    print("\nNo additional features selected.")
+                    break
+                
+                # Parse comma-separated choices
+                try:
+                    choices = [int(x.strip()) for x in choice.split(',') if x.strip()]
+                    valid_choices = []
+                    
+                    # Check if skip option (4) is included
+                    if 4 in choices:
+                        print("\nSkip option detected - no additional features selected.")
+                        break
+                    
+                    for c in choices:
+                        if c == 1:
+                            selected_commands.append("debuglog")
+                            valid_choices.append("debuglog")
+                        elif c == 2:
+                            selected_commands.append("tooltips")
+                            valid_choices.append("tooltips")
+                        elif c == 3:
+                            selected_commands.append("fov")
+                            valid_choices.append("fov")
+                        else:
+                            print(f"Invalid choice: {c}")
+                    
+                    if valid_choices:
+                        print(f"\nSelected features: {', '.join(valid_choices)}")
+                        break
+                    else:
+                        print("No valid choices selected. Please try again.")
+                        
+                except ValueError:
+                    print("Invalid input format. Please enter numbers separated by commas.")
+                    
+            except (KeyboardInterrupt, EOFError):
+                print("\nSelection cancelled. No additional features selected.")
+                break
+        
+        return selected_commands
+        
+    except Exception as e:
+        print(f"Error in commands selection: {e}")
+        return []  # Return empty list on error
+
 def show_debug_prompt():
     """Show debug menu prompt and return debug mode choice"""
-    try:
-        print("\n" + "=" * 40)
+    try: 
         print("Launch with debug menu?")
         print("1. Yes")
         print("2. No")
@@ -212,10 +274,17 @@ def main():
         # Show mode selection dialog
         selected_mode = show_mode_selection()
         
-        # Show debug menu prompt
+        # Show commands selection
+        selected_commands = show_commands_selection()
+        
+        # Show debug menu prompt (separate from commands)
         debug_mode = show_debug_prompt()
         
         print(f"\nSelected mode: {selected_mode.upper()}")
+        if selected_commands:
+            print(f"Selected features: {', '.join(selected_commands)}")
+        else:
+            print("No additional features selected")
         if debug_mode:
             print("Debug mode: ENABLED (console visible)")
         else:
@@ -258,6 +327,16 @@ def main():
         try:
             with open(mode_file, 'w') as f:
                 f.write(selected_mode)
+        except Exception as e:
+            pass
+        
+        # Create commands file to communicate selected features with script
+        commands_file = os.path.join(os.getcwd(), 'commands.txt')
+        add_loader_temp_file(commands_file)  # Track commands file for cleanup
+        try:
+            with open(commands_file, 'w') as f:
+                for command in selected_commands:
+                    f.write(command + '\n')
         except Exception as e:
             pass
         
