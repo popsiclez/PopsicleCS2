@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+         #
 import threading
 import keyboard
 import os
@@ -1186,10 +1186,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_toggle_pressed = False
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False
-        self._fov_warning_accepted = False
-        self._fov_dialog_showing = False
-        self._pending_fov_value = None
+        self._fov_manually_interacted = False  # Track if FOV has been manually adjusted during this session
         self._anti_flash_interacted = False  # Track if anti-flash has been interacted with this session (resets each restart)
+        self._memory_warning_shown = False  # Track if memory warning has been shown this session
+        self._memory_dialog_active = False  # Track if memory warning dialog is currently active
         self._is_initializing = True
         
                                                               
@@ -1231,6 +1231,7 @@ class ConfigWindow(QtWidgets.QWidget):
         recoil_container = self.create_recoil_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
+        memory_container = self.create_memory_container()
         config_container = self.create_config_container()
 
         # Create custom tab widget with grid layout
@@ -1252,7 +1253,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.tab_containers.extend([
             (config_container, "Config 📂"),
             (colors_container, "Colors 🎨"),
-            (misc_container, "Misc ⚙️")
+            (misc_container, "Misc ⚙️"),
+            (memory_container, "Memory⚠️")
         ])
         
         # Add all containers to stacked widget
@@ -1287,7 +1289,11 @@ class ConfigWindow(QtWidgets.QWidget):
             button.setMaximumHeight(32)
             button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
             button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
-            button.clicked.connect(lambda checked, index=i: self.switch_tab(index))
+            # Special handling for Memory⚠️ tab
+            if label == "Memory⚠️":
+                button.clicked.connect(lambda checked, index=i: self.handle_memory_tab_click(index))
+            else:
+                button.clicked.connect(lambda checked, index=i: self.switch_tab(index))
             
             top_row_layout.addWidget(button)
             self.tab_buttons.append(button)
@@ -1315,7 +1321,11 @@ class ConfigWindow(QtWidgets.QWidget):
                 button.setMinimumWidth(110)  # Set fixed width to match top row buttons
                 button.setMaximumWidth(110)  # Set fixed width to match top row buttons
                 button_index = len(top_row_containers) + i
-                button.clicked.connect(lambda checked, index=button_index: self.switch_tab(index))
+                # Special handling for Memory⚠️ tab
+                if label == "Memory⚠️":
+                    button.clicked.connect(lambda checked, index=button_index: self.handle_memory_tab_click(index))
+                else:
+                    button.clicked.connect(lambda checked, index=button_index: self.switch_tab(index))
                 
                 bottom_row_layout.addWidget(button)
                 self.tab_buttons.append(button)
@@ -1425,6 +1435,63 @@ class ConfigWindow(QtWidgets.QWidget):
             
             # Switch to the corresponding content
             self.tab_content_widget.setCurrentIndex(index)
+
+    def handle_memory_tab_click(self, index):
+        """Handle clicking on Memory⚠️ tab with warning dialog"""
+        # Show warning dialog if not shown this session
+        if not self._memory_warning_shown:
+            # Pause rainbow timer to prevent interference
+            self.pause_rainbow_timer()
+            
+            # Mark dialog as active to prevent window monitoring interference
+            self._memory_dialog_active = True
+            
+            # Create flag file to signal other processes that dialog is active
+            dialog_flag_file = os.path.join(os.getcwd(), 'memory_dialog_active.flag')
+            try:
+                with open(dialog_flag_file, 'w') as f:
+                    f.write('1')
+                add_temporary_file(dialog_flag_file)
+            except Exception:
+                pass
+            
+            # Create warning message box as child of this window
+            msg_box = QtWidgets.QMessageBox(self)
+            msg_box.setWindowTitle("Memory Modification Warning")
+            msg_box.setText("Memory Modification has risk of ban. Proceed?")
+            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
+            msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            msg_box.setDefaultButton(QtWidgets.QMessageBox.No)
+            
+            # Make dialog stay on top and modal
+            msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.WindowSystemMenuHint)
+            msg_box.setWindowModality(QtCore.Qt.ApplicationModal)
+            
+            # Show dialog and get result
+            result = msg_box.exec_()
+            
+            # Mark dialog as no longer active and remove flag file
+            self._memory_dialog_active = False
+            try:
+                if os.path.exists(dialog_flag_file):
+                    os.remove(dialog_flag_file)
+            except Exception:
+                pass
+            
+            # Resume rainbow timer
+            self.resume_rainbow_timer()
+            
+            if result == QtWidgets.QMessageBox.Yes:
+                # User accepted, mark warning as shown and switch to tab
+                self._memory_warning_shown = True
+                self.switch_tab(index)
+            else:
+                # User declined, don't switch to memory tab
+                # Keep current tab selected by not changing anything
+                pass
+        else:
+            # Warning already shown this session, switch directly
+            self.switch_tab(index)
 
     def pause_rainbow_timer(self):
         """Pause rainbow timer during dialogs to prevent interference"""
@@ -1563,6 +1630,9 @@ class ConfigWindow(QtWidgets.QWidget):
     def _check_cs2_window_active(self):
         """Monitor CS2 window activity and show/hide config window accordingly"""
         try:
+            # Skip window monitoring if memory dialog is active
+            if hasattr(self, '_memory_dialog_active') and self._memory_dialog_active:
+                return
                                                              
             if self.is_dragging:
                 return
@@ -2559,23 +2629,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.low_cpu_cb)
 
-        # 4. Camera FOV
-        self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
-        self.lbl_game_fov.setMinimumHeight(16)
-        misc_layout.addWidget(self.lbl_game_fov)
-        
-        self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.game_fov_slider.setMinimum(60)
-        self.game_fov_slider.setMaximum(160)
-        self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
-        self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
-        self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
-        self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
-        self.game_fov_slider.setMinimumHeight(18)
-        self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.game_fov_slider)
-
-        # 5. Draw center dot
+        # 4. Draw center dot
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
         self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
         self.center_dot_cb.stateChanged.connect(self.save_settings)
@@ -2583,7 +2637,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.center_dot_cb)
 
-        # 6. Center dot size
+        # 5. Center dot size
         self.lbl_center_dot_size = QtWidgets.QLabel(f"Center Dot Size: ({self.settings.get('center_dot_size', 3)})")
         self.lbl_center_dot_size.setMinimumHeight(16)
         misc_layout.addWidget(self.lbl_center_dot_size)
@@ -2598,15 +2652,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_size_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.center_dot_size_slider)
 
-        # 7. Anti-flash
-        self.anti_flash_cb = QtWidgets.QCheckBox("Anti-Flash")
-        self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
-        self.anti_flash_cb.stateChanged.connect(self.on_anti_flash_changed)
-        self.set_tooltip_if_enabled(self.anti_flash_cb, "Prevents flashbang effects from blinding you by setting flash alpha to 0.")
-        self.anti_flash_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.anti_flash_cb)
-
-        # 8. Auto-accept match
+        # 6. Auto-accept match
         self.auto_accept_cb = QtWidgets.QCheckBox("Auto Accept Match")
         self.auto_accept_cb.setChecked(self.settings.get('auto_accept_enabled', 0) == 1)
         self.auto_accept_cb.stateChanged.connect(self.on_auto_accept_changed)
@@ -2614,7 +2660,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.auto_accept_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.auto_accept_cb)
 
-        # 9. Bhop
+        # 7. Bhop
         self.bhop_cb = QtWidgets.QCheckBox("Bhop")
         self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
         self.bhop_cb.stateChanged.connect(self.on_bhop_changed)
@@ -2622,7 +2668,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.bhop_cb)
 
-        # 10. Bhop key
+        # 8. Bhop key
         self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
         self.bhop_key_btn.setObjectName("keybind_button")
         self.bhop_key_btn.clicked.connect(lambda: self.record_key('BhopKey', self.bhop_key_btn))
@@ -2632,7 +2678,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.bhop_key_btn)
         self.bhop_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'BhopKey', self.bhop_key_btn)
 
-        # 11. Menu toggle key
+        # 9. Menu toggle key
         self.menu_key_btn = QtWidgets.QPushButton(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'M')}")
         self.menu_key_btn.setObjectName("keybind_button")
         self.menu_key_btn.clicked.connect(lambda: self.record_key('MenuToggleKey', self.menu_key_btn))
@@ -2642,7 +2688,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.menu_key_btn)
         self.menu_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'MenuToggleKey', self.menu_key_btn)
 
-        # 12. Exit key
+        # 10. Exit key
         self.exit_key_btn = QtWidgets.QPushButton(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
         self.exit_key_btn.setObjectName("keybind_button")
         self.exit_key_btn.clicked.connect(lambda: self.record_key('ExitKey', self.exit_key_btn))
@@ -2652,7 +2698,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.exit_key_btn)
         self.exit_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'ExitKey', self.exit_key_btn)
 
-        # 13. Offsets information
+        # 11. Offsets information
         separator_line = QtWidgets.QFrame()
         separator_line.setFrameShape(QtWidgets.QFrame.HLine)
         separator_line.setFrameShadow(QtWidgets.QFrame.Sunken)
@@ -2677,6 +2723,46 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return misc_container
+
+    def create_memory_container(self):
+        memory_container = QtWidgets.QWidget()
+        memory_layout = QtWidgets.QVBoxLayout()
+        memory_layout.setSpacing(6)
+        memory_layout.setContentsMargins(6, 6, 6, 6)
+        memory_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        memory_label = QtWidgets.QLabel("Memory Editing")
+        memory_label.setAlignment(QtCore.Qt.AlignCenter)
+        memory_label.setMinimumHeight(18)
+        memory_layout.addWidget(memory_label)
+
+        # Camera FOV (moved from misc)
+        self.lbl_game_fov = QtWidgets.QLabel(f"Camera FOV: ({self.settings.get('game_fov', 90)})")
+        self.lbl_game_fov.setMinimumHeight(16)
+        memory_layout.addWidget(self.lbl_game_fov)
+        
+        self.game_fov_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.game_fov_slider.setMinimum(60)
+        self.game_fov_slider.setMaximum(160)
+        self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+        self.game_fov_slider.valueChanged.connect(self.on_fov_slider_value_changed)
+        self.game_fov_slider.sliderReleased.connect(self.on_fov_slider_released)
+        self.set_tooltip_if_enabled(self.game_fov_slider, "Adjust your in-game field of view from 60 (narrow) to 160 (wide) degrees. Higher FOV allows you to see more but may distort the view.")
+        self.game_fov_slider.setMinimumHeight(18)
+        self.game_fov_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        memory_layout.addWidget(self.game_fov_slider)
+
+        # Anti-flash (moved from misc)
+        self.anti_flash_cb = QtWidgets.QCheckBox("Anti-Flash")
+        self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
+        self.anti_flash_cb.stateChanged.connect(self.on_anti_flash_changed)
+        self.set_tooltip_if_enabled(self.anti_flash_cb, "Prevents flashbang effects from blinding you by setting flash alpha to 0.")
+        self.anti_flash_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        memory_layout.addWidget(self.anti_flash_cb)
+
+        memory_container.setLayout(memory_layout)
+        memory_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
+        return memory_container
 
     def create_config_container(self):
         config_container = QtWidgets.QWidget()
@@ -4877,102 +4963,33 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
     def on_fov_slider_released(self):
-        """Handle FOV slider release - this is when we show the popup"""
+        """Handle FOV slider release - apply changes immediately when manually adjusted"""
         try:
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
                 return
                 
             if getattr(self, '_is_initializing', False):
                 return
-                
-            if getattr(self, '_fov_dialog_showing', False):
-                return
-                
-            if self._fov_warning_accepted:
-                current_value = self.game_fov_slider.value()
-                self.apply_fov_change(current_value)
-                self.settings['auto_apply_fov'] = 1
-                self.save_settings()
-                self._fov_manual_change = True
-                self.update_game_fov_label()
-                if hasattr(self, '_fov_original_value'):
-                    delattr(self, '_fov_original_value')
-                return
             
+            # Mark as manually interacted and apply the changes
+            self._fov_manually_interacted = True
             current_value = self.game_fov_slider.value()
-            original_value = getattr(self, '_fov_original_value', 90)
             
-            if current_value != original_value:
-                self._pending_fov_value = current_value
-                QtCore.QTimer.singleShot(50, self._show_delayed_fov_popup)
-                if hasattr(self, '_fov_original_value'):
-                    delattr(self, '_fov_original_value')
-                if hasattr(self, '_fov_original_value'):
-                    delattr(self, '_fov_original_value')
+            self.settings['game_fov'] = current_value
+            self.settings['auto_apply_fov'] = 1
+            self.save_settings()
+            self._fov_manual_change = True
+            self.update_game_fov_label()
             
+            if hasattr(self, '_fov_original_value'):
+                delattr(self, '_fov_original_value')
+                
         except Exception as e:
             if is_debug_mode():
                 print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
             pass
 
-    def _show_delayed_fov_popup(self):
-        """Show FOV warning popup after slider is released"""
-        try:
-            if self._pending_fov_value is None or self._fov_warning_accepted:
-                return
-                
-            if getattr(self, '_fov_dialog_showing', False):
-                return
-                
-            self._fov_dialog_showing = True
-            
-            new_fov_value = self._pending_fov_value
-            original_fov_value = self.settings.get('game_fov', 90)
-            
-            self.pause_rainbow_timer()
-            
-            try:
-                msg_box = QtWidgets.QMessageBox(self)
-                msg_box.setWindowTitle("FOV Change Warning")
-                msg_box.setText("Changing FOV can cause VAC ban. Change FOV?")
-                msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-                
-                yes_button = msg_box.addButton("Yes, Apply FOV", QtWidgets.QMessageBox.YesRole)
-                cancel_button = msg_box.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
-                msg_box.setDefaultButton(cancel_button)
-                
-                msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint)
-                
-                msg_box.exec()
-                clicked_button = msg_box.clickedButton()
-                
-                if clicked_button == yes_button:
-                    self._fov_warning_accepted = True
-                    self.settings['auto_apply_fov'] = 1
-                    self.settings['game_fov'] = new_fov_value
-                    self.save_settings()
-                    self._fov_manual_change = True
-                    self.update_game_fov_label()
-                else:
-                    original_value = getattr(self, '_fov_original_value', 90)
-                    self.game_fov_slider.blockSignals(True)
-                    self.game_fov_slider.setValue(original_value)
-                    self.game_fov_slider.blockSignals(False)
-                    self.update_game_fov_label_only()
-                    self.settings['game_fov'] = original_value
-                    self.save_settings()
-                    
-            finally:
-                self._pending_fov_value = None
-                self._fov_dialog_showing = False
-                if hasattr(self, '_fov_original_value'):
-                    delattr(self, '_fov_original_value')
-                self.resume_rainbow_timer()
-                
-        except Exception:
-            self._pending_fov_value = None
-            self._fov_dialog_showing = False
-            pass
+
 
     def apply_fov_change(self, fov_value):
         """Apply FOV change to the game using only m_iFOV"""
@@ -5166,8 +5183,8 @@ class ConfigWindow(QtWidgets.QWidget):
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
                 return
                 
-            # Don't apply continuous FOV until warning has been accepted
-            if not getattr(self, '_fov_warning_accepted', False):
+            # Don't apply continuous FOV until manually interacted with
+            if not getattr(self, '_fov_manually_interacted', False):
                 return
                 
             current_fov = self.game_fov_slider.value()
@@ -5906,6 +5923,11 @@ class ESPWindow(QtWidgets.QWidget):
     def is_game_window_active(self):
         """Check if CS2 or config UI is the currently active window"""
         try:
+            # Check if memory dialog is active - if so, consider game window as active
+            dialog_flag_file = os.path.join(os.getcwd(), 'memory_dialog_active.flag')
+            if os.path.exists(dialog_flag_file):
+                return True
+            
             foreground_hwnd = win32gui.GetForegroundWindow()
             if not foreground_hwnd:
                 return False
