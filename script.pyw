@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#1         
+#67         
 import threading
 import keyboard
 import os
@@ -739,7 +739,7 @@ def handle_instance_check():
 DEFAULT_SETTINGS = {
                   
     "esp_rendering": 1,
-    "esp_mode": 0,
+    "targeting_type": 0,
     "line_rendering": 1,
     "lines_position": "Bottom",
     "hp_bar_rendering": 1,
@@ -1574,7 +1574,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
 
             comboboxes = [
-                self.esp_mode_cb, self.lines_position_combo, self.aim_mode_cb, self.aim_mode_distance_cb,
+                self.targeting_type_cb, self.lines_position_combo, self.aim_mode_cb, self.aim_mode_distance_cb,
                 self.radar_position_combo
             ]
             
@@ -2586,15 +2586,15 @@ class ConfigWindow(QtWidgets.QWidget):
         targeting_label.setAlignment(QtCore.Qt.AlignLeft)
         misc_layout.addWidget(targeting_label)
         
-        self.esp_mode_cb = QtWidgets.QComboBox()
-        self.esp_mode_cb.addItems(["Enemies Only", "All Players"])
-        self.esp_mode_cb.setCurrentIndex(self.settings.get("esp_mode", 1))
-        self.esp_mode_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
-        self.esp_mode_cb.currentIndexChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.esp_mode_cb, "Choose whether to show ESP for enemies only or all players including teammates.")
-        self.esp_mode_cb.setMinimumHeight(22)
-        self.esp_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.esp_mode_cb)
+        self.targeting_type_cb = QtWidgets.QComboBox()
+        self.targeting_type_cb.addItems(["Enemies Only", "All Players"])
+        self.targeting_type_cb.setCurrentIndex(self.settings.get("targeting_type", 1))
+        self.targeting_type_cb.setStyleSheet("background-color: #020203; border-radius: 5px;")
+        self.targeting_type_cb.currentIndexChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.targeting_type_cb, "Choose whether to show ESP for enemies only or all players including teammates.")
+        self.targeting_type_cb.setMinimumHeight(22)
+        self.targeting_type_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.targeting_type_cb)
 
         # 2. FPS limit
         self.lbl_fps_limit = QtWidgets.QLabel(f"FPS Limit: ({self.settings.get('fps_limit', 60)})")
@@ -3133,6 +3133,10 @@ class ConfigWindow(QtWidgets.QWidget):
             
 
             self.auto_accept_cb.setChecked(self.settings.get("auto_accept_enabled", 0) == 1)
+            
+            # Set targeting type
+            if hasattr(self, 'targeting_type_cb') and self.targeting_type_cb:
+                self.targeting_type_cb.setCurrentIndex(self.settings.get("targeting_type", 0))
 
             self.low_cpu_cb.setChecked(self.settings.get("low_cpu", 0) == 1)
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
@@ -3664,7 +3668,7 @@ class ConfigWindow(QtWidgets.QWidget):
     def save_settings(self):
         
         self.settings["esp_rendering"] = 1 if self.esp_rendering_cb.isChecked() else 0
-        self.settings["esp_mode"] = self.esp_mode_cb.currentIndex() if hasattr(self, 'esp_mode_cb') else self.settings.get("esp_mode", 0)
+        self.settings["targeting_type"] = self.targeting_type_cb.currentIndex() if hasattr(self, 'targeting_type_cb') else self.settings.get("targeting_type", 0)
         self.settings["line_rendering"] = 1 if self.line_rendering_cb.isChecked() else 0
         self.settings["lines_position"] = self.lines_position_combo.currentText() if hasattr(self, 'lines_position_combo') else "Bottom"
         low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
@@ -6093,8 +6097,8 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
 
                     entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
                     
-                    esp_mode = settings.get('esp_mode', 0)
-                    if esp_mode == 0 and entity_team == local_player_team:
+                    targeting_type = settings.get('targeting_type', 0)
+                    if targeting_type == 0 and entity_team == local_player_team:
                         continue
 
                     entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
@@ -6405,8 +6409,8 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                         continue
                     if entity_team == local_player_team:
                                                                       
-                        esp_mode = settings.get('esp_mode', 0)
-                        if esp_mode == 0:                     
+                        targeting_type = settings.get('targeting_type', 0)
+                        if targeting_type == 0:                     
                             continue
                     
                                                                                     
@@ -6668,7 +6672,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
         return
     
                                                         
-    esp_mode = settings.get('esp_mode', 1)
+    targeting_type = settings.get('targeting_type', 1)
     
                                                      
     box_rendering = settings.get('box_rendering', 1) == 1
@@ -6734,7 +6738,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 continue
 
             entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
-            if entity_team == local_player_team and esp_mode == 0:
+            if entity_team == local_player_team and targeting_type == 0:
                 continue
 
             entity_hp = pm.read_int(entity_pawn_addr + m_iHealth)
@@ -7137,7 +7141,7 @@ def triggerbot():
     default_settings = {
         "TriggerKey": "X",
         "trigger_bot_active":  1,
-        "esp_mode": 1,
+        "targeting_type": 1,
         "triggerbot_head_only": 0,
         "triggerbot_between_shots_delay": 30,
         "triggerbot_burst_mode": 0,
@@ -7154,7 +7158,7 @@ def triggerbot():
                 pass
         return default_settings
 
-    def _check_target_valid(pm, client, head_only):
+    def _check_target_valid(pm, client, head_only, targeting_type):
         """Helper function to check if current target is still valid for shooting"""
         try:
             player = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -7168,8 +7172,12 @@ def triggerbot():
             entityTeam = pm.read_int(entity + m_iTeamNum)
             playerTeam = pm.read_int(player + m_iTeamNum)
             
-            if entityTeam == playerTeam:
+            # Check team based on targeting_type setting
+            # targeting_type: 0 = "Enemies Only", 1 = "All Players"
+            if targeting_type == 0 and entityTeam == playerTeam:  # Enemies only mode - skip teammates
                 return False
+            elif targeting_type == 1:  # All players mode - target everyone except self
+                pass  # Continue with other checks
                 
             entityHp = pm.read_int(entity + m_iHealth)
             if entityHp <= 0:
@@ -7233,6 +7241,7 @@ def triggerbot():
                 burst_mode = settings.get("triggerbot_burst_mode", 0)
                 burst_shots = settings.get("triggerbot_burst_shots", 3)
                 head_only_mode = settings.get("triggerbot_head_only", 0)
+                targeting_type = settings.get("targeting_type", 0)  # 0 = "Enemies Only", 1 = "All Players"
                 vk = key_str_to_vk(keyboards)
                 
                 if is_keybind_on_global_cooldown("TriggerKey"):
@@ -7260,7 +7269,14 @@ def triggerbot():
                             playerTeam = pm.read_int(player + m_iTeamNum)
                             entityHp = pm.read_int(entity + m_iHealth)
                             
-                            if entityTeam != playerTeam and entityHp > 0:
+                            # Check if target is valid based on targeting_type setting
+                            target_valid = False
+                            if targeting_type == 0:  # "Enemies Only"
+                                target_valid = entityTeam != playerTeam and entityHp > 0
+                            elif targeting_type == 1:  # "All Players" 
+                                target_valid = entityHp > 0  # Target all players (except self, handled by entityId check)
+                            
+                            if target_valid:
                                 should_shoot = False
                                 
                                 if head_only_mode:
@@ -7314,7 +7330,7 @@ def triggerbot():
                                                         if trigger_bot_active != 1:
                                                             break
                                                         
-                                                        if not _check_target_valid(pm, client, head_only_mode):
+                                                        if not _check_target_valid(pm, client, head_only_mode, targeting_type):
                                                             break
                                                             
                                                         mouse.press(Button.left)
@@ -7686,7 +7702,7 @@ def misc_features():
 def aim():
     default_settings = {
          'esp_rendering': 1,
-         'esp_mode': 1,
+         'targeting_type': 1,
          'AimKey': "C",
          'aim_active': 1,
          'aim_mode': 1,
@@ -7751,7 +7767,7 @@ def aim():
                     continue
 
                 entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
-                if entity_team == local_player_team and settings['esp_mode'] == 0:
+                if entity_team == local_player_team and settings['targeting_type'] == 0:
                     continue
 
                 entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
@@ -8150,8 +8166,8 @@ def aim():
 
                     entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
                     
-                    esp_mode = settings.get('esp_mode', 0)
-                    if esp_mode == 0 and entity_team == local_player_team:
+                    targeting_type = settings.get('targeting_type', 0)
+                    if targeting_type == 0 and entity_team == local_player_team:
                         continue
 
                     entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
