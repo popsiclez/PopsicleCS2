@@ -1,5 +1,8 @@
 VERSION = "6"
 STARTUP_ENABLED = True
+
+# Global reference to config window for checking visibility state
+CONFIG_WINDOW = None
             
 import threading
 import keyboard
@@ -345,6 +348,26 @@ def check_version():
                                              
     return True
 
+def get_offsets_last_update():
+    """Get the last update date for the offsets repository output directory"""
+    try:
+        # GitHub API endpoint for commits affecting the /output directory
+        api_url = "https://api.github.com/repos/popsiclez/offsets/commits?path=output&per_page=1"
+        response = requests.get(api_url, timeout=10)
+        if response.status_code == 200:
+            commits = response.json()
+            if commits:
+                # Get the date from the most recent commit
+                commit_date = commits[0]["commit"]["author"]["date"]
+                # Parse the ISO date and format it nicely
+                from datetime import datetime
+                dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
+                return dt.strftime("%Y-%m-%d %H:%M UTC")
+        return "Unknown"
+    except Exception as e:
+        print(f"[DEBUG] Error fetching offsets update date: {e}")
+        return "Error fetching date"
+
 def version_check_worker():
     """Background worker to check version periodically"""
     while True:
@@ -426,16 +449,9 @@ m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields
 m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
 m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
 
-# Weapon and ammo related offsets
-try:
-    m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
-    m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
-    m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
-except KeyError:
-    # Fallback offsets if not found in JSON
-    m_pWeaponServices = 0x11E8
-    m_hActiveWeapon = 0x58
-    m_iClip1 = 0x1564
+m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
+m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
+m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
           
 m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
 m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
@@ -448,13 +464,7 @@ m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['
 m_iFOV = client_dll['client.dll']['classes']['CCSPlayerBase_CameraServices']['fields']['m_iFOV']
 m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']     
 
-# Scoped status offset with fallback
-try:
-    m_bIsScoped = client_dll['client.dll']['classes']['CCSPlayerPawn']['fields']['m_bIsScoped']
-except KeyError:
-    # Fallback offset if not found in JSON
-    m_bIsScoped = 0x23E8
-
+m_bIsScoped = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_bIsScoped']
 
 bone_ids = {
     "head": 6,
@@ -2533,7 +2543,27 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.addWidget(self.exit_key_btn)
         self.exit_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'ExitKey', self.exit_key_btn)
 
+        # Add offsets update information
+        separator_line = QtWidgets.QFrame()
+        separator_line.setFrameShape(QtWidgets.QFrame.HLine)
+        separator_line.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separator_line.setStyleSheet("color: #444444;")
+        misc_layout.addWidget(separator_line)
 
+        offsets_info_label = QtWidgets.QLabel("Offsets Information")
+        offsets_info_label.setAlignment(QtCore.Qt.AlignCenter)
+        offsets_info_label.setMinimumHeight(16)
+        offsets_info_label.setStyleSheet("font-weight: bold; color: #CCCCCC;")
+        misc_layout.addWidget(offsets_info_label)
+
+        # Get and display the last update date
+        last_update = get_offsets_last_update()
+        self.offsets_update_label = QtWidgets.QLabel(f"Last Updated: {last_update}")
+        self.offsets_update_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.offsets_update_label.setMinimumHeight(16)
+        self.offsets_update_label.setStyleSheet("color: #AAAAAA; font-size: 11px;")
+        self.set_tooltip_if_enabled(self.offsets_update_label, "Shows when the offsets repository was last updated with new game memory offsets.")
+        misc_layout.addWidget(self.offsets_update_label)
 
         misc_container.setLayout(misc_layout)
         misc_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
@@ -5217,7 +5247,9 @@ def configurator():
         
         pass
         
+        global CONFIG_WINDOW
         window = ConfigWindow()
+        CONFIG_WINDOW = window  # Store global reference for aimbot visibility check
         
                                                                 
         if window.is_game_window_active():
@@ -5850,7 +5882,7 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                 return
             
             entity_list = pm.read_longlong(client + dwEntityList)
-            entity_ptr = pm.read_longlong(entity_list + 0x10)
+            list_entry = pm.read_longlong(entity_list + 0x10)
             
             closest_target = None
             min_distance = float('inf')
@@ -5859,22 +5891,23 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             
             for i in range(1, 64):
                 try:
-                    if entity_ptr == 0:
+                    if list_entry == 0:
                         break
 
-                    entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-                    if entity_controller == 0:
+                    # Updated entity list logic based on CS2 update
+                    current_controller = pm.read_longlong(list_entry + i * 0x70)  # Changed from 0x78 to 0x70
+                    if current_controller == 0:
                         continue
 
-                    entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-                    if entity_controller_pawn == 0:
+                    pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+                    if pawn_handle == 0:
                         continue
 
-                    entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-                    if entity_list_pawn == 0:
+                    list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+                    if list_entry2 == 0:
                         continue
 
-                    entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                    entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))  # Changed from 0x78 to 0x70
                     if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                         continue
 
@@ -6140,7 +6173,7 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
         
                          
         entity_list = pm.read_longlong(client + dwEntityList)
-        entity_ptr = pm.read_longlong(entity_list + 0x10)
+        list_entry = pm.read_longlong(entity_list + 0x10)
         
                                                                            
         max_radar_entities = 16 if settings.get('low_cpu', 0) == 1 else 32
@@ -6152,22 +6185,23 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                 break
                 
             try:
-                if entity_ptr == 0:
+                if list_entry == 0:
                     break
 
-                entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-                if entity_controller == 0:
+                # Updated entity list logic based on CS2 update
+                current_controller = pm.read_longlong(list_entry + i * 0x70)  # Changed from 0x78 to 0x70
+                if current_controller == 0:
                     continue
 
-                entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-                if entity_controller_pawn == 0:
+                pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+                if pawn_handle == 0:
                     continue
 
-                entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-                if entity_list_pawn == 0:
+                list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+                if list_entry2 == 0:
                     continue
 
-                entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))  # Changed from 0x78 to 0x70
                 if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                     continue
 
@@ -6495,26 +6529,27 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
     else:
         no_center_y = window_height
     entity_list = pm.read_longlong(client + dwEntityList)
-    entity_ptr = pm.read_longlong(entity_list + 0x10)
+    list_entry = pm.read_longlong(entity_list + 0x10)
 
     for i in range(1, 64):
         try:
-            if entity_ptr == 0:
+            if list_entry == 0:
                 break
 
-            entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-            if entity_controller == 0:
+            # Updated entity list logic based on CS2 update
+            current_controller = pm.read_longlong(list_entry + i * 0x70)  # Changed from 0x78 to 0x70
+            if current_controller == 0:
                 continue
 
-            entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-            if entity_controller_pawn == 0:
+            pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+            if pawn_handle == 0:
                 continue
 
-            entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-            if entity_list_pawn == 0:
+            list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+            if list_entry2 == 0:
                 continue
 
-            entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+            entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))  # Changed from 0x78 to 0x70
             if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                 continue
 
@@ -6710,7 +6745,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
 
                                                      
                 if nickname_rendering:
-                    player_name = pm.read_string(entity_controller + m_iszPlayerName, 32)
+                    player_name = pm.read_string(current_controller + m_iszPlayerName, 32)
                     font_size = max(6, min(18, deltaZ / 25))
                     font = QtGui.QFont('MS PGothic', font_size, QtGui.QFont.Bold)
                     font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
@@ -6949,7 +6984,7 @@ def triggerbot():
                 
             entList = pm.read_longlong(client + dwEntityList)
             entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
-            entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
+            entity = pm.read_longlong(entEntry + 0x70 * (entityId & 0x1FF))  # Changed from 0x78 to 0x70
             entityTeam = pm.read_int(entity + m_iTeamNum)
             playerTeam = pm.read_int(player + m_iTeamNum)
             
@@ -7040,7 +7075,7 @@ def triggerbot():
                         if entityId > 0:
                             entList = pm.read_longlong(client + dwEntityList)
                             entEntry = pm.read_longlong(entList + 0x8 * (entityId >> 9) + 0x10)
-                            entity = pm.read_longlong(entEntry + 0x78 * (entityId & 0x1FF))
+                            entity = pm.read_longlong(entEntry + 0x70 * (entityId & 0x1FF))  # Changed from 0x78 to 0x70
                             entityTeam = pm.read_int(entity + m_iTeamNum)
                             playerTeam = pm.read_int(player + m_iTeamNum)
                             entityHp = pm.read_int(entity + m_iHealth)
@@ -7445,26 +7480,27 @@ def aim():
         except:
             return
         entity_list = pm.read_longlong(client + dwEntityList)
-        entity_ptr = pm.read_longlong(entity_list + 0x10)
+        list_entry = pm.read_longlong(entity_list + 0x10)
     
         for i in range(1, 64):
             try:
-                if entity_ptr == 0:
+                if list_entry == 0:
                     break
 
-                entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-                if entity_controller == 0:
+                # Updated entity list logic based on CS2 update
+                current_controller = pm.read_longlong(list_entry + i * 0x70)  # Changed from 0x78 to 0x70
+                if current_controller == 0:
                     continue
 
-                entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-                if entity_controller_pawn == 0:
+                pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+                if pawn_handle == 0:
                     continue
 
-                entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-                if entity_list_pawn == 0:
+                list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+                if list_entry2 == 0:
                     continue
 
-                entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))  # Changed from 0x78 to 0x70
                 if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                     continue
 
@@ -7797,7 +7833,7 @@ def aim():
                                                      
                         entity_list = pm.read_longlong(client + dwEntityList)
                         entity_entry = pm.read_longlong(entity_list + 0x8 * (entity_id >> 9) + 0x10)
-                        entity = pm.read_longlong(entity_entry + 0x78 * (entity_id & 0x1FF))
+                        entity = pm.read_longlong(entity_entry + 0x70 * (entity_id & 0x1FF))  # Changed from 0x78 to 0x70
                         
                         if entity:
                             entity_team = pm.read_int(entity + m_iTeamNum)
@@ -7839,29 +7875,30 @@ def aim():
                 return
             
             entity_list = pm.read_longlong(client + dwEntityList)
-            entity_ptr = pm.read_longlong(entity_list + 0x10)
+            list_entry = pm.read_longlong(entity_list + 0x10)
             
             closest_target = None
             min_distance = float('inf')
             
             for i in range(1, 64):
                 try:
-                    if entity_ptr == 0:
+                    if list_entry == 0:
                         break
 
-                    entity_controller = pm.read_longlong(entity_ptr + 0x78 * (i & 0x1FF))
-                    if entity_controller == 0:
+                    # Updated entity list logic based on CS2 update
+                    current_controller = pm.read_longlong(list_entry + i * 0x70)  # Changed from 0x78 to 0x70
+                    if current_controller == 0:
                         continue
 
-                    entity_controller_pawn = pm.read_longlong(entity_controller + m_hPlayerPawn)
-                    if entity_controller_pawn == 0:
+                    pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+                    if pawn_handle == 0:
                         continue
 
-                    entity_list_pawn = pm.read_longlong(entity_list + 0x8 * ((entity_controller_pawn & 0x7FFF) >> 0x9) + 0x10)
-                    if entity_list_pawn == 0:
+                    list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+                    if list_entry2 == 0:
                         continue
 
-                    entity_pawn_addr = pm.read_longlong(entity_list_pawn + 0x78 * (entity_controller_pawn & 0x1FF))
+                    entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))  # Changed from 0x78 to 0x70
                     if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
                         continue
 
@@ -8021,6 +8058,10 @@ def aim():
                 require_aimkey = settings.get('require_aimkey', 1) == 1
                 should_aim = pressed if require_aimkey else True
                 
+                # If require_aimkey is disabled, check if config UI is visible and disable aimbot if it is
+                if not require_aimkey and CONFIG_WINDOW and CONFIG_WINDOW.isVisible():
+                    should_aim = False
+                
                 if should_aim:
                                                     
                     smoothness = settings.get('aim_smoothness', 0)
@@ -8166,7 +8207,7 @@ def recoil_control():
             if not weapon_entry:
                 return -1
             
-            weapon_entity = pm.read_longlong(weapon_entry + 0x78 * weapon_index)
+            weapon_entity = pm.read_longlong(weapon_entry + 0x70 * weapon_index)  # Changed from 0x78 to 0x70
             if not weapon_entity:
                 return -1
             
