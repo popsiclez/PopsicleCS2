@@ -4,7 +4,7 @@ import sys
 import subprocess
 import atexit
 
-LOADER_VERSION = "5"
+LOADER_VERSION = "6"
 
 # Try to import requests, fallback if not available
 try:
@@ -122,16 +122,15 @@ def show_commands_selection():
         print("\nAvailable commands:")
         print("1. debuglog - Enable logging to debug_log.txt")
         print("2. tooltips - Enable tooltips")
-        print("3. fov - Enable FOV slider in misc")
-        print("4. Skip - None")
+        print("3. Skip - None")
         
         selected_commands = []
         
         while True:
             try:
-                choice = input("\nEnter command numbers (comma-separated) or 4 to skip: ").strip()
+                choice = input("\nEnter command numbers (comma-separated) or 3 to skip: ").strip()
                 
-                if choice == "4":
+                if choice == "3":
                     print("\nNo additional features selected.")
                     break
                 
@@ -140,8 +139,8 @@ def show_commands_selection():
                     choices = [int(x.strip()) for x in choice.split(',') if x.strip()]
                     valid_choices = []
                     
-                    # Check if skip option (4) is included
-                    if 4 in choices:
+                    # Check if skip option (3) is included
+                    if 3 in choices:
                         print("\nSkip option detected - no additional features selected.")
                         break
                     
@@ -152,9 +151,6 @@ def show_commands_selection():
                         elif c == 2:
                             selected_commands.append("tooltips")
                             valid_choices.append("tooltips")
-                        elif c == 3:
-                            selected_commands.append("fov")
-                            valid_choices.append("fov")
                         else:
                             print(f"Invalid choice: {c}")
                     
