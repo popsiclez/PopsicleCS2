@@ -1,9 +1,7 @@
 VERSION = "6"
 STARTUP_ENABLED = True
-
-# Global reference to config window for checking visibility state
 CONFIG_WINDOW = None
-            
+         
 import threading
 import keyboard
 import os
@@ -41,11 +39,9 @@ import signal
 from datetime import datetime
 
 CONSOLE_CREATED = False
-
 TEMPORARY_FILES = set()
 CLEANUP_REGISTERED = False
 PROCESSES_LIST = []
-
 LOG_FILE = None
 original_stdout = None
 original_stderr = None
@@ -86,7 +82,6 @@ def setup_logging():
     
 
     if LOG_FILE is not None:
-        print("[DEBUG] Logging already setup, skipping")
         return
     
 
@@ -133,33 +128,41 @@ def cleanup_all_temporary_files():
     global TEMPORARY_FILES, PROCESSES_LIST
     
     try:
-        print("[CLEANUP] Starting comprehensive cleanup...")
+        debug_mode = is_debug_mode()
+        if debug_mode:
+            print("[CLEANUP] Starting comprehensive cleanup...")
         
         if PROCESSES_LIST:
-            print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
+            if debug_mode:
+                print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
             for i, p in enumerate(PROCESSES_LIST):
                 try:
                     if hasattr(p, 'is_alive') and p.is_alive():
-                        print(f"[CLEANUP] Terminating process {i+1}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Terminating process {i+1}")
                         p.terminate()
                         p.join(2)
                         if p.is_alive():
                             p.kill()
                             p.join(1)
                 except Exception as e:
-                    print(f"[CLEANUP] Error terminating process {i+1}: {e}")
+                    if debug_mode:
+                        print(f"[CLEANUP] Error terminating process {i+1}: {e}")
         
         files_cleaned = 0
         if TEMPORARY_FILES:
-            print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
+            if debug_mode:
+                print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
             for temp_file in list(TEMPORARY_FILES):
                 try:
                     if os.path.exists(temp_file):
                         os.remove(temp_file)
                         files_cleaned += 1
-                        print(f"[CLEANUP] Removed: {temp_file}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Removed: {temp_file}")
                 except Exception as e:
-                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
+                    if debug_mode:
+                        print(f"[CLEANUP] Error removing {temp_file}: {e}")
         
         standard_temp_files = [
             LOCK_FILE,
@@ -167,49 +170,61 @@ def cleanup_all_temporary_files():
             KEYBIND_COOLDOWNS_FILE,
             CONSOLE_LOCK_FILE,
             MODE_FILE,
+            COMMANDS_FILE,  # Clean up commands.txt file created by loader
             # Debug log is NOT included here - we want to keep it for analysis
             os.path.join(os.getcwd(), 'panic_shutdown.signal')
         ]
         
-        print("[CLEANUP] Cleaning standard temporary files...")
+        if debug_mode:
+            print("[CLEANUP] Cleaning standard temporary files...")
         for temp_file in standard_temp_files:
             try:
                 if temp_file and os.path.exists(temp_file):
                     os.remove(temp_file)
                     files_cleaned += 1
-                    print(f"[CLEANUP] Removed: {temp_file}")
+                    if debug_mode:
+                        print(f"[CLEANUP] Removed: {temp_file}")
             except Exception as e:
-                print(f"[CLEANUP] Error removing {temp_file}: {e}")
+                if debug_mode:
+                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
         
         try:
             import glob
             signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
             if signal_files:
-                print(f"[CLEANUP] Cleaning {len(signal_files)} signal files...")
+                if debug_mode:
+                    print(f"[CLEANUP] Cleaning {len(signal_files)} signal files...")
                 for signal_file in signal_files:
                     try:
                         os.remove(signal_file)
                         files_cleaned += 1
-                        print(f"[CLEANUP] Removed signal file: {signal_file}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Removed signal file: {signal_file}")
                     except Exception as e:
-                        print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
         except Exception as e:
-            print(f"[CLEANUP] Error cleaning signal files: {e}")
+            if debug_mode:
+                print(f"[CLEANUP] Error cleaning signal files: {e}")
         
         try:
             import glob
             lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
             if lock_files:
-                print(f"[CLEANUP] Cleaning {len(lock_files)} lock files...")
+                if debug_mode:
+                    print(f"[CLEANUP] Cleaning {len(lock_files)} lock files...")
                 for lock_file in lock_files:
                     try:
                         os.remove(lock_file)
                         files_cleaned += 1
-                        print(f"[CLEANUP] Removed lock file: {lock_file}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Removed lock file: {lock_file}")
                     except Exception as e:
-                        print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
+                        if debug_mode:
+                            print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
         except Exception as e:
-            print(f"[CLEANUP] Error cleaning lock files: {e}")
+            if debug_mode:
+                print(f"[CLEANUP] Error cleaning lock files: {e}")
         
         try:
             import tempfile
@@ -224,15 +239,21 @@ def cleanup_all_temporary_files():
                         if file_age < 3600 and 1000 < file_size < 1000000:
                             os.remove(temp_file)
                             files_cleaned += 1
-                            print(f"[CLEANUP] Removed temp script: {temp_file}")
+                            if debug_mode:
+                                print(f"[CLEANUP] Removed temp script: {temp_file}")
                 except Exception as e:
-                    print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
+                    if debug_mode:
+                        print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
         except Exception as e:
-            print(f"[CLEANUP] Error cleaning temp scripts: {e}")
+            if debug_mode:
+                print(f"[CLEANUP] Error cleaning temp scripts: {e}")
         
         cleanup_logging()
         
-        print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
+        if debug_mode:
+            print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
+        elif files_cleaned > 0:
+            print(f"Cleanup completed - removed {files_cleaned} temporary files.")
         
     except Exception as e:
         print(f"[CLEANUP] Error during cleanup: {e}")
@@ -260,65 +281,57 @@ def register_cleanup_handlers():
             signal.signal(signal.SIGBREAK, signal_handler)
         
         CLEANUP_REGISTERED = True
-        print("[CLEANUP] Cleanup handlers registered successfully")
+        if is_debug_mode():
+            print("[CLEANUP] Cleanup handlers registered successfully")
         
     except Exception as e:
-        print(f"[CLEANUP] Error registering cleanup handlers: {e}")
+        if is_debug_mode():
+            print(f"[CLEANUP] Error registering cleanup handlers: {e}")
 
 def add_temporary_file(file_path):
     """Add a file to the temporary files tracking list"""
     global TEMPORARY_FILES
     if file_path:
         TEMPORARY_FILES.add(file_path)
-        print(f"[CLEANUP] Tracking temporary file: {file_path}")
+        if is_debug_mode():
+            print(f"[CLEANUP] Tracking temporary file: {file_path}")
 
 def track_process(process):
     """Add a process to the cleanup tracking list"""
     global PROCESSES_LIST
     PROCESSES_LIST.append(process)
-    print(f"[CLEANUP] Tracking process for cleanup")
+    if is_debug_mode():
+        print(f"[CLEANUP] Tracking process for cleanup")
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
     commands = []
     try:
-        print(f"[DEBUG] Checking for commands file at: {COMMANDS_FILE}")
         if os.path.exists(COMMANDS_FILE):
             with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
-
                 if content.startswith('\ufeff'):
                     content = content[1:]
-                print(f"[DEBUG] Commands file content: '{content}'")
                 if content:
-
                     commands = [cmd.strip().lower() for cmd in content.split(',') if cmd.strip()]
-                    print(f"[DEBUG] Parsed commands: {commands}")
-                    pass
-        else:
-            print(f"[DEBUG] No commands file found at {COMMANDS_FILE}")
-            pass
-    except Exception as e:
-        print(f"[DEBUG] Error reading commands file: {e}")
+    except Exception:
         pass
     return commands
+
+def is_debug_mode():
+    """Check if debug mode is enabled via commands.txt"""
+    commands = load_commands()
+    return "debuglog" in commands
 
 def apply_commands():
     """Apply commands from commands.txt file"""
     global CONSOLE_CREATED
-    print("[DEBUG] apply_commands() called")
     commands = load_commands()
-    print(f"[DEBUG] Commands loaded: {commands}")
     
-
     if "debuglog" in commands:
-        print("[DEBUG] Debuglog command found in commands list")
-
         setup_logging()
-        print("[DEBUG] Debug logging enabled and writing to debug_log.txt")
+        print("Debug logging enabled - detailed output will be written to debug_log.txt")
         print("Commands processed:", commands)
-    else:
-        print("[DEBUG] Debuglog command NOT found in commands list")
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -365,8 +378,9 @@ def get_offsets_last_update():
                 return dt.strftime("%Y-%m-%d %H:%M UTC")
         return "Unknown"
     except Exception as e:
-        print(f"[DEBUG] Error fetching offsets update date: {e}")
-        return "Error fetching date"
+        if is_debug_mode():
+            print(f"[DEBUG] Error fetching offsets update date: {e}")
+        return "Unknown"
 
 def version_check_worker():
     """Background worker to check version periodically"""
@@ -419,52 +433,42 @@ dwViewMatrix = offsets['client.dll']['dwViewMatrix']
 dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
 dwViewAngles = offsets['client.dll']['dwViewAngles']
 dwSensitivity = offsets['client.dll']['dwSensitivity']
-dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']
-                         
+dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']                         
 m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
 m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
 m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
 m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
 m_fFlags = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_fFlags']
-m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']
-                      
+m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']                      
 m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
-m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']
-                
+m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']       
 m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
 m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
 m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
 m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
 m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
-m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']
-                     
+m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']               
 m_pCameraServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pCameraServices']
-m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']
-                 
+m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']           
 m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
 m_vecOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecOrigin']
-m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
-            
+m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']      
 m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
 m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
 m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
-
 m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
 m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
-m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
-          
+m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']     
 m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
 m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
 m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
-m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']
-                    
+m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']                
 m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
 m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
-
 m_iFOV = client_dll['client.dll']['classes']['CCSPlayerBase_CameraServices']['fields']['m_iFOV']
 m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']     
-
 m_bIsScoped = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_bIsScoped']
+m_flFlashMaxAlpha = client_dll["client.dll"]["classes"]["C_CSPlayerPawnBase"]["fields"]["m_flFlashMaxAlpha"]
 
 bone_ids = {
     "head": 6,
@@ -569,20 +573,15 @@ def load_selected_mode():
         if os.path.exists(MODE_FILE):
             with open(MODE_FILE, 'r') as f:
                 mode = f.read().strip().lower()
-                print(f"[DEBUG] Mode loaded from file: {mode}")
                 if mode in ['legit', 'full']:
                     return mode
         else:
-            print(f"[DEBUG] Mode file not found: {MODE_FILE}")
             # Only allow running without mode file if STARTUP_ENABLED is False
             if not STARTUP_ENABLED:
-                print("[DEBUG] STARTUP_ENABLED is False, defaulting to 'full' mode")
                 return 'full'
             else:
-                print("[DEBUG] STARTUP_ENABLED is True, mode file required")
                 return None
-    except Exception as e:
-        print(f"[DEBUG] Error loading mode: {e}")
+    except Exception:
         # Only allow fallback if STARTUP_ENABLED is False
         if not STARTUP_ENABLED:
             return 'full'
@@ -590,7 +589,6 @@ def load_selected_mode():
             return None
     
     # If we reach here, mode file exists but contains invalid mode
-    print("[DEBUG] Invalid mode in file, using fallback")
     if not STARTUP_ENABLED:
         return 'full'
     else:
@@ -795,6 +793,9 @@ DEFAULT_SETTINGS = {
                    
     "bhop_enabled": 0,
     "BhopKey": "SPACE",
+    
+    # Anti-flash settings                         
+    "anti_flash_enabled": 0,
     
                           
     "auto_accept_enabled": 0,
@@ -1118,7 +1119,8 @@ def load_settings():
             
             # Migrate legacy recoil settings to weapon-specific format
             if 'recoil_weapons' not in merged_settings or not isinstance(merged_settings['recoil_weapons'], dict):
-                print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
+                if is_debug_mode():
+                    print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
                 
                 # Get legacy values or defaults
                 legacy_strength = merged_settings.get('recoil_control_strength', 5)
@@ -1148,7 +1150,8 @@ def load_settings():
                 
                 # Save the migrated settings
                 save_settings(merged_settings)
-                print("[DEBUG] Legacy recoil settings migration completed")
+                if is_debug_mode():
+                    print("[DEBUG] Legacy recoil settings migration completed")
             
             return merged_settings
     except (json.JSONDecodeError, FileNotFoundError, PermissionError):
@@ -1202,7 +1205,8 @@ class ConfigWindow(QtWidgets.QWidget):
         else:
             header_text = app_title
         
-        print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
+        if is_debug_mode():
+            print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
         
         self.header_label = QtWidgets.QLabel(header_text)
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -1221,31 +1225,113 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container = self.create_misc_container()
         config_container = self.create_config_container()
 
+        # Create custom tab widget with grid layout
+        self.tab_content_widget = QtWidgets.QStackedWidget()
         
-        tabs = QtWidgets.QTabWidget()
-        tabs.addTab(esp_container, "ESP")
+        # Store tab containers and their info
+        self.tab_containers = [
+            (esp_container, "ESP 👁️"),
+            (trigger_container, "Trigger ⚡"),
+            (recoil_container, "Recoil 🔫")
+        ]
         
+        # Add aim container for full mode
         if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
             aim_container = self.create_aim_container()
-            tabs.addTab(aim_container, "Aim")
+            self.tab_containers.insert(1, (aim_container, "Aim 🎯"))
+        
+        # Add remaining containers to second row
+        self.tab_containers.extend([
+            (config_container, "Config 📂"),
+            (colors_container, "Colors 🎨"),
+            (misc_container, "Misc ⚙️")
+        ])
+        
+        # Add all containers to stacked widget
+        for container, _ in self.tab_containers:
+            self.tab_content_widget.addWidget(container)
+        
+        # Create custom tab bar with proper centering
+        tab_bar_widget = QtWidgets.QWidget()
+        tab_bar_widget.setMinimumHeight(96)  # Increase height to accommodate taller rows
+        main_tab_layout = QtWidgets.QVBoxLayout()
+        main_tab_layout.setSpacing(6)  # Increase spacing between rows
+        main_tab_layout.setContentsMargins(8, 8, 8, 12)  # Increase all margins
+        
+        self.tab_buttons = []
+        
+        # Split containers into top and bottom rows
+        top_row_containers = self.tab_containers[:4]  # First 4 (or less)
+        bottom_row_containers = self.tab_containers[4:]  # Remaining
+        
+        # Create top row
+        top_row_widget = QtWidgets.QWidget()
+        top_row_widget.setMinimumHeight(44)  # Increase height even more for buttons
+        top_row_layout = QtWidgets.QHBoxLayout()
+        top_row_layout.setSpacing(2)
+        top_row_layout.setContentsMargins(0, 4, 0, 8)  # Increase bottom margin for top row
+        
+        for i, (container, label) in enumerate(top_row_containers):
+            button = QtWidgets.QPushButton(label)
+            button.setCheckable(True)
+            button.setObjectName("tab_button")
+            button.setMinimumHeight(32)
+            button.setMaximumHeight(32)
+            button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
+            button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
+            button.clicked.connect(lambda checked, index=i: self.switch_tab(index))
             
-        tabs.addTab(trigger_container, "Trigger")
-        tabs.addTab(recoil_container, "Recoil")
-        tabs.addTab(colors_container, "Colors")
-        tabs.addTab(misc_container, "Misc")
-        tabs.addTab(config_container, "Config")
-        tabs.setTabPosition(QtWidgets.QTabWidget.North)
-        tabs.setMovable(False)
+            top_row_layout.addWidget(button)
+            self.tab_buttons.append(button)
         
-                            
-        tabs.setStyleSheet("")                                                       
-
+        top_row_widget.setLayout(top_row_layout)
+        main_tab_layout.addWidget(top_row_widget)
         
+        # Create bottom row (centered with matching button sizes)
+        if bottom_row_containers:
+            bottom_row_widget = QtWidgets.QWidget()
+            bottom_row_widget.setMinimumHeight(40)  # Increase height for buttons
+            bottom_row_layout = QtWidgets.QHBoxLayout()
+            bottom_row_layout.setSpacing(2)
+            bottom_row_layout.setContentsMargins(0, 4, 0, 4)  # Increase vertical margins
+            
+            # Add stretching spacer on the left
+            bottom_row_layout.addStretch()
+            
+            for i, (container, label) in enumerate(bottom_row_containers):
+                button = QtWidgets.QPushButton(label)
+                button.setCheckable(True)
+                button.setObjectName("tab_button")
+                button.setMinimumHeight(32)
+                button.setMaximumHeight(32)
+                button.setMinimumWidth(110)  # Set fixed width to match top row buttons
+                button.setMaximumWidth(110)  # Set fixed width to match top row buttons
+                button_index = len(top_row_containers) + i
+                button.clicked.connect(lambda checked, index=button_index: self.switch_tab(index))
+                
+                bottom_row_layout.addWidget(button)
+                self.tab_buttons.append(button)
+            
+            # Add stretching spacer on the right
+            bottom_row_layout.addStretch()
+            
+            bottom_row_widget.setLayout(bottom_row_layout)
+            main_tab_layout.addWidget(bottom_row_widget)
+        
+        # Set first tab as active
+        if self.tab_buttons:
+            self.tab_buttons[0].setChecked(True)
+            self.tab_content_widget.setCurrentIndex(0)
+        
+        tab_bar_widget.setLayout(main_tab_layout)
+        
+        # Main layout
         main_layout = QtWidgets.QVBoxLayout()
         main_layout.setSpacing(8)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.addWidget(self.header_label)
-        main_layout.addWidget(tabs)
+        main_layout.addWidget(tab_bar_widget)
+        main_layout.addWidget(self.tab_content_widget)
 
         self.setLayout(main_layout)
 
@@ -1302,7 +1388,7 @@ class ConfigWindow(QtWidgets.QWidget):
                                                     
         self._rainbow_menu_timer = QtCore.QTimer(self)
         self._rainbow_menu_timer.timeout.connect(self._update_rainbow_menu_theme)
-        self._rainbow_menu_timer.start(50)                     
+        self._rainbow_menu_timer.start(100)  # Reduced frequency to prevent flashing (was 50ms)
         
         # Setup FOV application timer for continuous FOV enforcement when not scoped
         self._fov_timer = QtCore.QTimer(self)
@@ -1317,6 +1403,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.disable_ui_focus()
         
         self._is_initializing = False
+
+    def switch_tab(self, index):
+        """Switch to the specified tab and update button states"""
+        if 0 <= index < len(self.tab_buttons):
+            # Update button states
+            for i, button in enumerate(self.tab_buttons):
+                button.setChecked(i == index)
+            
+            # Switch to the corresponding content
+            self.tab_content_widget.setCurrentIndex(index)
 
     def pause_rainbow_timer(self):
         """Pause rainbow timer during dialogs to prevent interference"""
@@ -1360,7 +1456,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
             misc_checkboxes = [
                 'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb', 
-                'auto_accept_cb', 'low_cpu_cb'
+                'auto_accept_cb', 'low_cpu_cb', 'anti_flash_cb'
             ]
             
             for attr_name in misc_checkboxes:
@@ -2514,6 +2610,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.bhop_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.bhop_cb)
 
+        # Anti-flash checkbox
+        self.anti_flash_cb = QtWidgets.QCheckBox("Anti-Flash")
+        self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
+        self.anti_flash_cb.stateChanged.connect(self.on_anti_flash_changed)
+        self.set_tooltip_if_enabled(self.anti_flash_cb, "Prevents flashbang effects from blinding you by setting flash alpha to 0.")
+        self.anti_flash_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        misc_layout.addWidget(self.anti_flash_cb)
+
                          
         self.bhop_key_btn = QtWidgets.QPushButton(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
         self.bhop_key_btn.setObjectName("keybind_button")
@@ -2552,8 +2656,8 @@ class ConfigWindow(QtWidgets.QWidget):
 
         offsets_info_label = QtWidgets.QLabel("Offsets Information")
         offsets_info_label.setAlignment(QtCore.Qt.AlignCenter)
-        offsets_info_label.setMinimumHeight(16)
-        offsets_info_label.setStyleSheet("font-weight: bold; color: #CCCCCC;")
+        offsets_info_label.setMinimumHeight(18)
+        offsets_info_label.setStyleSheet("font-family: 'MS PGothic'; font-weight: bold; color: #FFFFFF; font-size: 14px;")
         misc_layout.addWidget(offsets_info_label)
 
         # Get and display the last update date
@@ -2561,7 +2665,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.offsets_update_label = QtWidgets.QLabel(f"Last Updated: {last_update}")
         self.offsets_update_label.setAlignment(QtCore.Qt.AlignCenter)
         self.offsets_update_label.setMinimumHeight(16)
-        self.offsets_update_label.setStyleSheet("color: #AAAAAA; font-size: 11px;")
+        self.offsets_update_label.setStyleSheet("font-family: 'MS PGothic'; color: #CCCCCC; font-size: 12px;")
         self.set_tooltip_if_enabled(self.offsets_update_label, "Shows when the offsets repository was last updated with new game memory offsets.")
         misc_layout.addWidget(self.offsets_update_label)
 
@@ -2703,14 +2807,9 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def enforce_legit_mode_restrictions(self):
         """Enforce legit mode restrictions after config loading"""
-        print(f"[DEBUG] enforce_legit_mode_restrictions called - SELECTED_MODE: '{SELECTED_MODE}'")
-        
         # Use case-insensitive comparison and null check
         if not SELECTED_MODE or SELECTED_MODE.lower() != 'legit':
-            print(f"[DEBUG] Not in legit mode, skipping restrictions")
             return
-            
-        print(f"[DEBUG] Applying legit mode restrictions")
         try:
             self.settings["aim_active"] = 0
             if hasattr(self, 'aim_active_cb') and self.aim_active_cb:
@@ -2792,7 +2891,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 
 
                 self.auto_accept_cb, self.low_cpu_cb, self.center_dot_cb, self.bhop_cb,
-                self.fps_limit_slider, self.center_dot_size_slider
+                self.anti_flash_cb, self.fps_limit_slider, self.center_dot_size_slider
             ]
             
 
@@ -2957,6 +3056,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.low_cpu_cb.setChecked(self.settings.get("low_cpu", 0) == 1)
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
             self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
+            self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
             self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
 
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
@@ -3062,6 +3162,14 @@ class ConfigWindow(QtWidgets.QWidget):
         """Handle bhop toggle change"""
         try:
             self.settings["bhop_enabled"] = 1 if self.bhop_cb.isChecked() else 0
+            save_settings(self.settings)
+        except Exception:
+            pass
+
+    def on_anti_flash_changed(self):
+        """Handle anti-flash toggle change"""
+        try:
+            self.settings["anti_flash_enabled"] = 1 if self.anti_flash_cb.isChecked() else 0
             save_settings(self.settings)
         except Exception:
             pass
@@ -3210,7 +3318,8 @@ class ConfigWindow(QtWidgets.QWidget):
             
             try:
 
-                print("[DEBUG] Application terminating - check debug_log.txt for full output")
+                if is_debug_mode():
+                    print("[DEBUG] Application terminating - check debug_log.txt for full output")
                 
 
                 import os
@@ -4024,6 +4133,8 @@ class ConfigWindow(QtWidgets.QWidget):
                                                   
         color = QtGui.QColor(theme_color)
         darker_color = color.darker(110).name()
+        # Get contrasting text color for tab buttons
+        contrasting_text_color = self.get_contrasting_text_color(theme_color)
         
                                                                     
         self.setStyleSheet(f"""
@@ -4204,36 +4315,42 @@ class ConfigWindow(QtWidgets.QWidget):
                 border: 2px solid {color.lighter(130).name()};
             }}
             
-            QTabWidget::pane {{
-                border: none;
-                border-top: 2px solid {theme_color};
-                background-color: #020203;
-                margin-top: 6px;
-                border-radius: 0px 0px 8px 8px;
-            }}
-            
-            QTabWidget::tab-bar {{
-                alignment: center;
-            }}
-            
-            QTabBar::tab {{
+            /* Custom tab button styling */
+            QPushButton[objectName="tab_button"] {{
                 background-color: #3c3c3c;
-                color: {theme_color};
-                padding: 8px 13px;
-                margin: 2px;
+                color: white;
+                border: 1px solid #555;
                 border-radius: 4px;
+                padding: 7px 11px;
                 font-family: "MS PGothic";
                 font-weight: bold;
+                font-size: 12px;
             }}
             
-            QTabBar::tab:selected {{
-                background-color: #555;
-                color: {theme_color};
-            }}
-            
-            QTabBar::tab:hover {{
+            QPushButton[objectName="tab_button"]:hover {{
                 background-color: #4a4a4a;
+                border: 1px solid #777;
                 color: {theme_color};
+            }}
+            
+            QPushButton[objectName="tab_button"]:checked {{
+                background-color: {theme_color};
+                color: {contrasting_text_color};
+                border: 1px solid {darker_color};
+            }}
+            
+            QPushButton[objectName="tab_button"]:checked:hover {{
+                background-color: {darker_color};
+                color: {contrasting_text_color};
+                border: 1px solid {color.darker(120).name()};
+            }}
+            
+            /* Style for the stacked widget container */
+            QStackedWidget {{
+                background-color: #020203;
+                border: 1px solid {theme_color};
+                border-radius: 8px;
+                margin-top: 4px;
             }}
             
             /* Ensure message boxes and dialogs have proper styling */
@@ -4371,33 +4488,31 @@ class ConfigWindow(QtWidgets.QWidget):
                 r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                 rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
                 
-                                                                                          
-                self.settings['current_rainbow_color'] = rainbow_color
-                save_settings(self.settings)
-                
-                                                                             
-                self.update_menu_theme_styling(rainbow_color)
-                
-                                                                        
-                if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
-                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {rainbow_color}; color: white;')
+                # Only update styling if the color has significantly changed to reduce flashing
+                if not hasattr(self, '_last_rainbow_color') or abs(RAINBOW_HUE - getattr(self, '_last_rainbow_hue', 0)) > 0.01:
+                    self._last_rainbow_color = rainbow_color
+                    self._last_rainbow_hue = RAINBOW_HUE
+                    
+                    # Update styling without saving settings to prevent file I/O overhead
+                    self.update_menu_theme_styling(rainbow_color)
+                    
+                    # Update button appearance
+                    if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
+                        contrasting_color = self.get_contrasting_text_color(rainbow_color)
+                        self.menu_theme_color_btn.setStyleSheet(f'background-color: {rainbow_color}; color: {contrasting_color}; border-radius: 6px; font-weight: bold;')
                     
                 self._rainbow_was_enabled = True
                 
             elif self._rainbow_was_enabled:
                                                                                     
-                                                                               
-                if 'current_rainbow_color' in self.settings:
-                    del self.settings['current_rainbow_color']
-                save_settings(self.settings)
-                
-                                                                                  
+                # Reset to original color when rainbow is disabled
                 original_color = self.settings.get('menu_theme_color', '#FF0000')
                 self.update_menu_theme_styling(original_color)
                 
                                                                               
                 if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
-                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {original_color}; color: white;')
+                    contrasting_color = self.get_contrasting_text_color(original_color)
+                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {original_color}; color: {contrasting_color}; border-radius: 6px; font-weight: bold;')
                     
                 self._rainbow_was_enabled = False
                 
@@ -4733,51 +4848,40 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_fov_slider_value_changed(self):
         """Handle FOV slider value changes for immediate label updates"""
-        print(f"[DEBUG] FOV slider value changed: {self.game_fov_slider.value()}")
         try:
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
-                print("[DEBUG] FOV controls not available")
                 return
                 
             if getattr(self, '_is_initializing', False) or getattr(self, '_loading_config', False):
-                print("[DEBUG] Initializing or loading config, updating label only")
                 self.update_game_fov_label_only()
                 return
             
             if not hasattr(self, '_fov_original_value'):
                 self._fov_original_value = self.game_fov_slider.value()
-                print(f"[DEBUG] Storing original FOV value: {self._fov_original_value}")
                 
             # Only update the label and settings during slider changes
             # Actual FOV application happens only on slider release
-            print("[DEBUG] Updating label only (FOV will apply on release)")
             new_value = self.game_fov_slider.value()
             self.settings['game_fov'] = new_value
             self.save_settings()
             self.update_game_fov_label_only()
             
-        except Exception as e:
-            print(f"[DEBUG] Exception in on_fov_slider_value_changed: {e}")
+        except Exception:
             pass
 
     def on_fov_slider_released(self):
         """Handle FOV slider release - this is when we show the popup"""
-        print("[DEBUG] FOV slider released")
         try:
             if not (hasattr(self, 'game_fov_slider') and self.game_fov_slider):
-                print("[DEBUG] FOV controls not available on release")
                 return
                 
             if getattr(self, '_is_initializing', False):
-                print("[DEBUG] Still initializing, ignoring release")
                 return
                 
             if getattr(self, '_fov_dialog_showing', False):
-                print("[DEBUG] Dialog already showing, ignoring release")
                 return
                 
             if self._fov_warning_accepted:
-                print("[DEBUG] Warning already accepted, applying FOV change")
                 current_value = self.game_fov_slider.value()
                 self.apply_fov_change(current_value)
                 self.settings['auto_apply_fov'] = 1
@@ -4790,21 +4894,18 @@ class ConfigWindow(QtWidgets.QWidget):
             
             current_value = self.game_fov_slider.value()
             original_value = getattr(self, '_fov_original_value', 90)
-            print(f"[DEBUG] Current: {current_value}, Original: {original_value}")
             
             if current_value != original_value:
-                print("[DEBUG] Value changed, showing popup")
                 self._pending_fov_value = current_value
                 QtCore.QTimer.singleShot(50, self._show_delayed_fov_popup)
-            else:
-                print("[DEBUG] Value unchanged, no popup needed")
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
                 if hasattr(self, '_fov_original_value'):
                     delattr(self, '_fov_original_value')
             
         except Exception as e:
-            print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
+            if is_debug_mode():
+                print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
             pass
 
     def _show_delayed_fov_popup(self):
@@ -4885,36 +4986,24 @@ class ConfigWindow(QtWidgets.QWidget):
                         camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
                         if camera_services:
                             pm.write_int(camera_services + m_iFOV, int(fov_value))
-                            print(f"[DEBUG] Applied FOV {fov_value} to m_iFOV")
-                        else:
-                            print("[DEBUG] Could not get camera services")
                         
                         # Apply to m_iDesiredFOV (Player Controller)
                         try:
                             local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                             if local_player_controller:
                                 pm.write_int(local_player_controller + m_iDesiredFOV, int(fov_value))
-                                print(f"[DEBUG] Applied FOV {fov_value} to m_iDesiredFOV")
-                            else:
-                                print("[DEBUG] Could not get local player controller")
-                        except Exception as e:
-                            print(f"[DEBUG] Error applying to m_iDesiredFOV: {e}")
+                        except Exception:
+                            pass
                         
                         self._fov_changed_during_runtime = True
-                        print(f"[DEBUG] FOV changed to {fov_value}, flag set to True")
-                    else:
-                        print("[DEBUG] Could not get local player pawn")
-            except Exception as e:
-                print(f"[DEBUG] Error in apply_fov_change: {e}")
-        except Exception as e:
-            print(f"[DEBUG] Outer error in apply_fov_change: {e}")
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def reset_fov_to_default(self, force=False):
         """Reset m_iFOV to default value (90) when terminating"""
-        print(f"[DEBUG] reset_fov_to_default called: force={force}, _fov_changed_during_runtime={self._fov_changed_during_runtime}")
-        
         if not force and not self._fov_changed_during_runtime:
-            print("[DEBUG] FOV reset skipped - not changed during runtime")
             return
             
         print("[DEBUG] Attempting FOV reset to 90...")
@@ -5126,6 +5215,40 @@ class ConfigWindow(QtWidgets.QWidget):
                     except Exception:
                         # If we can't access player controller, continue with camera services only
                         pass
+                            
+            except Exception:
+                # Silently handle exceptions to avoid spam in continuous operation
+                pass
+                
+        except Exception:
+            # Silently handle outer exceptions
+            pass
+    
+    def apply_anti_flash(self):
+        """Apply anti-flash by setting flash alpha to 0"""
+        try:
+            # Only apply if anti-flash is enabled
+            if not self.settings.get("anti_flash_enabled", 0):
+                return
+                
+            # Check if m_flFlashMaxAlpha offset is available
+            if not m_flFlashMaxAlpha or m_flFlashMaxAlpha == "":
+                return
+                
+            import pymem
+            pm = None
+            client = None
+            
+            try:
+                pm = pymem.Pymem("cs2.exe")
+                client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                
+                if pm and client:
+                    # Get local player pawn
+                    local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                    if local_player_pawn:
+                        # Set flash alpha to 0 to prevent flash effects
+                        pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
                             
             except Exception:
                 # Silently handle exceptions to avoid spam in continuous operation
@@ -7437,6 +7560,126 @@ def bhop():
             pass
         sys.exit(0)
 
+def misc_features():
+    """Miscellaneous features function - handles anti-flash and other misc features"""
+    import time
+    import pymem
+    import pymem.process
+    import threading
+    import json
+    import os
+    import sys
+    import ctypes
+    from PySide6.QtCore import QFileSystemWatcher, QCoreApplication
+    
+    default_settings = {
+        "anti_flash_enabled": 0
+    }
+
+    def load_settings():
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    loaded = json.load(f)
+                    settings = default_settings.copy()
+                    settings.update(loaded)
+                    return settings
+            except:
+                pass
+        return default_settings
+
+    def is_cs2_running():
+        try:
+            pymem.Pymem("cs2.exe")
+            return True
+        except Exception:
+            return False
+
+    def main(settings):
+        pm = None
+        client = None
+        previous_anti_flash_state = None
+        
+        while pm is None or client is None:
+            if is_cs2_running():
+                try:
+                    pm = pymem.Pymem("cs2.exe")
+                    client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+                except Exception:
+                    pm = None
+                    client = None
+                    time.sleep(1)
+            else:
+                pm = None
+                client = None
+                time.sleep(1)
+                
+        while True:
+            try:
+                anti_flash_enabled = settings.get("anti_flash_enabled", 0)
+                
+                # Check if anti-flash state changed
+                if previous_anti_flash_state is not None and previous_anti_flash_state != anti_flash_enabled:
+                    # State changed - need to handle transition
+                    if not anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
+                        # Anti-flash was disabled - restore normal flash behavior
+                        try:
+                            local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                            if local_player_pawn:
+                                # Reset flash alpha to allow normal flashes (255 is max)
+                                pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 255.0)
+                        except Exception:
+                            pass
+                
+                # Handle anti-flash - only write once per frame if enabled
+                if anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
+                    try:
+                        local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                        if local_player_pawn:
+                            pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
+                    except Exception:
+                        pass
+                
+                previous_anti_flash_state = anti_flash_enabled
+                time.sleep(0.01)  # Small delay to prevent excessive CPU usage
+                
+            except Exception:
+                time.sleep(1)
+
+    def start_main_thread(settings):
+        while True:
+            try:
+                main(settings)
+            except Exception:
+                time.sleep(5)
+
+    def setup_watcher(app, settings):
+        watcher = QFileSystemWatcher()
+        watcher.addPath(CONFIG_FILE)
+        def reload_settings():
+            new_settings = load_settings()
+            settings.update(new_settings)
+        watcher.fileChanged.connect(reload_settings)
+        app.exec()
+
+    def main_program():
+        app = QCoreApplication(sys.argv)
+        settings = load_settings()
+        threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
+        setup_watcher(app, settings)
+
+    try:
+        main_program()
+    except Exception as e:
+        app_title = get_app_title()
+        ctypes.windll.user32.MessageBoxW(0, f"An error occured: {str(e)}", app_title, 0x00000000 | 0x00010000 | 0x00040000)
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('error')
+        except:
+            pass
+        sys.exit(0)
+
 def aim():
     default_settings = {
          'esp_rendering': 1,
@@ -8414,42 +8657,30 @@ def auto_accept_main():
             time.sleep(1)
 
 if __name__ == "__main__":
-    
     register_cleanup_handlers()
-    
-    print("Starting Popsicle CS2 application...")
-    
-    # Check if we have a valid mode selection
     if SELECTED_MODE is None:
         app_title = get_app_title()
-        print("[ERROR] No mode selected and STARTUP_ENABLED is True. Script requires mode selection via loader.")
         try:
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "No mode selected, run updated loader",
                 f"{app_title} - Mode Required",
-                0x00000010 | 0x00010000 | 0x00040000  # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST
+                0x00000010 | 0x00010000 | 0x00040000
             )
         except Exception:
             pass
         sys.exit(1)
-    
-    print(f"[DEBUG] Running in {SELECTED_MODE.upper()} mode")
-    
+    if is_debug_mode():
+        print(f"[DEBUG] Running in {SELECTED_MODE.upper()} mode")
     try:
         multiprocessing.freeze_support()
     except Exception:
         pass
-
     version_thread = threading.Thread(target=version_check_worker, daemon=True)
     version_thread.start()
-    pass
-
-                                                        
+    pass                                                
     if not handle_instance_check():
-        sys.exit(0)
-    
-                                                           
+        sys.exit(0)                                                    
     if not create_lock_file():
         app_title = get_app_title()
         ctypes.windll.user32.MessageBoxW(
@@ -8459,7 +8690,6 @@ if __name__ == "__main__":
             0x00000010 | 0x00010000 | 0x00040000                                                
         )
         sys.exit(0)
-    
     MB_OK = 0x00000000
     MB_OKCANCEL = 0x00000001
     MB_SETFOREGROUND = 0x00010000
@@ -8467,20 +8697,17 @@ if __name__ == "__main__":
     MB_SYSTEMMODAL = 0x00001000
     IDOK = 1
     IDCANCEL = 2
-    
-                                     
+                             
     if is_cs2_running():
         pass
                                              
         if STARTUP_ENABLED:
             pass
             time.sleep(4)
-            
-                                     
+                      
             pass
             trigger_graphics_restart()
-            
-                                                              
+                                                 
         pm = None
         try:
             pm = pymem.Pymem("cs2.exe")
@@ -8521,10 +8748,11 @@ if __name__ == "__main__":
         multiprocessing.Process(target=triggerbot),
         multiprocessing.Process(target=recoil_control),
         multiprocessing.Process(target=bhop),
+        multiprocessing.Process(target=misc_features),
         multiprocessing.Process(target=auto_accept_main),
     ]
     
-    process_names = ["configurator", "esp_main", "triggerbot", "recoil_control", "bhop", "auto_accept_main"]
+    process_names = ["configurator", "esp_main", "triggerbot", "recoil_control", "bhop", "misc_features", "auto_accept_main"]
     
     if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
         procs.append(multiprocessing.Process(target=aim))
@@ -8555,9 +8783,11 @@ if __name__ == "__main__":
         
         remove_lock_file()
         
-    print("[DEBUG] Starting all processes...")
+    if is_debug_mode():
+        print("[DEBUG] Starting all processes...")
     for i, p in enumerate(procs):
-        print(f"[DEBUG] Starting process: {process_names[i]}")
+        if is_debug_mode():
+            print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
         time.sleep(0.5)
 
@@ -8566,9 +8796,8 @@ if __name__ == "__main__":
         loaded_signal_path = os.path.join(os.getcwd(), 'script_loaded.signal')
         with open(loaded_signal_path, 'w') as f:
             f.write('loaded')
-        print("[DEBUG] Script fully loaded - signal sent to loader")
-    except Exception as e:
-        print(f"[DEBUG] Failed to create loaded signal: {e}")
+    except Exception:
+        pass
 
     try:
         print("[DEBUG] Entering main monitoring loop...")
@@ -8622,11 +8851,9 @@ if __name__ == "__main__":
                     sys.exit(1)
                     
     except KeyboardInterrupt:
-        print("[DEBUG] Keyboard interrupt received")
         cleanup_and_exit("Keyboard interrupt")
         sys.exit(0)
     except Exception as e:
-        print(f"[DEBUG] Unexpected error in main loop: {e}")
         app_title = get_app_title()
         try:
             ctypes.windll.user32.MessageBoxW(
