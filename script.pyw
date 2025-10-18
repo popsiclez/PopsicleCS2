@@ -1,7 +1,7 @@
 VERSION = "6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         #2
+         
 import threading
 import keyboard
 import os
@@ -806,7 +806,6 @@ DEFAULT_SETTINGS = {
     
     # Anti-flash settings                         
     "anti_flash_enabled": 0,
-    "anti_flash_interacted": 0,
     
                           
     "auto_accept_enabled": 0,
@@ -1190,7 +1189,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self._fov_warning_accepted = False
         self._fov_dialog_showing = False
         self._pending_fov_value = None
-        self._anti_flash_interacted = self.settings.get("anti_flash_interacted", 0) == 1 or self.settings.get("anti_flash_enabled", 0) == 1  # Track if anti-flash has been interacted with
+        self._anti_flash_interacted = False  # Track if anti-flash has been interacted with this session (resets each restart)
         self._is_initializing = True
         
                                                               
@@ -3171,9 +3170,19 @@ class ConfigWindow(QtWidgets.QWidget):
         """Handle anti-flash toggle change"""
         try:
             self.settings["anti_flash_enabled"] = 1 if self.anti_flash_cb.isChecked() else 0
-            # Mark that anti-flash has been interacted with
+            # Mark that anti-flash has been interacted with this session only
             self._anti_flash_interacted = True
-            self.settings["anti_flash_interacted"] = 1
+            
+            # Create/remove interaction flag file to communicate with misc_features process
+            interaction_file = os.path.join(os.getcwd(), 'anti_flash_session_interacted.flag')
+            try:
+                if self._anti_flash_interacted:
+                    with open(interaction_file, 'w') as f:
+                        f.write('1')
+                    add_temporary_file(interaction_file)
+            except Exception:
+                pass
+                
             save_settings(self.settings)
         except Exception:
             pass
@@ -7577,8 +7586,7 @@ def misc_features():
     from PySide6.QtCore import QFileSystemWatcher, QCoreApplication
     
     default_settings = {
-        "anti_flash_enabled": 0,
-        "anti_flash_interacted": 0
+        "anti_flash_enabled": 0
     }
 
     def load_settings():
@@ -7622,9 +7630,12 @@ def misc_features():
         while True:
             try:
                 anti_flash_enabled = settings.get("anti_flash_enabled", 0)
-                anti_flash_interacted = settings.get("anti_flash_interacted", 0)
                 
-                # Only apply anti-flash values if it has been interacted with (toggled at least once or loaded enabled)
+                # Check if anti-flash has been interacted with this session
+                interaction_file = os.path.join(os.getcwd(), 'anti_flash_session_interacted.flag')
+                anti_flash_interacted = os.path.exists(interaction_file)
+                
+                # Only apply anti-flash values if it has been interacted with this session
                 if anti_flash_interacted:
                     # Check if anti-flash state changed
                     if previous_anti_flash_state is not None and previous_anti_flash_state != anti_flash_enabled:
