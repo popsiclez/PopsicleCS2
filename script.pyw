@@ -1,7 +1,7 @@
 VERSION = "6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#e         
+#1         
 import threading
 import keyboard
 import os
@@ -806,6 +806,7 @@ DEFAULT_SETTINGS = {
     
     # Anti-flash settings                         
     "anti_flash_enabled": 0,
+    "anti_flash_interacted": 0,
     
                           
     "auto_accept_enabled": 0,
@@ -1189,6 +1190,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self._fov_warning_accepted = False
         self._fov_dialog_showing = False
         self._pending_fov_value = None
+        self._anti_flash_interacted = self.settings.get("anti_flash_interacted", 0) == 1 or self.settings.get("anti_flash_enabled", 0) == 1  # Track if anti-flash has been interacted with
         self._is_initializing = True
         
                                                               
@@ -3172,6 +3174,9 @@ class ConfigWindow(QtWidgets.QWidget):
         """Handle anti-flash toggle change"""
         try:
             self.settings["anti_flash_enabled"] = 1 if self.anti_flash_cb.isChecked() else 0
+            # Mark that anti-flash has been interacted with
+            self._anti_flash_interacted = True
+            self.settings["anti_flash_interacted"] = 1
             save_settings(self.settings)
         except Exception:
             pass
@@ -7575,7 +7580,8 @@ def misc_features():
     from PySide6.QtCore import QFileSystemWatcher, QCoreApplication
     
     default_settings = {
-        "anti_flash_enabled": 0
+        "anti_flash_enabled": 0,
+        "anti_flash_interacted": 0
     }
 
     def load_settings():
@@ -7619,28 +7625,31 @@ def misc_features():
         while True:
             try:
                 anti_flash_enabled = settings.get("anti_flash_enabled", 0)
+                anti_flash_interacted = settings.get("anti_flash_interacted", 0)
                 
-                # Check if anti-flash state changed
-                if previous_anti_flash_state is not None and previous_anti_flash_state != anti_flash_enabled:
-                    # State changed - need to handle transition
-                    if not anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
-                        # Anti-flash was disabled - restore normal flash behavior
+                # Only apply anti-flash values if it has been interacted with (toggled at least once or loaded enabled)
+                if anti_flash_interacted:
+                    # Check if anti-flash state changed
+                    if previous_anti_flash_state is not None and previous_anti_flash_state != anti_flash_enabled:
+                        # State changed - need to handle transition
+                        if not anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
+                            # Anti-flash was disabled - restore normal flash behavior
+                            try:
+                                local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
+                                if local_player_pawn:
+                                    # Reset flash alpha to allow normal flashes (255 is max)
+                                    pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 255.0)
+                            except Exception:
+                                pass
+                    
+                    # Handle anti-flash - only write once per frame if enabled
+                    if anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
                         try:
                             local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
                             if local_player_pawn:
-                                # Reset flash alpha to allow normal flashes (255 is max)
-                                pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 255.0)
+                                pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
                         except Exception:
                             pass
-                
-                # Handle anti-flash - only write once per frame if enabled
-                if anti_flash_enabled and m_flFlashMaxAlpha and m_flFlashMaxAlpha != "":
-                    try:
-                        local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
-                        if local_player_pawn:
-                            pm.write_float(local_player_pawn + m_flFlashMaxAlpha, 0.0)
-                    except Exception:
-                        pass
                 
                 previous_anti_flash_state = anti_flash_enabled
                 time.sleep(0.01)  # Small delay to prevent excessive CPU usage
