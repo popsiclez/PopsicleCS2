@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#ohio         
+#41         
 import threading
 import keyboard
 import os
@@ -96,7 +96,8 @@ def setup_logging():
 
     try:
         with open(LOG_FILE, 'w', encoding='utf-8') as f:
-            f.write(f"=== Popsicle CS2 Debug Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+            app_title = get_app_title()
+            f.write(f"=== {app_title} Debug Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
             f.write("All console output will be logged here\n\n")
     except:
         pass
@@ -1199,10 +1200,10 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
-        self.setWindowTitle("Popsicle CS2 Config")                                       
-
+        
                                
         app_title = get_app_title()
+        self.setWindowTitle(f"{app_title} Config")
         
 
         self.tooltips_enabled = "tooltips" in load_commands()
@@ -1604,7 +1605,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     return True
                 
                                                      
-                if "Popsicle CS2 Config" in window_title:
+                app_title = get_app_title()
+                if f"{app_title} Config" in window_title:
                     return True
                 
                 # Also accept warning dialogs
@@ -5945,7 +5947,8 @@ class ESPWindow(QtWidgets.QWidget):
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
                 # Accept config window and any warning dialogs
-                if "Popsicle CS2 Config" in window_title or "Memory Modification Warning" in window_title:
+                app_title = get_app_title()
+                if f"{app_title} Config" in window_title or "Memory Editing Warning" in window_title:
                     return True
             except Exception:
                 pass
