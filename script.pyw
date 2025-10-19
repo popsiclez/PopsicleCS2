@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#41         
+#nigger         
 import threading
 import keyboard
 import os
@@ -1192,6 +1192,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self._memory_warning_shown = False  # Track if memory warning has been shown this session
         self._memory_dialog_active = False  # Track if memory warning dialog is currently active
         self._is_initializing = True
+        self._cached_app_title = None  # Cache app title to avoid network calls during window monitoring
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -1201,8 +1202,9 @@ class ConfigWindow(QtWidgets.QWidget):
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         
-                               
+        # Cache app title during initialization to avoid network calls during window monitoring
         app_title = get_app_title()
+        self._cached_app_title = app_title  # Pre-cache to avoid delays during window monitoring
         self.setWindowTitle(f"{app_title} Config")
         
 
@@ -1396,10 +1398,10 @@ class ConfigWindow(QtWidgets.QWidget):
                                               
         self.keybind_cooldowns = {}                                        
 
-                                                          
+        # Window monitoring timer - check very frequently for instant hiding when tabbing out
         self._window_monitor_timer = QtCore.QTimer(self)
         self._window_monitor_timer.timeout.connect(self._check_cs2_window_active)
-        self._window_monitor_timer.start(100)                     
+        self._window_monitor_timer.start(10)  # 10ms for ultra-responsive hiding when tabbing out
         self._was_visible = True                          
         self._drag_end_time = 0                             
         
@@ -1593,59 +1595,54 @@ class ConfigWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-                                    
-            cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
-            if cs2_hwnd and cs2_hwnd == foreground_hwnd:
-                return True
-            
-                                                                         
+            # Fast check: get window title first, avoid FindWindow if possible
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
+                
+                # Quick string checks first (fastest)
+                if window_title == "Counter-Strike 2":
+                    return True
                 if "ESP Overlay" in window_title:
                     return True
-                
-                                                     
-                app_title = get_app_title()
-                if f"{app_title} Config" in window_title:
-                    return True
-                
-                # Also accept warning dialogs
                 if "Memory Modification Warning" in window_title:
                     return True
+                
+                # Use pre-cached app title (no network calls during monitoring)
+                if hasattr(self, '_cached_app_title') and self._cached_app_title:
+                    if f"{self._cached_app_title} Config" in window_title:
+                        return True
+                    
+                return False
             except Exception:
-                pass
-            
-            return False
+                # Fallback to slower FindWindow method
+                cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
+                return cs2_hwnd and cs2_hwnd == foreground_hwnd
+                
         except Exception:
             return False
 
     def _check_cs2_window_active(self):
         """Monitor CS2 window activity and show/hide config window accordingly"""
         try:
-            # Skip window monitoring if memory dialog is active
-            if hasattr(self, '_memory_dialog_active') and self._memory_dialog_active:
-                return
-                                                             
-            if self.is_dragging:
+            # Skip window monitoring if memory dialog is active or dragging
+            if (hasattr(self, '_memory_dialog_active') and self._memory_dialog_active) or self.is_dragging:
                 return
             
-                                                                                        
-            import time
-            if hasattr(self, '_drag_end_time') and time.time() - self._drag_end_time < 0.5:
-                return
-                
             is_cs2_active = self.is_game_window_active()
             
             if is_cs2_active and not self._was_visible:
-                                                                                  
+                # Only check drag end time when showing (not hiding)
+                if hasattr(self, '_drag_end_time') and time.time() - self._drag_end_time < 0.1:
+                    return
+                
                 if not self._manually_hidden:
                     self.show()
                     self._was_visible = True
             elif not is_cs2_active and self._was_visible:
-                                                                             
+                # Hide immediately without any delays
                 self.hide()
                 self._was_visible = False
-                self._manually_hidden = False                                       
+                self._manually_hidden = False
         except Exception:
             pass
 
@@ -5938,22 +5935,26 @@ class ESPWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-                                    
-            cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
-            if cs2_hwnd and cs2_hwnd == foreground_hwnd:
-                return True
-            
-                                                          
+            # Fast check: get window title first, avoid FindWindow if possible
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
-                # Accept config window and any warning dialogs
-                app_title = get_app_title()
-                if f"{app_title} Config" in window_title or "Memory Editing Warning" in window_title:
+                
+                # Quick string checks first (fastest)
+                if window_title == "Counter-Strike 2":
                     return True
+                if "Memory Editing Warning" in window_title:
+                    return True
+                
+                # Check for any config window pattern (avoid network calls)
+                if "Config" in window_title and ("Popsicle" in window_title or "CS2" in window_title):
+                    return True
+                    
+                return False
             except Exception:
-                pass
-            
-            return False
+                # Fallback to slower FindWindow method
+                cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
+                return cs2_hwnd and cs2_hwnd == foreground_hwnd
+                
         except Exception:
             return False
 
