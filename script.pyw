@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         #1
+         
 import threading
 import keyboard
 import os
@@ -5944,9 +5944,16 @@ class ESPWindow(QtWidgets.QWidget):
                     return True
                 if "Memory Editing Warning" in window_title:
                     return True
+                if "Memory Modification Warning" in window_title:
+                    return True
                 
-                # Check for any config window pattern (avoid network calls)
-                if "Config" in window_title and ("Popsicle" in window_title or "CS2" in window_title):
+                # Check for ESP overlay window (in case it's checking itself)
+                if "ESP Overlay" in window_title:
+                    return True
+                
+                # Broad config window detection - accept any window with "Config" 
+                # This ensures ESP stays visible regardless of app title changes
+                if "Config" in window_title:
                     return True
                     
                 return False
