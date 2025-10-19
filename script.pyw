@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#67         
+#ohio         
 import threading
 import keyboard
 import os
@@ -5887,8 +5887,23 @@ class ESPWindow(QtWidgets.QWidget):
                                                                                  
             try:
                 fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
-                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)                         
-                fps_item = self.scene.addText(f"V{VERSION} | Overlay FPS: {self.fps}", fps_font)
+                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)
+                
+                # Get Windows username
+                try:
+                    username = os.getlogin()
+                except Exception:
+                    try:
+                        username = os.environ.get('USERNAME', 'Unknown')
+                    except Exception:
+                        username = 'Unknown'
+                
+                # Get mode information
+                mode = "FULL"  # Default to FULL
+                if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+                    mode = "LEGIT"
+                
+                fps_item = self.scene.addText(f"V{VERSION} | Mode: {mode} | Session Name: {username} | FPS: {self.fps}", fps_font)
                 
                                                                
                 if self.settings.get('rainbow_menu_theme', 0) == 1:
