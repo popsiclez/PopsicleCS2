@@ -4,7 +4,7 @@ import sys
 import subprocess
 import atexit
 
-LOADER_VERSION = "6"
+LOADER_VERSION = "7"
 
 # Try to import requests, fallback if not available
 try:
@@ -184,20 +184,8 @@ def show_debug_prompt():
             try:
                 choice = input("\nEnter your choice (1 or 2): ").strip()
                 if choice == "1":
-                    # Password protection for debug mode
-                    attempts = 3
-                    while attempts > 0:
-                        password = input("Enter password for debug mode: ").strip()
-                        if password == "bert":
-                            print("\nDebug mode enabled!")
-                            return True
-                        else:
-                            attempts -= 1
-                            if attempts > 0:
-                                print(f"Incorrect password. {attempts} attempts remaining.")
-                            else:
-                                print("Too many incorrect attempts. Defaulting to normal mode.")
-                                return False
+                    print("\nDebug mode enabled!")
+                    return True
                 elif choice == "2":
                     print("\nNormal mode selected!")
                     return False
@@ -285,7 +273,7 @@ def main():
             print("Debug mode: ENABLED (console visible)")
         else:
             print("Debug mode: DISABLED (hidden)")
-        print("Starting script...")
+        print("Loading...")
         
         # Exit if no mode selected
         if selected_mode is None:
