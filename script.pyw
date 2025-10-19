@@ -172,6 +172,7 @@ def cleanup_all_temporary_files(final_cleanup=True):
             KEYBIND_COOLDOWNS_FILE,
             CONSOLE_LOCK_FILE,
             MODE_FILE,
+            RAINBOW_COLOR_FILE,
             # Debug log is NOT included here - we want to keep it for analysis
             os.path.join(os.getcwd(), 'panic_shutdown.signal')
         ]
@@ -571,6 +572,7 @@ def trigger_graphics_restart():
           
 CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
+RAINBOW_COLOR_FILE = os.path.join(os.getcwd(), 'rainbow_color.json')
 TERMINATE_SIGNAL_FILE = os.path.join(os.getcwd(), 'terminate_now.signal')
 LOCK_FILE = os.path.join(os.getcwd(), 'script_running.lock')
 KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
@@ -1177,6 +1179,32 @@ def save_settings(settings: dict):
     except Exception:
         pass
 
+def save_rainbow_color(color: str):
+    """Save current rainbow color to dedicated file for fast inter-process communication."""
+    try:
+        rainbow_data = {
+            'current_rainbow_color': color,
+            'timestamp': time.time()
+        }
+        with open(RAINBOW_COLOR_FILE, 'w') as f:
+            json.dump(rainbow_data, f)
+        add_temporary_file(RAINBOW_COLOR_FILE)
+    except Exception:
+        pass
+
+def load_rainbow_color():
+    """Load current rainbow color from dedicated file."""
+    try:
+        if os.path.exists(RAINBOW_COLOR_FILE):
+            with open(RAINBOW_COLOR_FILE, 'r') as f:
+                rainbow_data = json.load(f)
+                # Check if the color data is recent (within 5 seconds)
+                if time.time() - rainbow_data.get('timestamp', 0) < 5.0:
+                    return rainbow_data.get('current_rainbow_color')
+    except Exception:
+        pass
+    return None
+
 class ConfigWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -1426,6 +1454,9 @@ class ConfigWindow(QtWidgets.QWidget):
 
 
         self.disable_ui_focus()
+        
+        # Initialize rainbow theme if enabled
+        self._initialize_rainbow_theme_on_startup()
         
         self._is_initializing = False
 
@@ -2543,7 +2574,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.rainbow_fov_cb = QtWidgets.QCheckBox("Rainbow Aim Radius")
         self.rainbow_fov_cb.setChecked(self.settings.get('rainbow_fov', 0) == 1)
         self.rainbow_fov_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.rainbow_fov_cb, "Makes the Aim Radius continuously cycle through rainbow colors instead of using a fixed color.")
+        self.set_tooltip_if_enabled(self.rainbow_fov_cb, "Makes the Aim Radius use rainbow colors. When Rainbow Menu Theme is also enabled, colors will be synchronized across all rainbow elements.")
         self.rainbow_fov_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self.rainbow_fov_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_fov_cb)
@@ -2551,7 +2582,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.rainbow_center_dot_cb = QtWidgets.QCheckBox("Rainbow Center Dot")
         self.rainbow_center_dot_cb.setChecked(self.settings.get('rainbow_center_dot', 0) == 1)
         self.rainbow_center_dot_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.rainbow_center_dot_cb, "Makes the center crosshair dot continuously cycle through rainbow colors instead of using a fixed color.")
+        self.set_tooltip_if_enabled(self.rainbow_center_dot_cb, "Makes the center crosshair dot use rainbow colors. When Rainbow Menu Theme is also enabled, colors will be synchronized across all rainbow elements.")
         self.rainbow_center_dot_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self.rainbow_center_dot_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_center_dot_cb)
@@ -2559,7 +2590,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.rainbow_menu_theme_cb = QtWidgets.QCheckBox("Rainbow Menu Theme")
         self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
         self.rainbow_menu_theme_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.rainbow_menu_theme_cb, "Makes the menu theme color continuously cycle through rainbow colors instead of using a fixed color.")
+        self.set_tooltip_if_enabled(self.rainbow_menu_theme_cb, "Makes the menu theme continuously cycle through rainbow colors. When enabled, synchronizes all rainbow elements (ESP text, radar, aim radius, center dot) to use the same rainbow color.")
         self.rainbow_menu_theme_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self.rainbow_menu_theme_cb.setStyleSheet("margin-left: 8px;")
         colors_layout.addWidget(self.rainbow_menu_theme_cb)
@@ -4574,6 +4605,20 @@ class ConfigWindow(QtWidgets.QWidget):
                 r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
                 rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
                 
+                # Store current rainbow color in settings for local use
+                self.settings['current_rainbow_color'] = rainbow_color
+                
+                # Save rainbow color to dedicated file for fast inter-process communication
+                # This prevents constant writes to the main config file which was causing flashing
+                save_rainbow_color(rainbow_color)
+                
+                # Only save to main config file when rainbow mode is first enabled
+                if not self._rainbow_was_enabled:
+                    try:
+                        save_settings(self.settings)
+                    except Exception:
+                        pass
+                
                 # Only update styling if the color has significantly changed to reduce flashing
                 if not hasattr(self, '_last_rainbow_color') or abs(RAINBOW_HUE - getattr(self, '_last_rainbow_hue', 0)) > 0.01:
                     self._last_rainbow_color = rainbow_color
@@ -4595,6 +4640,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 original_color = self.settings.get('menu_theme_color', '#FF0000')
                 self.update_menu_theme_styling(original_color)
                 
+                # Clear the current rainbow color from settings and save
+                if 'current_rainbow_color' in self.settings:
+                    del self.settings['current_rainbow_color']
+                    try:
+                        save_settings(self.settings)
+                    except Exception:
+                        pass
+                
                                                                               
                 if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
                     contrasting_color = self.get_contrasting_text_color(original_color)
@@ -4602,6 +4655,27 @@ class ConfigWindow(QtWidgets.QWidget):
                     
                 self._rainbow_was_enabled = False
                 
+        except Exception:
+            pass
+    
+    def _initialize_rainbow_theme_on_startup(self):
+        """Initialize rainbow theme on startup if enabled"""
+        try:
+            # If rainbow menu theme is enabled, generate and save initial rainbow color
+            if self.settings.get('rainbow_menu_theme', 0) == 1:
+                global RAINBOW_HUE
+                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
+                
+                # Store and save the rainbow color so other processes can access it immediately
+                self.settings['current_rainbow_color'] = rainbow_color
+                save_settings(self.settings)
+                
+                # Apply the initial rainbow color to the menu
+                self.update_menu_theme_styling(rainbow_color)
+                if hasattr(self, 'menu_theme_color_btn') and self.menu_theme_color_btn:
+                    contrasting_color = self.get_contrasting_text_color(rainbow_color)
+                    self.menu_theme_color_btn.setStyleSheet(f'background-color: {rainbow_color}; color: {contrasting_color}; border-radius: 6px; font-weight: bold;')
         except Exception:
             pass
     
@@ -5598,6 +5672,11 @@ class ESPWindow(QtWidgets.QWidget):
         
         self.timer.start(33)
 
+        # Rainbow color monitoring timer - updates rainbow color from dedicated file
+        self._rainbow_monitor_timer = QtCore.QTimer(self)
+        self._rainbow_monitor_timer.timeout.connect(self._update_rainbow_color_from_file)
+        self._rainbow_monitor_timer.start(100)  # Check rainbow color file every 100ms
+
         self.last_time = time.time()
         self.frame_count = 0
         self.fps = 0
@@ -5607,6 +5686,8 @@ class ESPWindow(QtWidgets.QWidget):
         self.target_fps = 60
         self.target_frame_time = 1.0 / 60.0
 
+        # Initialize rainbow theme if enabled
+        self._initialize_rainbow_theme()
         
         try:
             self.apply_low_cpu_mode()
@@ -5619,7 +5700,35 @@ class ESPWindow(QtWidgets.QWidget):
 
     
 
-    
+    def _initialize_rainbow_theme(self):
+        """Initialize rainbow theme settings if rainbow mode is enabled"""
+        try:
+            # If rainbow menu theme is enabled but no current_rainbow_color exists,
+            # try to load from rainbow color file first, then generate if needed
+            if self.settings.get('rainbow_menu_theme', 0) == 1:
+                if 'current_rainbow_color' not in self.settings:
+                    # Try to load from rainbow color file first
+                    rainbow_color = load_rainbow_color()
+                    if rainbow_color:
+                        self.settings['current_rainbow_color'] = rainbow_color
+                    else:
+                        # Generate initial rainbow color as fallback
+                        global RAINBOW_HUE
+                        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                        rainbow_color = f"#{r:02x}{g:02x}{b:02x}"
+                        self.settings['current_rainbow_color'] = rainbow_color
+        except Exception:
+            pass
+
+    def _update_rainbow_color_from_file(self):
+        """Update rainbow color from dedicated file when rainbow theme is enabled"""
+        try:
+            if self.settings.get('rainbow_menu_theme', 0) == 1:
+                rainbow_color = load_rainbow_color()
+                if rainbow_color and rainbow_color != self.settings.get('current_rainbow_color'):
+                    self.settings['current_rainbow_color'] = rainbow_color
+        except Exception:
+            pass
 
     def reload_settings(self):
         try:
@@ -5907,8 +6016,16 @@ class ESPWindow(QtWidgets.QWidget):
                                                                
                 if self.settings.get('rainbow_menu_theme', 0) == 1:
                     try:
-                        rainbow_color_hex = self.settings.get('current_rainbow_color', '#FF0000')
-                        theme_color = QtGui.QColor(rainbow_color_hex)
+                        rainbow_color_hex = self.settings.get('current_rainbow_color')
+                        if not rainbow_color_hex:
+                            # Try to load from rainbow color file as fallback
+                            rainbow_color_hex = load_rainbow_color()
+                        if rainbow_color_hex:
+                            theme_color = QtGui.QColor(rainbow_color_hex)
+                        else:
+                            # Fallback to default menu theme color
+                            theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                            theme_color = QtGui.QColor(theme_color_hex)
                     except Exception:
                         theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
                         theme_color = QtGui.QColor(theme_color_hex)
@@ -5977,14 +6094,28 @@ def render_center_dot(scene, window_width, window_height, settings):
             center_y = window_height / 2
             dot_size = settings.get('center_dot_size', 3)
             
-                                       
+            # Rainbow center dot color logic
             if settings.get('rainbow_center_dot', 0) == 1:
                 try:
                     global RAINBOW_HUE
-                                                                    
-                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
-                    dot_qcolor = QtGui.QColor(r, g, b)
+                    # If rainbow menu theme is also enabled, use synchronized color
+                    if settings.get('rainbow_menu_theme', 0) == 1:
+                        rainbow_color = settings.get('current_rainbow_color')
+                        if not rainbow_color:
+                            # Try to load from rainbow color file as fallback
+                            rainbow_color = load_rainbow_color()
+                        if rainbow_color:
+                            dot_qcolor = QtGui.QColor(rainbow_color)
+                        else:
+                            # Use independent rainbow cycling if no synchronized color available
+                            RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                            r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                            dot_qcolor = QtGui.QColor(r, g, b)
+                    else:
+                        # Use independent rainbow cycling if menu theme rainbow is disabled
+                        RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                        dot_qcolor = QtGui.QColor(r, g, b)
                 except Exception:
                     dot_hex = settings.get('center_dot_color', '#FFFFFF')
                     dot_qcolor = QtGui.QColor(dot_hex)
@@ -6026,12 +6157,27 @@ def render_aim_circle(scene, window_width, window_height, settings):
             global RAINBOW_HUE
             if settings.get('rainbow_fov', 0) == 1:
                 try:
-                                                                                           
-                                                                                       
-                    RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
-                    r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
-                    aim_qcolor = QtGui.QColor(r, g, b)
-                    aim_qcolor.setAlpha(opacity)
+                    # If rainbow menu theme is also enabled, use synchronized color
+                    if settings.get('rainbow_menu_theme', 0) == 1:
+                        rainbow_color = settings.get('current_rainbow_color')
+                        if not rainbow_color:
+                            # Try to load from rainbow color file as fallback
+                            rainbow_color = load_rainbow_color()
+                        if rainbow_color:
+                            aim_qcolor = QtGui.QColor(rainbow_color)
+                            aim_qcolor.setAlpha(opacity)
+                        else:
+                            # Use independent rainbow cycling if no synchronized color available
+                            RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                            r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                            aim_qcolor = QtGui.QColor(r, g, b)
+                            aim_qcolor.setAlpha(opacity)
+                    else:
+                        # Use independent rainbow cycling if menu theme rainbow is disabled
+                        RAINBOW_HUE = (RAINBOW_HUE + 0.005) % 1.0
+                        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(RAINBOW_HUE, 1.0, 1.0)]
+                        aim_qcolor = QtGui.QColor(r, g, b)
+                        aim_qcolor.setAlpha(opacity)
                 except Exception:
                     aim_hex = settings.get('aim_circle_color', '#FF0000')
                     aim_qcolor = QtGui.QColor(aim_hex)
@@ -6310,8 +6456,16 @@ def render_radar(scene, pm, client, offsets, client_dll, window_width, window_he
                                           
         if settings.get('rainbow_menu_theme', 0) == 1:
             try:
-                rainbow_color_hex = settings.get('current_rainbow_color', '#FF0000')
-                theme_color = QtGui.QColor(rainbow_color_hex)
+                rainbow_color_hex = settings.get('current_rainbow_color')
+                if not rainbow_color_hex:
+                    # Try to load from rainbow color file as fallback
+                    rainbow_color_hex = load_rainbow_color()
+                if rainbow_color_hex:
+                    theme_color = QtGui.QColor(rainbow_color_hex)
+                else:
+                    # Fallback to default menu theme color
+                    theme_color_hex = settings.get('menu_theme_color', '#FF0000')
+                    theme_color = QtGui.QColor(theme_color_hex)
             except Exception:
                 theme_color_hex = settings.get('menu_theme_color', '#FF0000')
                 theme_color = QtGui.QColor(theme_color_hex)
