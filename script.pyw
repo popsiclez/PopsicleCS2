@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+         #1
 import threading
 import keyboard
 import os
@@ -5409,37 +5409,21 @@ class ConfigWindow(QtWidgets.QWidget):
 
 def configurator():
     try:
-        # Set Windows DPI awareness to suppress Qt warnings
-        try:
-            import ctypes
-            from ctypes import wintypes
-            # Set process DPI awareness to avoid Qt warnings
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
-        except Exception:
-            try:
-                # Fallback for older Windows versions
-                ctypes.windll.user32.SetProcessDPIAware()
-            except Exception:
-                pass
-        
-        # Set DPI awareness and scaling environment variables before Qt initialization
+                                                                            
         import os
         os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
         os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
         os.environ["QT_SCALE_FACTOR"] = "1"
         
-        # Suppress Qt debug messages and warnings
-        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false;qt.qpa.window.warning=false"
+                              
+        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
         
         app = QtWidgets.QApplication(sys.argv)
         
-        # Set DPI awareness attributes to suppress warnings
+                                                
         try:
             app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
             app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
-            # Set DPI awareness context to suppress the specific warning
-            if hasattr(QtCore.Qt, 'AA_DisableWindowContextHelpButton'):
-                app.setAttribute(QtCore.Qt.AA_DisableWindowContextHelpButton, True)
         except Exception:
             pass
         
@@ -7094,26 +7078,6 @@ def draw_Bones(scene, pm, bone_matrix, view_matrix, width, height, settings):
 
 def esp_main():
     try:
-        # Set Windows DPI awareness to suppress Qt warnings
-        try:
-            import ctypes
-            from ctypes import wintypes
-            # Set process DPI awareness to avoid Qt warnings
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
-        except Exception:
-            try:
-                # Fallback for older Windows versions
-                ctypes.windll.user32.SetProcessDPIAware()
-            except Exception:
-                pass
-        
-        # Set DPI awareness and scaling environment variables
-        import os
-        os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-        os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-        os.environ["QT_SCALE_FACTOR"] = "1"
-        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false;qt.qpa.window.warning=false"
-        
         settings = None
         for attempt in range(5):
             try:
@@ -7135,13 +7099,6 @@ def esp_main():
                 pass
         
         app = QtWidgets.QApplication(sys.argv)
-        
-        # Set DPI awareness attributes
-        try:
-            app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-            app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
-        except Exception:
-            pass
         
         
         window_width = None
@@ -8738,22 +8695,6 @@ def auto_accept_main():
             time.sleep(1)
 
 if __name__ == "__main__":
-    # --- Disable close button if requested by loader ---
-    import sys
-    def _disable_console_close_btn_if_requested():
-        if any(arg == "--no-console-close-btn" for arg in sys.argv):
-            try:
-                import ctypes
-                import win32gui, win32con
-                # Get console window handle
-                hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-                if hwnd:
-                    hMenu = win32gui.GetSystemMenu(hwnd, False)
-                    if hMenu != 0:
-                        win32gui.DeleteMenu(hMenu, win32con.SC_CLOSE, win32con.MF_BYCOMMAND)
-            except Exception:
-                pass
-    _disable_console_close_btn_if_requested()
     register_cleanup_handlers()
     if SELECTED_MODE is None:
         app_title = get_app_title()
