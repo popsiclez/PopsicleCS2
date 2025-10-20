@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+ #2        
 import threading
 import keyboard
 import os
