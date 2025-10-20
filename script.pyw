@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+#3453435435         
 import threading
 import keyboard
 import os
@@ -3127,14 +3127,15 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_color_button_style(self.camera_lock_radius_color_btn, self.settings.get('camera_lock_radius_color', '#FF0000'))
             self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
             
-
+            # Rainbow settings
             if hasattr(self, 'rainbow_fov_cb') and self.rainbow_fov_cb:
                 self.rainbow_fov_cb.setChecked(self.settings.get("rainbow_fov", 0) == 1)
-            self.rainbow_center_dot_cb.setChecked(self.settings.get("rainbow_center_dot", 0) == 1)
-            self.rainbow_menu_theme_cb.setChecked(self.settings.get("rainbow_menu_theme", 0) == 1)
+            if hasattr(self, 'rainbow_center_dot_cb') and self.rainbow_center_dot_cb:
+                self.rainbow_center_dot_cb.setChecked(self.settings.get("rainbow_center_dot", 0) == 1)
+            if hasattr(self, 'rainbow_menu_theme_cb') and self.rainbow_menu_theme_cb:
+                self.rainbow_menu_theme_cb.setChecked(self.settings.get("rainbow_menu_theme", 0) == 1)
             
-
-            self.auto_accept_cb.setChecked(self.settings.get("auto_accept_enabled", 0) == 1)
+            # Misc settings
             
             # Set targeting type
             if hasattr(self, 'targeting_type_cb') and self.targeting_type_cb:
