@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
- #2        
+         
 import threading
 import keyboard
 import os
@@ -38,6 +38,132 @@ import win32gui
 import signal
 from datetime import datetime
 
+def cleanup_all_temporary_files(final_cleanup=False):
+    """Clean up all temporary files and processes. If final_cleanup is True, also delete commands.txt."""
+    global TEMPORARY_FILES, PROCESSES_LIST
+    debug_mode = False
+    try:
+        debug_mode = is_debug_mode()
+    except Exception:
+        pass
+    files_cleaned = 0
+    # Terminate tracked processes
+    if PROCESSES_LIST:
+        if debug_mode:
+            print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
+        for i, p in enumerate(PROCESSES_LIST):
+            try:
+                if hasattr(p, 'is_alive') and p.is_alive():
+                    if debug_mode:
+                        print(f"[CLEANUP] Terminating process {i+1}")
+                    p.terminate()
+                    p.join(2)
+                    if p.is_alive():
+                        p.kill()
+                        p.join(1)
+            except Exception as e:
+                if debug_mode:
+                    print(f"[CLEANUP] Error terminating process {i+1}: {e}")
+    # Remove tracked temporary files
+    if TEMPORARY_FILES:
+        if debug_mode:
+            print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
+        for temp_file in list(TEMPORARY_FILES):
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    files_cleaned += 1
+                    if debug_mode:
+                        print(f"[CLEANUP] Removed: {temp_file}")
+            except Exception as e:
+                if debug_mode:
+                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
+    # Build list of standard temp files - only include commands.txt on final cleanup
+    standard_temp_files = [
+        'LOCK_FILE' if 'LOCK_FILE' in globals() else None,
+        'TERMINATE_SIGNAL_FILE' if 'TERMINATE_SIGNAL_FILE' in globals() else None,
+        'KEYBIND_COOLDOWNS_FILE' if 'KEYBIND_COOLDOWNS_FILE' in globals() else None,
+        'CONSOLE_LOCK_FILE' if 'CONSOLE_LOCK_FILE' in globals() else None,
+        'MODE_FILE' if 'MODE_FILE' in globals() else None,
+        'RAINBOW_COLOR_FILE' if 'RAINBOW_COLOR_FILE' in globals() else None,
+        os.path.join(os.getcwd(), 'panic_shutdown.signal')
+    ]
+    # Only delete commands.txt on final cleanup
+    if final_cleanup and 'COMMANDS_FILE' in globals():
+        standard_temp_files.append(COMMANDS_FILE)
+        if debug_mode:
+            print("[CLEANUP] Final cleanup - including commands.txt")
+    else:
+        if debug_mode:
+            print("[CLEANUP] Intermediate cleanup - preserving commands.txt")
+    if debug_mode:
+        print("[CLEANUP] Cleaning standard temporary files...")
+    for temp_file in standard_temp_files:
+        try:
+            if temp_file and temp_file in globals() and os.path.exists(globals()[temp_file]):
+                os.remove(globals()[temp_file])
+                files_cleaned += 1
+                if debug_mode:
+                    print(f"[CLEANUP] Removed: {globals()[temp_file]}")
+        except Exception as e:
+            if debug_mode:
+                print(f"[CLEANUP] Error removing {temp_file}: {e}")
+    # Remove *.signal and *.lock files in cwd
+    try:
+        import glob
+        signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
+        for signal_file in signal_files:
+            try:
+                os.remove(signal_file)
+                files_cleaned += 1
+                if debug_mode:
+                    print(f"[CLEANUP] Removed signal file: {signal_file}")
+            except Exception as e:
+                if debug_mode:
+                    print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
+        lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
+        for lock_file in lock_files:
+            try:
+                os.remove(lock_file)
+                files_cleaned += 1
+                if debug_mode:
+                    print(f"[CLEANUP] Removed lock file: {lock_file}")
+            except Exception as e:
+                if debug_mode:
+                    print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
+    except Exception as e:
+        if debug_mode:
+            print(f"[CLEANUP] Error cleaning signal/lock files: {e}")
+    # Remove temp .pyw files in tempdir
+    try:
+        import tempfile
+        import glob
+        temp_dir = tempfile.gettempdir()
+        script_temp_files = glob.glob(os.path.join(temp_dir, '*.pyw'))
+        for temp_file in script_temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    file_age = time.time() - os.path.getmtime(temp_file)
+                    file_size = os.path.getsize(temp_file)
+                    if file_age < 3600 and 1000 < file_size < 1000000:
+                        os.remove(temp_file)
+                        files_cleaned += 1
+                        if debug_mode:
+                            print(f"[CLEANUP] Removed temp script: {temp_file}")
+            except Exception as e:
+                if debug_mode:
+                    print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
+    except Exception as e:
+        if debug_mode:
+            print(f"[CLEANUP] Error cleaning temp scripts: {e}")
+    cleanup_logging()
+    if debug_mode:
+        print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
+    elif files_cleaned > 0:
+        print(f"Cleanup completed - removed {files_cleaned} temporary files.")
+    return files_cleaned
+
+
 CONSOLE_CREATED = False
 TEMPORARY_FILES = set()
 CLEANUP_REGISTERED = False
@@ -46,35 +172,6 @@ LOG_FILE = None
 original_stdout = None
 original_stderr = None
 
-class LogRedirector:
-    """Redirect stdout/stderr to both file and console"""
-    def __init__(self, log_file, original_stream):
-        self.log_file = log_file
-        self.original_stream = original_stream
-        
-    def write(self, text):
-
-        if self.original_stream:
-            try:
-                self.original_stream.write(text)
-                self.original_stream.flush()
-            except:
-                pass
-        
-
-        try:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(text)
-                f.flush()
-        except:
-            pass
-    
-    def flush(self):
-        if self.original_stream:
-            try:
-                self.original_stream.flush()
-            except:
-                pass
 
 def setup_logging():
     """Setup logging to redirect all print statements to debug_log.txt"""
@@ -103,8 +200,14 @@ def setup_logging():
         pass
     
 
-    sys.stdout = LogRedirector(LOG_FILE, original_stdout)
-    sys.stderr = LogRedirector(LOG_FILE, original_stderr)
+    global _debug_log_file
+    try:
+        _debug_log_file = open(LOG_FILE, 'w', encoding='utf-8')
+        sys.stdout = _debug_log_file
+        sys.stderr = _debug_log_file
+    except Exception:
+        LOG_FILE = None
+        _debug_log_file = None
 
 def cleanup_logging():
     """Restore original stdout/stderr"""
@@ -114,160 +217,29 @@ def cleanup_logging():
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"\n=== Session ended - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
     except:
-        pass
-    
-    if original_stdout:
-        sys.stdout = original_stdout
-    if original_stderr:
-        sys.stderr = original_stderr
-    
-
-    LOG_FILE = None
-
-def cleanup_all_temporary_files(final_cleanup=True):
-    """Comprehensive cleanup of all temporary files created by the script"""
-    global TEMPORARY_FILES, PROCESSES_LIST
-    
-    try:
-        debug_mode = is_debug_mode()
-        if debug_mode:
-            print(f"[CLEANUP] Starting comprehensive cleanup (final_cleanup={final_cleanup})...")
-        
-        if PROCESSES_LIST:
-            if debug_mode:
-                print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
-            for i, p in enumerate(PROCESSES_LIST):
-                try:
-                    if hasattr(p, 'is_alive') and p.is_alive():
-                        if debug_mode:
-                            print(f"[CLEANUP] Terminating process {i+1}")
-                        p.terminate()
-                        p.join(2)
-                        if p.is_alive():
-                            p.kill()
-                            p.join(1)
-                except Exception as e:
-                    if debug_mode:
-                        print(f"[CLEANUP] Error terminating process {i+1}: {e}")
-        
-        files_cleaned = 0
-        if TEMPORARY_FILES:
-            if debug_mode:
-                print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
-            for temp_file in list(TEMPORARY_FILES):
-                try:
-                    if os.path.exists(temp_file):
-                        os.remove(temp_file)
-                        files_cleaned += 1
-                        if debug_mode:
-                            print(f"[CLEANUP] Removed: {temp_file}")
-                except Exception as e:
-                    if debug_mode:
-                        print(f"[CLEANUP] Error removing {temp_file}: {e}")
-        
-        # Build list of standard temp files - only include commands.txt on final cleanup
-        standard_temp_files = [
-            LOCK_FILE,
-            TERMINATE_SIGNAL_FILE,
-            KEYBIND_COOLDOWNS_FILE,
-            CONSOLE_LOCK_FILE,
-            MODE_FILE,
-            RAINBOW_COLOR_FILE,
-            # Debug log is NOT included here - we want to keep it for analysis
-            os.path.join(os.getcwd(), 'panic_shutdown.signal')
-        ]
-        
-        # Only delete commands.txt on final cleanup (when script is actually exiting)
-        if final_cleanup:
-            standard_temp_files.append(COMMANDS_FILE)  # Clean up commands.txt file created by loader
-            if debug_mode:
-                print("[CLEANUP] Final cleanup - including commands.txt")
-        else:
-            if debug_mode:
-                print("[CLEANUP] Intermediate cleanup - preserving commands.txt")
-        
-        if debug_mode:
-            print("[CLEANUP] Cleaning standard temporary files...")
-        for temp_file in standard_temp_files:
+        try:
+            if sys.stdout and sys.stdout is _debug_log_file:
+                sys.stdout.flush()
+            if sys.stderr and sys.stderr is _debug_log_file:
+                sys.stderr.flush()
+        except Exception:
+            pass
+        if original_stdout:
+            sys.stdout = original_stdout
+        if original_stderr:
+            sys.stderr = original_stderr
+        if '_debug_log_file' in globals() and _debug_log_file:
             try:
-                if temp_file and os.path.exists(temp_file):
-                    os.remove(temp_file)
-                    files_cleaned += 1
-                    if debug_mode:
-                        print(f"[CLEANUP] Removed: {temp_file}")
-            except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
-        
-        try:
-            import glob
-            signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
-            if signal_files:
-                if debug_mode:
-                    print(f"[CLEANUP] Cleaning {len(signal_files)} signal files...")
-                for signal_file in signal_files:
-                    try:
-                        os.remove(signal_file)
-                        files_cleaned += 1
-                        if debug_mode:
-                            print(f"[CLEANUP] Removed signal file: {signal_file}")
-                    except Exception as e:
-                        if debug_mode:
-                            print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
-        except Exception as e:
-            if debug_mode:
-                print(f"[CLEANUP] Error cleaning signal files: {e}")
-        
-        try:
-            import glob
-            lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
-            if lock_files:
-                if debug_mode:
-                    print(f"[CLEANUP] Cleaning {len(lock_files)} lock files...")
-                for lock_file in lock_files:
-                    try:
-                        os.remove(lock_file)
-                        files_cleaned += 1
-                        if debug_mode:
-                            print(f"[CLEANUP] Removed lock file: {lock_file}")
-                    except Exception as e:
-                        if debug_mode:
-                            print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
-        except Exception as e:
-            if debug_mode:
-                print(f"[CLEANUP] Error cleaning lock files: {e}")
-        
-        try:
-            import tempfile
-            import glob
-            temp_dir = tempfile.gettempdir()
-            script_temp_files = glob.glob(os.path.join(temp_dir, '*.pyw'))
-            for temp_file in script_temp_files:
-                try:
-                    if os.path.exists(temp_file):
-                        file_age = time.time() - os.path.getmtime(temp_file)
-                        file_size = os.path.getsize(temp_file)
-                        if file_age < 3600 and 1000 < file_size < 1000000:
-                            os.remove(temp_file)
-                            files_cleaned += 1
-                            if debug_mode:
-                                print(f"[CLEANUP] Removed temp script: {temp_file}")
-                except Exception as e:
-                    if debug_mode:
-                        print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
-        except Exception as e:
-            if debug_mode:
-                print(f"[CLEANUP] Error cleaning temp scripts: {e}")
-        
-        cleanup_logging()
-        
-        if debug_mode:
-            print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
-        elif files_cleaned > 0:
-            print(f"Cleanup completed - removed {files_cleaned} temporary files.")
-        
-    except Exception as e:
-        print(f"[CLEANUP] Error during cleanup: {e}")
+                _debug_log_file.close()
+            except Exception:
+                pass
+        LOG_FILE = None
+        _debug_log_file = None
+    
+    # Remove all code referencing 'final_cleanup' from this function, as it is not defined here. This function should only restore stdout/stderr and close the log file.
+    # ...existing code...
+    # (No reference to final_cleanup here)
+    # ...existing code...
 
 def register_cleanup_handlers():
     """Register cleanup handlers for various exit scenarios"""
