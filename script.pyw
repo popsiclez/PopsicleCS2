@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#3453435435         
+         
 import threading
 import keyboard
 import os
@@ -1188,7 +1188,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False
         self._fov_manually_interacted = False  # Track if FOV has been manually adjusted during this session
-        self._anti_flash_interacted = False  # Track if anti-flash has been interacted with this session (resets each restart)
+        # Track if anti-flash has been interacted with this session (resets each restart)
+        # For legit mode: if anti-flash is already enabled at startup, don't allow it to apply values
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and self.settings.get("anti_flash_enabled", 0) == 1:
+            self._anti_flash_interacted = False  # Prevent anti-flash from applying in legit mode if pre-enabled
+        else:
+            self._anti_flash_interacted = False  # Track if anti-flash has been interacted with this session (resets each restart)
         self._memory_warning_shown = False  # Track if memory warning has been shown this session
         self._memory_dialog_active = False  # Track if memory warning dialog is currently active
         self._is_initializing = True
@@ -1210,11 +1215,8 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.tooltips_enabled = "tooltips" in load_commands()
         
-        # Ensure proper header text based on selected mode
-        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            header_text = f"{app_title} - LEGIT Mode"
-        else:
-            header_text = app_title
+        # Use just the GitHub title regardless of mode
+        header_text = app_title
         
         if is_debug_mode():
             print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
@@ -1253,12 +1255,21 @@ class ConfigWindow(QtWidgets.QWidget):
             self.tab_containers.insert(1, (aim_container, "Aim 🎯"))
         
         # Add remaining containers to second row
-        self.tab_containers.extend([
-            (config_container, "Config 📂"),
-            (colors_container, "Colors 🎨"),
-            (misc_container, "Misc ⚙️"),
-            (memory_container, "Memory⚠️")
-        ])
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            # Exclude memory tab in legit mode
+            self.tab_containers.extend([
+                (config_container, "Config 📂"),
+                (colors_container, "Colors 🎨"),
+                (misc_container, "Misc ⚙️")
+            ])
+        else:
+            # Include all tabs in full mode
+            self.tab_containers.extend([
+                (config_container, "Config 📂"),
+                (colors_container, "Colors 🎨"),
+                (misc_container, "Misc ⚙️"),
+                (memory_container, "Memory⚠️")
+            ])
         
         # Add all containers to stacked widget
         for container, _ in self.tab_containers:
@@ -1844,7 +1855,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self.lbl_radar_scale = QtWidgets.QLabel(f"Radar Scale: ({self.settings.get('radar_scale', 5.0):.1f})")
         esp_layout.addWidget(self.lbl_radar_scale)
         self.radar_scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.radar_scale_slider.setRange(10, 500)                     
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.radar_scale_slider.setRange(10, 300)  # 1.0 to 30.0 scale
+        else:
+            self.radar_scale_slider.setRange(10, 500)  # 1.0 to 50.0 scale
+            
         self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
         self.radar_scale_slider.valueChanged.connect(self.update_radar_scale_label)
         self.set_tooltip_if_enabled(self.radar_scale_slider, "Control radar zoom level. Higher values zoom out to show more of the map, lower values zoom in for detail.")
@@ -2016,12 +2032,20 @@ class ConfigWindow(QtWidgets.QWidget):
 
 
         self.camera_lock_tolerance_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.camera_lock_tolerance_slider.setMinimum(1)
-        self.camera_lock_tolerance_slider.setMaximum(50)
-        self.camera_lock_tolerance_slider.setValue(self.settings.get("camera_lock_tolerance", 5))
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.camera_lock_tolerance_slider.setMinimum(8)
+            self.camera_lock_tolerance_slider.setMaximum(50)
+            tolerance_value = max(8, self.settings.get("camera_lock_tolerance", 8))
+        else:
+            self.camera_lock_tolerance_slider.setMinimum(1)
+            self.camera_lock_tolerance_slider.setMaximum(50)
+            tolerance_value = self.settings.get("camera_lock_tolerance", 5)
+            
+        self.camera_lock_tolerance_slider.setValue(tolerance_value)
         self.camera_lock_tolerance_slider.valueChanged.connect(self.update_camera_lock_tolerance_label)
         self.set_tooltip_if_enabled(self.camera_lock_tolerance_slider, "Controls the dead zone in pixels. Camera lock only activates when you're more than this many pixels off target. Lower = more sensitive, higher = less sensitive.")
-        self.lbl_camera_lock_tolerance = QtWidgets.QLabel(f"Camera Lock Deadzone: ({self.settings.get('camera_lock_tolerance', 5)}px)")
+        self.lbl_camera_lock_tolerance = QtWidgets.QLabel(f"Camera Lock Deadzone: ({tolerance_value}px)")
         self.lbl_camera_lock_tolerance.setMinimumHeight(16)
         trigger_layout.addWidget(self.lbl_camera_lock_tolerance)
         self.camera_lock_tolerance_slider.setMinimumHeight(18)
@@ -2069,8 +2093,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.camera_lock_radius_slider.setMinimum(25)
         
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.camera_lock_radius_slider.setMaximum(200)
-            radius_value = min(200, self.settings.get('camera_lock_radius', 100))
+            self.camera_lock_radius_slider.setMaximum(150)
+            radius_value = min(150, self.settings.get('camera_lock_radius', 100))
         else:
             self.camera_lock_radius_slider.setMaximum(300)
             radius_value = self.settings.get('camera_lock_radius', 100)
@@ -2154,7 +2178,12 @@ class ConfigWindow(QtWidgets.QWidget):
         recoil_layout.addWidget(self.lbl_recoil_strength)
         self.recoil_strength_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.recoil_strength_slider.setMinimum(1)
-        self.recoil_strength_slider.setMaximum(100)
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.recoil_strength_slider.setMaximum(20)
+        else:
+            self.recoil_strength_slider.setMaximum(100)
+            
         self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
         self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
         self.recoil_strength_slider.valueChanged.connect(self.save_settings)
@@ -2177,8 +2206,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.lbl_recoil_smoothness = QtWidgets.QLabel(f"Recoil Smoothness: ({self.get_current_weapon_setting('smoothness')})")
         recoil_layout.addWidget(self.lbl_recoil_smoothness)
         self.recoil_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.recoil_smoothness_slider.setMinimum(1)
-        self.recoil_smoothness_slider.setMaximum(30)
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.recoil_smoothness_slider.setMinimum(20)
+            self.recoil_smoothness_slider.setMaximum(30)
+        else:
+            self.recoil_smoothness_slider.setMinimum(1)
+            self.recoil_smoothness_slider.setMaximum(30)
+            
         self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
         self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
         self.recoil_smoothness_slider.valueChanged.connect(self.save_settings)
@@ -2190,15 +2225,24 @@ class ConfigWindow(QtWidgets.QWidget):
         return recoil_container
 
     def get_current_weapon_setting(self, setting_type):
-        """Get the current weapon's recoil setting"""
+        """Get the current weapon's recoil setting with legit mode enforcement"""
         selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
         weapon_settings = self.settings.get('recoil_weapons', {})
         
         if selected_weapon in weapon_settings:
-            return weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3)
+            value = weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3)
+        else:
+            # Fallback to default values
+            value = 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3
         
-        # Fallback to default values
-        return 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3
+        # Enforce legit mode restrictions
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            if setting_type == 'strength' and value > 20:
+                value = 20
+            elif setting_type == 'smoothness' and value < 20:
+                value = 20
+        
+        return value
 
     def load_weapon_recoil_settings(self, weapon_name):
         """Load recoil settings for the specified weapon"""
@@ -2217,13 +2261,25 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon not in weapon_settings:
             weapon_settings[selected_weapon] = {}
         
-        # Save current slider values
+        # Save current slider values with legit mode enforcement
         if hasattr(self, 'recoil_strength_slider'):
-            weapon_settings[selected_weapon]['strength'] = self.recoil_strength_slider.value()
+            strength_value = self.recoil_strength_slider.value()
+            # Enforce legit mode maximum for recoil strength
+            if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and strength_value > 20:
+                strength_value = 20
+                self.recoil_strength_slider.setValue(20)
+            weapon_settings[selected_weapon]['strength'] = strength_value
+            
         if hasattr(self, 'recoil_delay_slider'):
             weapon_settings[selected_weapon]['delay'] = self.recoil_delay_slider.value()
+            
         if hasattr(self, 'recoil_smoothness_slider'):
-            weapon_settings[selected_weapon]['smoothness'] = self.recoil_smoothness_slider.value()
+            smoothness_value = self.recoil_smoothness_slider.value()
+            # Enforce legit mode minimum for recoil smoothness
+            if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and smoothness_value < 20:
+                smoothness_value = 20
+                self.recoil_smoothness_slider.setValue(20)
+            weapon_settings[selected_weapon]['smoothness'] = smoothness_value
         
         self.settings['recoil_weapons'] = weapon_settings
 
@@ -2918,11 +2974,50 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'use_radius_cb') and self.use_radius_cb:
                 self.use_radius_cb.setChecked(True)
             
+            # Camera lock smoothness minimum 20
+            current_cam_smoothness = self.settings.get("camera_lock_smoothness", 0)
+            if current_cam_smoothness < 20:
+                self.settings["camera_lock_smoothness"] = 20
+                if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
+                    self.camera_lock_smoothness_slider.setValue(20)
+            
+            # Camera lock tolerance minimum 8px
+            current_cam_tolerance = self.settings.get("camera_lock_tolerance", 0)
+            if current_cam_tolerance < 8:
+                self.settings["camera_lock_tolerance"] = 8
+                if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
+                    self.camera_lock_tolerance_slider.setValue(8)
+            
+            # Camera lock use radius forced on
+            self.settings["camera_lock_use_radius"] = 1
+            if hasattr(self, 'camera_lock_use_radius_cb') and self.camera_lock_use_radius_cb:
+                self.camera_lock_use_radius_cb.setChecked(True)
+            
+            # Camera lock radius maximum 150
             current_cam_radius = self.settings.get("camera_lock_radius", 0)
-            if current_cam_radius > 200:
-                self.settings["camera_lock_radius"] = 200
+            if current_cam_radius > 150:
+                self.settings["camera_lock_radius"] = 150
                 if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
-                    self.camera_lock_radius_slider.setValue(200)
+                    self.camera_lock_radius_slider.setValue(150)
+            
+            # Recoil strength maximum 20
+            if hasattr(self, 'recoil_strength_slider') and self.recoil_strength_slider:
+                current_strength = self.recoil_strength_slider.value()
+                if current_strength > 20:
+                    self.recoil_strength_slider.setValue(20)
+            
+            # Recoil smoothness minimum 20
+            if hasattr(self, 'recoil_smoothness_slider') and self.recoil_smoothness_slider:
+                current_smoothness = self.recoil_smoothness_slider.value()
+                if current_smoothness < 20:
+                    self.recoil_smoothness_slider.setValue(20)
+            
+            # Radar scale maximum 30 (300 on internal scale)
+            current_radar_scale = self.settings.get("radar_scale", 0)
+            if current_radar_scale > 30.0:
+                self.settings["radar_scale"] = 30.0
+                if hasattr(self, 'radar_scale_slider') and self.radar_scale_slider:
+                    self.radar_scale_slider.setValue(300)  # 30.0 * 10
                     
             if hasattr(self, 'triggerbot_between_shots_delay_label') and self.triggerbot_between_shots_delay_label:
                 self.triggerbot_between_shots_delay_label.setText(f"Between shots delay: {self.settings['triggerbot_between_shots_delay']}ms")
@@ -2932,6 +3027,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.radius_label.setText(f"Radius: {self.settings['radius']}")
             if hasattr(self, 'camera_lock_radius_label') and self.camera_lock_radius_label:
                 self.camera_lock_radius_label.setText(f"Camera Lock Radius: {self.settings['camera_lock_radius']}")
+            if hasattr(self, 'lbl_camera_lock_smoothness') and self.lbl_camera_lock_smoothness:
+                self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({self.settings['camera_lock_smoothness']})")
+            if hasattr(self, 'lbl_camera_lock_tolerance') and self.lbl_camera_lock_tolerance:
+                self.lbl_camera_lock_tolerance.setText(f"Camera Lock Deadzone: ({self.settings['camera_lock_tolerance']}px)")
+            if hasattr(self, 'lbl_radar_scale') and self.lbl_radar_scale:
+                self.lbl_radar_scale.setText(f"Radar Scale: ({self.settings['radar_scale']:.1f})")
                 
         except Exception as e:
             print(f"Error enforcing legit mode restrictions: {e}")
@@ -5291,6 +5392,10 @@ class ConfigWindow(QtWidgets.QWidget):
     def apply_anti_flash(self):
         """Apply anti-flash by setting flash alpha to 0"""
         try:
+            # Don't apply anti-flash in legit mode
+            if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+                return
+                
             # Only apply if anti-flash is enabled
             if not self.settings.get("anti_flash_enabled", 0):
                 return
@@ -5325,6 +5430,10 @@ class ConfigWindow(QtWidgets.QWidget):
     def _apply_continuous_anti_flash(self):
         """Continuously apply anti-flash when enabled and interacted with"""
         try:
+            # Don't apply anti-flash in legit mode
+            if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+                return
+                
             # Only apply if anti-flash has been interacted with this session
             if not self._anti_flash_interacted:
                 return
