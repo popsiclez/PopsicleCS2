@@ -1,7 +1,7 @@
 VERSION = "1.0.6"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+ #1        2342342432423423423324
 import threading
 import keyboard
 import os
@@ -8637,7 +8637,6 @@ def wait_for_cs2_startup():
                                          
     if STARTUP_ENABLED:
         pass
-        time.sleep(25)
         
                                  
         trigger_graphics_restart()
@@ -8984,7 +8983,6 @@ if __name__ == "__main__":
                                              
         if STARTUP_ENABLED:
             pass
-            time.sleep(4)
                       
             pass
             trigger_graphics_restart()
@@ -8998,19 +8996,8 @@ if __name__ == "__main__":
     else:
         pass
                                                    
-        app_title = get_app_title()
-        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
-        if result != IDOK:
-                                                                       
-            remove_lock_file()
-            try:
-                if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                    os.remove(KEYBIND_COOLDOWNS_FILE)
-            except Exception:
-                pass
-            sys.exit(0)
-        
-                                                       
+        # Wait for CS2 to start without showing message box
+        # The loader will handle the waiting progress display
         wait_for_cs2_startup()
         
                                       
@@ -9020,7 +9007,7 @@ if __name__ == "__main__":
                 pm = pymem.Pymem("cs2.exe")
                 break
             except Exception:
-                time.sleep(1)
+                pass
 
 
     procs = [
@@ -9070,7 +9057,6 @@ if __name__ == "__main__":
         if is_debug_mode():
             print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
-        time.sleep(0.5)
 
     # Signal to loader that script is fully loaded and processes started
     try:
