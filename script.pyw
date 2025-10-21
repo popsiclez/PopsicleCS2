@@ -1193,7 +1193,8 @@ class ConfigWindow(QtWidgets.QWidget):
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and self.settings.get("anti_flash_enabled", 0) == 1:
             self._anti_flash_interacted = False  # Prevent anti-flash from applying in legit mode if pre-enabled
         else:
-            self._anti_flash_interacted = False  # Track if anti-flash has been interacted with this session (resets each restart)
+            # For full mode: if anti-flash is already enabled in config, mark as interacted so it applies immediately
+            self._anti_flash_interacted = self.settings.get("anti_flash_enabled", 0) == 1
         self._memory_warning_shown = False  # Track if memory warning has been shown this session
         self._memory_dialog_active = False  # Track if memory warning dialog is currently active
         self._is_initializing = True
@@ -1215,7 +1216,6 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.tooltips_enabled = "tooltips" in load_commands()
         
-        # Use just the GitHub title regardless of mode
         header_text = app_title
         
         if is_debug_mode():
