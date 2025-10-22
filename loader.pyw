@@ -3,11 +3,12 @@ import os
 import sys
 import subprocess
 import atexit
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "8"
+LOADER_VERSION = "9"
 
 # Try to import requests, fallback if not available
 try:
@@ -89,6 +90,24 @@ def check_loader_version():
     except Exception:
         # If we can't check version, assume it's okay to continue
         return True
+
+def get_github_status():
+    """Fetch current status from GitHub"""
+    try:
+        if HAS_REQUESTS:
+            resp = requests.get('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/status', timeout=10)
+            resp.raise_for_status()
+            return resp.text.strip()
+        else:
+            # Fallback to urllib
+            if sys.version_info[0] == 3:
+                from urllib.request import urlopen
+            else:
+                from urllib2 import urlopen
+            response = urlopen('https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/status', timeout=10)
+            return response.read().decode('utf-8').strip()
+    except Exception:
+        return "Unknown"  # Fallback status
 
 def show_mode_selection():
     """Show mode selection in console and return selected mode"""
@@ -242,6 +261,23 @@ def find_python_executable():
     
     return None
 
+def is_cs2_running():
+    """Check if CS2 process is currently running"""
+    try:
+        import psutil
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] and 'cs2.exe' in proc.info['name'].lower():
+                return True
+        return False
+    except ImportError:
+        # Fallback method without psutil
+        try:
+            result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq cs2.exe'], 
+                                  capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            return 'cs2.exe' in result.stdout.lower()
+        except Exception:
+            return False
+
 class LoaderGUI:
     def __init__(self):
         self.root = tk.Tk()
@@ -251,6 +287,13 @@ class LoaderGUI:
         self.selected_commands = []
         self.debug_mode = False
         self.app_title = "Popsicle CS2"  # Default title
+        self.github_status = "Unknown"  # Default status
+        
+        # Cancel functionality variables
+        self.script_process = None
+        self.is_launching = False
+        self.is_cancelled = False
+        self.can_cancel = False
 
         # Make window always on top
         self.root.attributes('-topmost', True)
@@ -258,6 +301,7 @@ class LoaderGUI:
         # Initialize UI
         self.setup_ui()
         self.load_app_title()
+        self.load_github_status()
 
         # Make window draggable
         self._drag_data = {'x': 0, 'y': 0}
@@ -305,7 +349,12 @@ class LoaderGUI:
         self.root.configure(bg=bg_color)
         
         # Configure ttk styles for modern look
-        style.configure('TProgressbar', background=accent_color, troughcolor=secondary_color)
+        style.configure('TProgressbar', 
+                       background=accent_color,      # Progress fill color
+                       troughcolor=bg_color,         # Background color (matches window background)
+                       borderwidth=0,                # Remove border
+                       lightcolor=bg_color,          # Remove 3D effect
+                       darkcolor=bg_color)           # Remove 3D effect
         
         # Title label
         self.title_label = tk.Label(
@@ -325,7 +374,17 @@ class LoaderGUI:
             bg=bg_color,
             fg="#FF0000"
         )
-        version_label.pack(pady=(0, 25))
+        version_label.pack(pady=(0, 5))
+        
+        # Status label
+        self.status_github_label = tk.Label(
+            self.root,
+            text="Status: Loading...",
+            font=default_font,
+            bg=bg_color,
+            fg="#ffffff"
+        )
+        self.status_github_label.pack(pady=(0, 25))
         
         # Main frame
         main_frame = tk.Frame(self.root, bg=bg_color)
@@ -442,7 +501,7 @@ class LoaderGUI:
         self.debug_var = tk.BooleanVar()
         debug_check = tk.Checkbutton(
             debug_frame,
-            text="Show console window (for debugging)",
+            text="Show console window (to view live output)",
             variable=self.debug_var,
             font=default_font,
             bg=bg_color,
@@ -560,11 +619,43 @@ class LoaderGUI:
         thread = threading.Thread(target=load_title, daemon=True)
         thread.start()
         
+    def load_github_status(self):
+        """Load GitHub status in background thread"""
+        def load_status():
+            try:
+                status = get_github_status()
+                self.root.after(0, lambda: self.update_github_status(status))
+            except:
+                pass
+                
+        thread = threading.Thread(target=load_status, daemon=True)
+        thread.start()
+        
     def update_title(self, title):
         """Update the title in the UI"""
         self.app_title = title
         self.title_label.config(text=f"{title} Loader")
         self.root.title(f"{title} Loader")
+        
+    def update_github_status(self, status):
+        """Update the GitHub status in the UI"""
+        self.github_status = status
+        
+        # Set status text and color based on status
+        if status.lower() == "working":
+            status_text = "Status: Working"
+            status_color = "#00ff00"  # Green
+            self.launch_button.config(state="normal")
+        elif status.lower() == "disabled":
+            status_text = "Status: Disabled"
+            status_color = "#ff0000"  # Red
+            self.launch_button.config(state="disabled")
+        else:
+            status_text = f"Status: {status}"
+            status_color = "#ffff00"  # Yellow for unknown status
+            self.launch_button.config(state="normal")  # Allow launch for unknown status
+        
+        self.status_github_label.config(text=status_text, fg=status_color)
         
     def on_closing(self):
         """Handle window close event"""
@@ -581,10 +672,113 @@ class LoaderGUI:
         self.progress['value'] = value
         self.root.update()
         
+    def cancel_script(self):
+        """Cancel the running script and its processes"""
+        if not self.can_cancel:
+            return
+            
+        self.is_cancelled = True
+        self.update_status("Cancelling script...")
+        
+        try:
+            # Create terminate signal file to signal script to shut down
+            terminate_signal_file = os.path.join(os.getcwd(), 'terminate_now.signal')
+            try:
+                with open(terminate_signal_file, 'w') as f:
+                    f.write('terminate')
+                add_loader_temp_file(terminate_signal_file)
+            except Exception:
+                pass
+            
+            # Wait a moment for graceful shutdown
+            import time
+            time.sleep(2)
+            
+            # Force terminate processes if still running
+            try:
+                import psutil
+                # Find and terminate any python processes running our script
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if proc.info['name'] and 'python' in proc.info['name'].lower():
+                            cmdline = proc.info['cmdline']
+                            if cmdline and any('script.py' in str(arg) or 'tmp' in str(arg) for arg in cmdline):
+                                proc.terminate()
+                                try:
+                                    proc.wait(timeout=3)
+                                except psutil.TimeoutExpired:
+                                    proc.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except ImportError:
+                # psutil not available, try alternative method
+                try:
+                    import subprocess
+                    # Use taskkill to terminate python processes (less precise)
+                    subprocess.run(['taskkill', '/f', '/im', 'python.exe'], 
+                                 capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    subprocess.run(['taskkill', '/f', '/im', 'pythonw.exe'], 
+                                 capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                except Exception:
+                    pass
+            
+            # Clean up any remaining files
+            cleanup_files = [
+                'script_running.lock',
+                'terminate_now.signal',
+                'selected_mode.txt',
+                'commands.txt',
+                'script_loaded.signal',
+                'keybind_cooldowns.json',
+                'debug_console.lock'
+            ]
+            
+            for filename in cleanup_files:
+                filepath = os.path.join(os.getcwd(), filename)
+                try:
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                except Exception:
+                    pass
+            
+            self.update_status("Waiting...")
+            self.update_progress(0)
+            
+        except Exception as e:
+            self.update_status(f"Error cancelling script: {str(e)}")
+        
+        finally:
+            # Reset button to launch state
+            self.can_cancel = False
+            self.is_launching = False
+            self.is_cancelled = False
+            
+            # Set button state based on GitHub status
+            if self.github_status.lower() == "disabled":
+                button_state = "disabled"
+            else:
+                button_state = "normal"
+                
+            self.launch_button.config(text="Launch", command=self.launch_script, state=button_state)
+        
     def launch_script(self):
         """Launch the main script with selected options"""
-        # Disable launch button
-        self.launch_button.config(state="disabled")
+        if self.is_launching:
+            return
+            
+        # Check if GitHub status allows launching
+        if self.github_status.lower() == "disabled":
+            messagebox.showerror(
+                "Launch Disabled", 
+                "Launching is currently disabled. Please check back later."
+            )
+            return
+            
+        # Change button to Cancel mode
+        self.is_launching = True
+        self.is_cancelled = False
+        self.can_cancel = False  # Will be enabled during "Waiting for script to load" phase
+        self.launch_button.config(text="Cancel", command=self.cancel_script, state="disabled")
         self.progress['value'] = 0
         
         # Get selections
@@ -606,12 +800,21 @@ class LoaderGUI:
     def launch_script_background(self):
         """Background thread for launching script"""
         try:
+            # Check for cancellation
+            if self.is_cancelled:
+                return
+                
             # Check loader version
             self.root.after(0, lambda: self.update_status("Checking loader version..."))
             self.root.after(0, lambda: self.update_progress(10))
             if not check_loader_version():
                 self.root.after(0, lambda: self.update_status("Loader outdated, run setup again."))
                 self.root.after(0, lambda: self.update_progress(0))
+                self.root.after(0, lambda: self.reset_launch_button())
+                return
+            
+            # Check for cancellation
+            if self.is_cancelled:
                 return
             
             # Get script content (either local or downloaded)
@@ -637,6 +840,7 @@ class LoaderGUI:
                 except (FileNotFoundError, IOError):
                     self.root.after(0, lambda: self.update_status("Script not found, try again."))
                     self.root.after(0, lambda: self.update_progress(0))
+                    self.root.after(0, lambda: self.reset_launch_button())
                     return
             else:
                 # Download script from GitHub
@@ -659,7 +863,12 @@ class LoaderGUI:
                         "Download Error", 
                         "Failed to download script. Please check your internet connection."
                     ))
+                    self.root.after(0, lambda: self.reset_launch_button())
                     return
+            
+            # Check for cancellation
+            if self.is_cancelled:
+                return
             
             # Create temp file
             self.root.after(0, lambda: self.update_status("Preparing launch..."))
@@ -690,6 +899,10 @@ class LoaderGUI:
             except Exception:
                 pass
             
+            # Check for cancellation
+            if self.is_cancelled:
+                return
+            
             # Find Python executable
             self.root.after(0, lambda: self.update_progress(60))
             python_exe = find_python_executable()
@@ -698,7 +911,31 @@ class LoaderGUI:
                     "Python Error", 
                     "Could not find Python with required packages. Please run setup again."
                 ))
+                self.root.after(0, lambda: self.reset_launch_button())
                 return
+            
+            # Check for cancellation
+            if self.is_cancelled:
+                return
+            
+            # Check if CS2 is running, if not wait for it
+            if not is_cs2_running():
+                self.root.after(0, lambda: self.update_status("Waiting for CS2.exe..."))
+                self.root.after(0, lambda: self.update_progress(65))
+                # Enable cancel button during CS2 waiting
+                self.root.after(0, lambda: self.enable_cancel_button())
+                
+                # Wait for CS2 to start
+                while not is_cs2_running():
+                    if self.is_cancelled:
+                        return
+                    time.sleep(1)
+                
+                self.root.after(0, lambda: self.update_status("CS2.exe detected!"))
+                time.sleep(0.5)  # Brief pause to show the detection message
+            else:
+                # Enable cancel button if CS2 is already running
+                self.root.after(0, lambda: self.enable_cancel_button())
             
             # Clean up loaded signal file
             loaded_signal_path = os.path.join(os.getcwd(), LOADED_SIGNAL_FILE)
@@ -715,7 +952,7 @@ class LoaderGUI:
                 if self.debug_mode:
                     # Debug mode: always show console window in a new console
                     # Use cmd.exe /c start to open a new window and run the script with proper quoting
-                    subprocess.Popen([
+                    self.script_process = subprocess.Popen([
                         'cmd.exe', '/c', 'start', 'Debug Console', python_exe, tmp_path
                     ], creationflags=subprocess.CREATE_NEW_CONSOLE, cwd=os.getcwd())
                 else:
@@ -726,16 +963,20 @@ class LoaderGUI:
                     
                     pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
                     if os.path.exists(pythonw_exe):
-                        subprocess.Popen([pythonw_exe, tmp_path], startupinfo=startupinfo)
+                        self.script_process = subprocess.Popen([pythonw_exe, tmp_path], startupinfo=startupinfo)
                     else:
-                        subprocess.Popen([python_exe, tmp_path], startupinfo=startupinfo)
+                        self.script_process = subprocess.Popen([python_exe, tmp_path], startupinfo=startupinfo)
                 
                 # Wait for script to load
                 self.root.after(0, lambda: self.update_status("Waiting for script to load..."))
                 self.root.after(0, lambda: self.update_progress(80))
-                import time
                 while not os.path.exists(loaded_signal_path):
+                    if self.is_cancelled:
+                        return
                     time.sleep(0.5)
+                
+                # Disable cancel button after successful launch
+                self.root.after(0, lambda: self.disable_cancel_button())
                 
                 # Success
                 self.root.after(0, lambda: self.update_status("Script launched successfully!"))
@@ -764,17 +1005,45 @@ class LoaderGUI:
                     "Launch Error", 
                     f"Failed to launch script: {str(e)}"
                 ))
+                self.root.after(0, lambda: self.reset_launch_button())
                 return
                 
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror(
-                "Error", 
-                f"An error occurred: {str(e)}"
-            ))
+            if not self.is_cancelled:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error", 
+                    f"An error occurred: {str(e)}"
+                ))
+                self.root.after(0, lambda: self.reset_launch_button())
         finally:
-            # Re-enable button and reset progress
-            self.root.after(0, lambda: self.launch_button.config(state="normal"))
-            self.root.after(0, lambda: self.update_progress(0))
+            if not self.is_cancelled:
+                # Re-enable button and reset progress only if not cancelled
+                self.root.after(0, lambda: self.reset_launch_button())
+    
+    def enable_cancel_button(self):
+        """Enable the cancel button"""
+        self.can_cancel = True
+        self.launch_button.config(state="normal")
+    
+    def disable_cancel_button(self):
+        """Disable the cancel button after successful launch"""
+        self.can_cancel = False
+        self.launch_button.config(state="disabled")
+    
+    def reset_launch_button(self):
+        """Reset button back to launch mode"""
+        self.is_launching = False
+        self.is_cancelled = False
+        self.can_cancel = False
+        
+        # Set button state based on GitHub status
+        if self.github_status.lower() == "disabled":
+            button_state = "disabled"
+        else:
+            button_state = "normal"
+            
+        self.launch_button.config(text="Launch", command=self.launch_script, state=button_state)
+        self.update_progress(0)
     
     def run(self):
         """Start the GUI"""
@@ -812,6 +1081,15 @@ def console_main():
         # Check loader version silently
         if not check_loader_version():
             print("Loader outdated, run setup again.")
+            input("Press any key to exit...")
+            return
+        
+        # Check GitHub status
+        github_status = get_github_status()
+        print(f"Status: {github_status}")
+        
+        if github_status.lower() == "disabled":
+            print("Launching is currently disabled. Please check back later.")
             input("Press any key to exit...")
             return
         
@@ -888,6 +1166,13 @@ def console_main():
         python_exe = find_python_executable()
         if python_exe is None:
             return
+        
+        # Check if CS2 is running, if not wait for it
+        if not is_cs2_running():
+            print("Waiting for CS2.exe...")
+            while not is_cs2_running():
+                time.sleep(1)
+            print("CS2.exe detected!")
         
         # Clean up any existing loaded signal file
         loaded_signal_path = os.path.join(os.getcwd(), LOADED_SIGNAL_FILE)
