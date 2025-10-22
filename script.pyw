@@ -1,7 +1,7 @@
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#6         
+         
 import threading
 import keyboard
 import os
@@ -8996,24 +8996,10 @@ if __name__ == "__main__":
         except Exception:
             pass
     else:
-        pass
-                                                   
-        app_title = get_app_title()
-        result = ctypes.windll.user32.MessageBoxW(0, "Waiting for CS2.exe", app_title, MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST | MB_SYSTEMMODAL)
-        if result != IDOK:
-                                                                       
-            remove_lock_file()
-            try:
-                if os.path.exists(KEYBIND_COOLDOWNS_FILE):
-                    os.remove(KEYBIND_COOLDOWNS_FILE)
-            except Exception:
-                pass
-            sys.exit(0)
-        
-                                                       
+        # Wait for CS2 silently (loader will handle the user interaction)
         wait_for_cs2_startup()
         
-                                      
+        # Connect to CS2 process
         pm = None
         while pm is None:
             try:
