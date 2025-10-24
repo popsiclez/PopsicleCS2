@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "9"
+LOADER_VERSION = "1.1.0"
 
 # Try to import requests, fallback if not available
 try:
@@ -289,6 +289,11 @@ class LoaderGUI:
         self.app_title = "Popsicle CS2"  # Default title
         self.github_status = "Unknown"  # Default status
         
+        # Config variables
+        self.preload_var = tk.BooleanVar()
+        self.config_var = tk.StringVar()
+        self.configs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs')
+        
         # Cancel functionality variables
         self.script_process = None
         self.is_launching = False
@@ -320,31 +325,37 @@ class LoaderGUI:
     def setup_ui(self):
         # Configure main window
         self.root.title("Loader")
-        self.root.geometry("480x650")
-        self.root.resizable(False, False)
+        self.root.resizable(False, True)  # Allow vertical resizing
+        
+        # Set initial size and center (will be resized after UI setup)
+        self.root.geometry("480x790")
         
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-        # Center the window
-        self.center_window()
         
         # Configure styles
         style = ttk.Style()
         style.theme_use('clam')
         
         
-        bg_color = "#191919"        # Deep black
+        bg_color = "#131313"        # Deep black
         fg_color = "#ffffff"        # White text
-        accent_color = "#ff0000"    # Modern red
-        secondary_color = "#ff0000" # Dark gray
-        border_color = "#191919"    # Medium gray
+        accent_color = "#ffffff"    # White accent
+        secondary_color = "#ffffff" # White secondary
+        border_color = "#333333"    # Border color for frames
+        frame_bg_color = "#1A1A1A"  # Darker background for frames
         
         # Define consistent font
-        default_font = ("Segoe UI", 10)
+        default_font = ("Segoe UI", 10, "bold")
         title_font = ("Segoe UI", 18, "bold")
         section_font = ("Segoe UI", 12, "bold")
         button_font = ("Segoe UI", 12, "bold")
+        
+        # Get available configs
+        if os.path.exists(self.configs_dir):
+            self.config_files = [f for f in os.listdir(self.configs_dir) if f.endswith('.json') and f != 'autosave.json']
+        else:
+            self.config_files = []
         
         self.root.configure(bg=bg_color)
         
@@ -354,7 +365,8 @@ class LoaderGUI:
                        troughcolor=bg_color,         # Background color (matches window background)
                        borderwidth=0,                # Remove border
                        lightcolor=bg_color,          # Remove 3D effect
-                       darkcolor=bg_color)           # Remove 3D effect
+                       darkcolor=bg_color,           # Remove 3D effect
+                       relief='flat')                # Remove outline from progress bar fill
         
         # Title label
         self.title_label = tk.Label(
@@ -366,26 +378,30 @@ class LoaderGUI:
         )
         self.title_label.pack(pady=(25, 10))
         
-        # Version label
-        version_label = tk.Label(
-            self.root,
-            text=f"Loader Version: {LOADER_VERSION}",
-            font=default_font,
-            bg=bg_color,
-            fg="#FF0000"
-        )
-        version_label.pack(pady=(0, 5))
-        
-        # Status label
-        self.status_github_label = tk.Label(
-            self.root,
-            text="Status: Loading...",
+        # Combined version and status label (split for color)
+        version_status_frame = tk.Frame(self.root, bg=bg_color)
+        version_status_frame.pack(pady=(0, 0))
+        self.version_label = tk.Label(
+            version_status_frame,
+            text=f"Version: {LOADER_VERSION}",
             font=default_font,
             bg=bg_color,
             fg="#ffffff"
         )
-        self.status_github_label.pack(pady=(0, 25))
-        
+        self.version_label.pack(side="left")
+        self.status_label_color = tk.Label(
+            version_status_frame,
+            text=" | ...",
+            font=default_font,
+            bg=bg_color,
+            fg="#ffffff"
+        )
+        self.status_label_color.pack(side="left")
+
+        # White horizontal separator line
+        separator = tk.Frame(self.root, bg="#ffffff", height=2)
+        separator.pack(fill="x", padx=70, pady=(18, 18))
+
         # Main frame
         main_frame = tk.Frame(self.root, bg=bg_color)
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -395,46 +411,40 @@ class LoaderGUI:
             main_frame,
             text="Mode",
             font=section_font,
-            bg=bg_color,
+            bg=frame_bg_color,
             fg=fg_color,
             bd=0,
             relief="flat",
-            highlightthickness=0
+            highlightthickness=0,
+            labelanchor="n"
         )
         mode_frame.pack(fill="x", pady=(0, 20))
         
         # Mode selection
         self.mode_var = tk.StringVar(value="full")
         
-        legit_radio = tk.Radiobutton(
+        style.configure('Modern.TRadiobutton', font=default_font, background=frame_bg_color, foreground=fg_color, borderwidth=0, focuscolor=frame_bg_color)
+        style.map('Modern.TRadiobutton',
+            focuscolor=[('active', frame_bg_color), ('!active', frame_bg_color)],
+            bordercolor=[('active', frame_bg_color), ('!active', frame_bg_color)],
+            background=[('active', frame_bg_color), ('!active', frame_bg_color), ('hover', frame_bg_color)],
+            foreground=[('active', fg_color), ('!active', fg_color), ('hover', fg_color)]
+        )
+        legit_radio = ttk.Radiobutton(
             mode_frame,
-            text="LEGIT MODE",
+            text="LEGIT MODE 🛡️",
             variable=self.mode_var,
             value="legit",
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TRadiobutton'
         )
         legit_radio.pack(anchor="w", padx=15, pady=8)
 
-        full_radio = tk.Radiobutton(
+        full_radio = ttk.Radiobutton(
             mode_frame,
-            text="FULL MODE",
+            text="FULL MODE ⚡",
             variable=self.mode_var,
             value="full",
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TRadiobutton'
         )
         full_radio.pack(anchor="w", padx=15, pady=8)
         
@@ -443,11 +453,12 @@ class LoaderGUI:
             main_frame,
             text="Commands",
             font=section_font,
-            bg=bg_color,
+            bg=frame_bg_color,
             fg=fg_color,
             bd=0,
             relief="flat",
-            highlightthickness=0
+            highlightthickness=0,
+            labelanchor="n"
         )
         features_frame.pack(fill="x", pady=(0, 20))
         
@@ -455,33 +466,35 @@ class LoaderGUI:
         self.debuglog_var = tk.BooleanVar()
         self.tooltips_var = tk.BooleanVar()
         
-        debuglog_check = tk.Checkbutton(
+        style.configure('Modern.TCheckbutton', font=default_font, background=frame_bg_color, foreground=fg_color, borderwidth=0, focuscolor=frame_bg_color)
+        style.map('Modern.TCheckbutton',
+            focuscolor=[('active', frame_bg_color), ('!active', frame_bg_color)],
+            bordercolor=[('active', frame_bg_color), ('!active', frame_bg_color)],
+            background=[('active', frame_bg_color), ('!active', frame_bg_color), ('hover', frame_bg_color)],
+            foreground=[('active', fg_color), ('!active', fg_color), ('hover', fg_color)]
+        )
+        
+        # Configure combobox style
+        style.configure('Modern.TCombobox', font=default_font, background=frame_bg_color, foreground=fg_color, fieldbackground=frame_bg_color, borderwidth=0, relief='flat', arrowcolor=fg_color)
+        style.map('Modern.TCombobox',
+            fieldbackground=[('readonly', frame_bg_color), ('hover', frame_bg_color)],
+            background=[('hover', frame_bg_color)],
+            selectbackground=[('readonly', frame_bg_color)],
+            selectforeground=[('readonly', fg_color)]
+        )
+        debuglog_check = ttk.Checkbutton(
             features_frame,
-            text="Debug Logging (save logs to debug_log.txt)",
+            text="Debug Logging 📝",
             variable=self.debuglog_var,
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TCheckbutton'
         )
         debuglog_check.pack(anchor="w", padx=15, pady=6)
 
-        tooltips_check = tk.Checkbutton(
+        tooltips_check = ttk.Checkbutton(
             features_frame,
-            text="Tooltips (show hints in config UI)",
+            text="Tooltips 💡",
             variable=self.tooltips_var,
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TCheckbutton'
         )
         tooltips_check.pack(anchor="w", padx=15, pady=6)
         
@@ -490,27 +503,21 @@ class LoaderGUI:
             main_frame,
             text="Debug",
             font=section_font,
-            bg=bg_color,
+            bg=frame_bg_color,
             fg=fg_color,
             bd=0,
             relief="flat",
-            highlightthickness=0
+            highlightthickness=0,
+            labelanchor="n"
         )
         debug_frame.pack(fill="x", pady=(0, 20))
         
         self.debug_var = tk.BooleanVar()
-        debug_check = tk.Checkbutton(
+        debug_check = ttk.Checkbutton(
             debug_frame,
-            text="Show console window (to view live output)",
+            text="Show Console Window 💻",
             variable=self.debug_var,
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TCheckbutton'
         )
         debug_check.pack(anchor="w", padx=15, pady=6)
 
@@ -525,20 +532,63 @@ class LoaderGUI:
             loader_directory = os.path.dirname(os.path.abspath(__file__))
             
         folder_name = os.path.basename(loader_directory)
-        run_local_check = tk.Checkbutton(
+        run_local_check = ttk.Checkbutton(
             debug_frame,
-            text=f"Run locally (load script.pyw in {folder_name})",
+            text=f"Run Locally ({folder_name}) 📁",
             variable=self.run_local_var,
-            font=default_font,
-            bg=bg_color,
-            fg=fg_color,
-            selectcolor=bg_color,  # No fill when unchecked
-            activebackground=bg_color,
-            activeforeground=accent_color,
-            bd=0,
-            highlightthickness=0
+            style='Modern.TCheckbutton'
         )
         run_local_check.pack(anchor="w", padx=15, pady=6)
+        
+        # Config frame
+        config_frame = tk.LabelFrame(
+            main_frame,
+            text="Config",
+            font=section_font,
+            bg=frame_bg_color,
+            fg=fg_color,
+            bd=0,
+            relief="flat",
+            highlightthickness=0,
+            labelanchor="n"
+        )
+        config_frame.pack(fill="x", pady=(0, 20))
+        
+        # Pre-load config checkbox
+        preload_check = ttk.Checkbutton(
+            config_frame,
+            text="Pre-Load Config ⚙️",
+            variable=self.preload_var,
+            style='Modern.TCheckbutton',
+            command=self.toggle_config_dropdown
+        )
+        preload_check.pack(anchor="w", padx=15, pady=6)
+        
+        # Config dropdown
+        self.config_label = tk.Label(
+            config_frame,
+            text="Select Config:",
+            font=default_font,
+            bg=frame_bg_color,
+            fg=fg_color
+        )
+        
+        self.config_combo = ttk.Combobox(
+            config_frame,
+            textvariable=self.config_var,
+            values=self.config_files,
+            state="readonly",
+            font=default_font,
+            style='Modern.TCombobox'
+        )
+        
+        # Initially hide dropdown if preload is off
+        if not self.preload_var.get():
+            self.config_label.pack_forget()
+            self.config_combo.pack_forget()
+        else:
+            self.config_label.pack(anchor="w", padx=15, pady=(6, 2))
+            self.config_combo.pack(anchor="w", padx=15, pady=(0, 6))
         
         # Status frame
         status_frame = tk.Frame(main_frame, bg=bg_color)
@@ -565,14 +615,14 @@ class LoaderGUI:
         
         # Button frame (centered at bottom, grid for equal width)
         button_frame = tk.Frame(main_frame, bg=bg_color)
-        button_frame.pack(fill="x", pady=(20, 0))
+        button_frame.pack(fill="x", pady=(8, 0))
 
         button_style = {
             'font': button_font,
             'bg': accent_color,
-            'fg': "white",
-            'activebackground': "#b91c1c",
-            'activeforeground': "white",
+            'fg': "black",
+            'activebackground': "#cccccc",
+            'activeforeground': "black",
             'bd': 0,
             'cursor': "hand2",
             'relief': "flat",
@@ -598,6 +648,35 @@ class LoaderGUI:
         self.launch_button.grid(row=0, column=0, padx=(40, 10), pady=0, sticky="ew")
         exit_button.grid(row=0, column=1, padx=(10, 40), pady=0, sticky="ew")
         
+        # Resize window to fit initial content
+        self.root.update_idletasks()
+        required_height = self.root.winfo_reqheight()
+        self.root.geometry(f"480x{required_height}")
+        self.center_window()
+        
+    def toggle_config_dropdown(self):
+        """Show/hide config dropdown based on preload checkbox state"""
+        if self.preload_var.get():
+            # Show dropdown and label
+            self.config_label.pack(anchor="w", padx=15, pady=(6, 2))
+            self.config_combo.pack(anchor="w", padx=15, pady=(0, 6))
+            # Set default selection to first config if available
+            if self.config_files and not self.config_var.get():
+                self.config_var.set(self.config_files[0])
+        else:
+            # Hide dropdown and label
+            self.config_label.pack_forget()
+            self.config_combo.pack_forget()
+            # Clear selection when hiding
+            self.config_var.set("")
+        
+        # Resize window to fit content while keeping current position
+        self.root.update_idletasks()
+        required_height = self.root.winfo_reqheight()
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        self.root.geometry(f"480x{required_height}+{current_x}+{current_y}")
+    
     def center_window(self):
         """Center the window on the screen"""
         self.root.update_idletasks()
@@ -640,22 +719,21 @@ class LoaderGUI:
     def update_github_status(self, status):
         """Update the GitHub status in the UI"""
         self.github_status = status
-        
-        # Set status text and color based on status
+        # Set split label text and color
+        self.version_label.config(text=f"Version: {LOADER_VERSION}", fg="#ffffff")
         if status.lower() == "working":
-            status_text = "Status: Working"
+            status_text = " 🟢 - Online"
             status_color = "#00ff00"  # Green
             self.launch_button.config(state="normal")
         elif status.lower() == "disabled":
-            status_text = "Status: Disabled"
-            status_color = "#ff0000"  # Red
+            status_text = " 🔴 - Offline"
+            status_color = "#ff3333"  # Red
             self.launch_button.config(state="disabled")
         else:
-            status_text = f"Status: {status}"
-            status_color = "#ffff00"  # Yellow for unknown status
-            self.launch_button.config(state="normal")  # Allow launch for unknown status
-        
-        self.status_github_label.config(text=status_text, fg=status_color)
+            status_text = f" Status: {status}"
+            status_color = "#ffffff"
+            self.launch_button.config(state="normal")
+        self.status_label_color.config(text=status_text, fg=status_color)
         
     def on_closing(self):
         """Handle window close event"""
@@ -800,6 +878,29 @@ class LoaderGUI:
     def launch_script_background(self):
         """Background thread for launching script"""
         try:
+            # Apply config if enabled and a config is selected
+            if self.preload_var.get() and self.config_var.get():
+                self.root.after(0, lambda: self.update_status("Pre-Loading Config..."))
+                self.root.after(0, lambda: self.update_progress(5))
+                time.sleep(1.5)  # Add delay for config pre-loading stage
+                try:
+                    # Create selected_config.txt file with the selected config name
+                    selected_config_file = os.path.join(os.getcwd(), 'selected_config.txt')
+                    selected_config = self.config_var.get()
+                    if selected_config:
+                        # Strip .json extension if present
+                        if selected_config.endswith('.json'):
+                            selected_config = selected_config[:-5]  # Remove .json (5 characters)
+                        import io
+                        with io.open(selected_config_file, 'w', encoding='utf-8', newline='') as f:
+                            f.write(selected_config)
+                        add_loader_temp_file(selected_config_file)
+                except Exception as e:
+                    self.root.after(0, lambda: self.update_status(f"Config error: {str(e)}"))
+                    self.root.after(0, lambda: self.update_progress(0))
+                    self.root.after(0, lambda: self.reset_launch_button())
+                    return
+            
             # Check for cancellation
             if self.is_cancelled:
                 return
@@ -884,7 +985,8 @@ class LoaderGUI:
             mode_file = os.path.join(os.getcwd(), 'selected_mode.txt')
             add_loader_temp_file(mode_file)
             try:
-                with open(mode_file, 'w') as f:
+                import io
+                with io.open(mode_file, 'w', encoding='utf-8', newline='') as f:
                     f.write(self.selected_mode)
             except Exception:
                 pass
@@ -893,7 +995,8 @@ class LoaderGUI:
             commands_file = os.path.join(os.getcwd(), 'commands.txt')
             add_loader_temp_file(commands_file)
             try:
-                with open(commands_file, 'w') as f:
+                import io
+                with io.open(commands_file, 'w', encoding='utf-8', newline='') as f:
                     for command in self.selected_commands:
                         f.write(command + '\n')
             except Exception:
@@ -1147,7 +1250,8 @@ def console_main():
         mode_file = os.path.join(os.getcwd(), 'selected_mode.txt')
         add_loader_temp_file(mode_file)  # Track mode file for cleanup
         try:
-            with open(mode_file, 'w') as f:
+            import io
+            with io.open(mode_file, 'w', encoding='utf-8', newline='') as f:
                 f.write(selected_mode)
         except Exception as e:
             pass
@@ -1156,7 +1260,8 @@ def console_main():
         commands_file = os.path.join(os.getcwd(), 'commands.txt')
         add_loader_temp_file(commands_file)  # Track commands file for cleanup
         try:
-            with open(commands_file, 'w') as f:
+            import io
+            with io.open(commands_file, 'w', encoding='utf-8', newline='') as f:
                 for command in selected_commands:
                     f.write(command + '\n')
         except Exception as e:
