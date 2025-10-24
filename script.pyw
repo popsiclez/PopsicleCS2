@@ -1,4 +1,4 @@
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
@@ -544,6 +544,7 @@ def trigger_graphics_restart():
           
 CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
+SELECTED_CONFIG_FILE = os.path.join(os.getcwd(), 'selected_config.txt')
 RAINBOW_COLOR_FILE = os.path.join(os.getcwd(), 'rainbow_color.json')
 TERMINATE_SIGNAL_FILE = os.path.join(os.getcwd(), 'terminate_now.signal')
 LOCK_FILE = os.path.join(os.getcwd(), 'script_running.lock')
@@ -551,6 +552,9 @@ KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
 COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
 MODE_FILE = os.path.join(os.getcwd(), 'selected_mode.txt')
+
+# Global variable to track the loaded config name for ESP overlay display
+LOADED_CONFIG_NAME = "autosave"
 
 def load_selected_mode():
     """Load the selected mode from the mode file created by loader"""
@@ -727,18 +731,14 @@ DEFAULT_SETTINGS = {
     "show_visibility": 1,
     "ESPToggleKey": "NONE",
     "center_dot": 0,
-    "center_dot_size": 3,
-    
-                    
+    "center_dot_size": 3,             
     "radar_enabled": 0,
     "radar_size": 200,
     "radar_scale": 5.0,
     "radar_position": "Top Right",
     "radar_position_x": 50,
     "radar_position_y": 50,
-    "radar_opacity": 180,
-    
-                  
+    "radar_opacity": 180,           
     "aim_active": 0,
     "aim_circle_visible": 1,
     "aim_mode": 1,                             
@@ -748,7 +748,6 @@ DEFAULT_SETTINGS = {
     "aim_lock_target": 0,
     "aim_visibility_check": 0,
     "aim_disable_when_crosshair_on_enemy": 0,
-    "aim_movement_prediction": 0,
     "require_aimkey": 1,
     "camera_lock_enabled": 0,
     "camera_lock_smoothness": 5,
@@ -764,35 +763,24 @@ DEFAULT_SETTINGS = {
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
-    "circle_thickness": 2,
-    
-                          
+    "circle_thickness": 2,            
     "trigger_bot_active": 0,
     "TriggerKey": "X", 
     "triggerbot_between_shots_delay": 30,
     "triggerbot_first_shot_delay": 0,
     "triggerbot_burst_mode": 0,
     "triggerbot_burst_shots": 3,
-    "triggerbot_head_only": 0,
-    
-                   
+    "triggerbot_head_only": 0,             
     "bhop_enabled": 0,
-    "BhopKey": "SPACE",
-    
-    # Anti-flash settings                         
-    "anti_flash_enabled": 0,
-    
-                          
+    "BhopKey": "SPACE",                    
+    "anti_flash_enabled": 0,                 
     "auto_accept_enabled": 0,
-    
-    # Recoil Control settings
     "recoil_control_enabled": 0,
     "recoil_control_strength": 5,
     "recoil_control_delay": 25,
     "recoil_control_smoothness": 3,
     "recoil_selected_weapon": "All weapons",
-    
-    # Weapon-specific recoil settings
+
     "recoil_weapons": {
         "All weapons": {"strength": 5, "delay": 25, "smoothness": 3},
         "AK-47": {"strength": 5, "delay": 25, "smoothness": 3},
@@ -829,8 +817,7 @@ DEFAULT_SETTINGS = {
         "G3SG1": {"strength": 5, "delay": 25, "smoothness": 3},
         "SCAR-20": {"strength": 5, "delay": 25, "smoothness": 3}
     },
-    
-                 
+
     "topmost": 1,
     "MenuToggleKey": "F8",
     "ExitKey": "F7",
@@ -1091,13 +1078,44 @@ def load_settings():
 
     merged_settings = DEFAULT_SETTINGS.copy()
     
-    if not os.path.exists(CONFIG_FILE):
+    # Track the loaded config name for ESP overlay display
+    global LOADED_CONFIG_NAME
+    LOADED_CONFIG_NAME = "autosave"  # Default fallback
+    
+    # Check for selected config file first (for pre-load config system)
+    config_to_load = CONFIG_FILE  # Default to autosave.json
+    if os.path.exists(SELECTED_CONFIG_FILE):
+        try:
+            with open(SELECTED_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                selected_config_name = f.read().strip()
+                if selected_config_name:
+                    selected_config_path = os.path.join(CONFIG_DIR, f"{selected_config_name}.json")
+                    if os.path.exists(selected_config_path):
+                        config_to_load = selected_config_path
+                        LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
+                        if is_debug_mode():
+                            print(f"[DEBUG] Loading selected config: {selected_config_name}")
+                            print(f"[DEBUG] Config path: {selected_config_path}")
+                    else:
+                        if is_debug_mode():
+                            print(f"[DEBUG] Selected config file does not exist: {selected_config_path}")
+                else:
+                    if is_debug_mode():
+                        print(f"[DEBUG] Selected config name is empty")
+        except Exception as e:
+            if is_debug_mode():
+                print(f"[DEBUG] Error reading selected config file: {e}")
+    else:
+        if is_debug_mode():
+            print(f"[DEBUG] selected_config.txt not found, using autosave.json")
+    
+    if not os.path.exists(config_to_load):
         with open(CONFIG_FILE, "w") as f:
             json.dump(DEFAULT_SETTINGS, f, indent=4)
         return merged_settings
     
     try:
-        with open(CONFIG_FILE, "r") as f:
+        with open(config_to_load, "r") as f:
             loaded_settings = json.load(f)
 
             merged_settings.update(loaded_settings)
@@ -1529,7 +1547,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
             aim_checkboxes = [
                 'aim_active_cb', 'aim_circle_visible_cb', 'aim_visibility_cb', 
-                'lock_target_cb', 'disable_crosshair_cb', 'movement_prediction_cb'
+                'lock_target_cb', 'disable_crosshair_cb'
             ]
             
             for attr_name in aim_checkboxes:
@@ -2473,14 +2491,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.disable_crosshair_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         aim_layout.addWidget(self.disable_crosshair_cb)
 
-
-        self.movement_prediction_cb = QtWidgets.QCheckBox("Movement Prediction")
-        self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
-        self.movement_prediction_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.movement_prediction_cb, "Predicts enemy movement and aims ahead of moving targets for more accurate shots.")
-        self.movement_prediction_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        aim_layout.addWidget(self.movement_prediction_cb)
-
         aim_container.setLayout(aim_layout)
         aim_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return aim_container
@@ -3199,8 +3209,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.lock_target_cb.setChecked(self.settings.get("aim_lock_target", 0) == 1)
             if hasattr(self, 'disable_crosshair_cb') and self.disable_crosshair_cb:
                 self.disable_crosshair_cb.setChecked(self.settings.get("aim_disable_when_crosshair_on_enemy", 0) == 1)
-            if hasattr(self, 'movement_prediction_cb') and self.movement_prediction_cb:
-                self.movement_prediction_cb.setChecked(self.settings.get("aim_movement_prediction", 0) == 1)
             if hasattr(self, 'radius_slider') and self.radius_slider:
                 self.radius_slider.setValue(self.settings.get("radius", 50))
             if hasattr(self, 'opacity_slider') and self.opacity_slider:
@@ -3989,11 +3997,6 @@ class ConfigWindow(QtWidgets.QWidget):
         
         try:
             self.settings["aim_disable_when_crosshair_on_enemy"] = 1 if getattr(self, 'disable_crosshair_cb', None) and self.disable_crosshair_cb.isChecked() else 0
-        except Exception:
-            pass
-        
-        try:
-            self.settings["aim_movement_prediction"] = 1 if getattr(self, 'movement_prediction_cb', None) and self.movement_prediction_cb.isChecked() else 0
         except Exception:
             pass
         
@@ -4796,6 +4799,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
                 if os.path.exists(panic_file):
                     os.remove(panic_file)
+            except Exception:
+                pass
+            
+            try:
+                # Clean up backup file on script exit
+                backup_file = CONFIG_FILE + '.backup'
+                if os.path.exists(backup_file):
+                    os.remove(backup_file)
             except Exception:
                 pass
                 
@@ -7972,7 +7983,6 @@ def aim():
          'aim_mode_distance': 1,
          'aim_smoothness': 50,
          'aim_disable_when_crosshair_on_enemy': 0,
-         'aim_movement_prediction': 0,
          'auto_apply_fov': 0
      }
     
@@ -8258,50 +8268,8 @@ def aim():
 
         
 
-        movement_prediction_enabled = settings.get('aim_movement_prediction', 0) == 1
         target_x, target_y = pos
         
-        if movement_prediction_enabled and pm and client:
-            try:
-                target_velocity = None
-                target_bone_id = _select_bone_for_entity(ent_addr)
-                
-                for target in target_list:
-                    if target.get('entity_pawn_addr') == ent_addr:
-                        target_velocity = target.get('velocity', (0, 0, 0))
-                        break
-                
-                if target_velocity and (abs(target_velocity[0]) > 30 or abs(target_velocity[1]) > 30):
-                    distance_to_target = ((pos[0] - center_x)**2 + (pos[1] - center_y)**2)**0.5
-                    
-                    max_screen_distance = 500
-                    prediction_time = 0.01 + min(distance_to_target / max_screen_distance, 1.0) * 0.07
-                    
-                    try:
-                        game_scene_node = pm.read_longlong(ent_addr + m_pGameSceneNode)
-                        bone_matrix = pm.read_longlong(game_scene_node + m_modelState + 0x80)
-                        
-                        current_bone_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
-                        current_bone_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
-                        current_bone_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
-                        
-                        predicted_bone_x = current_bone_x + (target_velocity[0] * prediction_time)
-                        predicted_bone_y = current_bone_y + (target_velocity[1] * prediction_time)
-                        predicted_bone_z = current_bone_z + (target_velocity[2] * prediction_time)
-                        
-                        view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
-                        
-                        screen_width = win32api.GetSystemMetrics(0)
-                        screen_height = win32api.GetSystemMetrics(1)
-                        predicted_screen = w2s(view_matrix, predicted_bone_x, predicted_bone_y, predicted_bone_z, screen_width, screen_height)
-                        
-                        if predicted_screen and predicted_screen[0] != -999 and predicted_screen[1] != -999:
-                            target_x, target_y = predicted_screen
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
         dx = target_x - center_x
         dy = target_y - center_y
 
