@@ -292,7 +292,16 @@ class LoaderGUI:
         # Config variables
         self.preload_var = tk.BooleanVar()
         self.config_var = tk.StringVar()
-        self.configs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs')
+        
+        # Get the actual directory where the executable/script is located for configs
+        if getattr(sys, 'frozen', False):
+            # If running as compiled executable
+            loader_directory = os.path.dirname(sys.executable)
+        else:
+            # If running as script
+            loader_directory = os.path.dirname(os.path.abspath(__file__))
+        
+        self.configs_dir = os.path.join(loader_directory, 'configs')
         
         # Cancel functionality variables
         self.script_process = None
@@ -721,11 +730,11 @@ class LoaderGUI:
         self.github_status = status
         # Set split label text and color
         self.version_label.config(text=f"Version: {LOADER_VERSION}", fg="#ffffff")
-        if status.lower() == "working":
+        if status.lower() == "online":
             status_text = " 🟢 - Online"
             status_color = "#00ff00"  # Green
             self.launch_button.config(state="normal")
-        elif status.lower() == "disabled":
+        elif status.lower() == "offline":
             status_text = " 🔴 - Offline"
             status_color = "#ff3333"  # Red
             self.launch_button.config(state="disabled")
