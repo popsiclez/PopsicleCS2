@@ -1,7 +1,7 @@
 VERSION = "1.0.8"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#1         
+         
 import threading
 import keyboard
 import os
@@ -3397,27 +3397,32 @@ class ConfigWindow(QtWidgets.QWidget):
             QtWidgets.QPushButton.mousePressEvent(btn, event)
 
     def on_low_cpu_changed(self):
-        """Handle low CPU mode toggle and lock/unlock FPS slider accordingly"""
+        """Handle low CPU mode toggle and adjust FPS limit accordingly"""
         try:
             low_cpu_enabled = self.low_cpu_cb.isChecked()
             self.settings["low_cpu"] = 1 if low_cpu_enabled else 0
             
             if low_cpu_enabled:
-                                                                        
-                self.fps_limit_slider.setEnabled(False)
-                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
+                # Keep FPS slider enabled and use its value for timer intervals
+                self.fps_limit_slider.setEnabled(True)
                 
-                # Apply slower timer intervals for low CPU mode
+                # Calculate timer intervals based on FPS limit
+                fps_limit = max(20, self.settings.get('fps_limit', 60))
+                timer_interval = int(1000 / fps_limit)  # Convert FPS to milliseconds
+                
+                # Apply calculated timer intervals
                 if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(100)  # 100ms instead of 1ms
+                    self._fov_timer.setInterval(timer_interval)
                 if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(50)  # 50ms instead of 10ms
+                    self._anti_flash_timer.setInterval(timer_interval)
                 if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(50)  # 50ms instead of 10ms
+                    self._window_monitor_timer.setInterval(timer_interval)
+                
+                # Update label to show current FPS limit
+                self.lbl_fps_limit.setText(f"FPS Limit: ({fps_limit})")
             else:
-                                                                 
+                # Normal mode - use fast timer intervals
                 self.fps_limit_slider.setMinimum(20)                           
-                                                        
                 current_fps = max(20, self.settings.get('fps_limit', 60))
                 self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
@@ -3444,19 +3449,22 @@ class ConfigWindow(QtWidgets.QWidget):
             low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
             
             if low_cpu_enabled:
-                                                                      
-                self.fps_limit_slider.setEnabled(False)
-                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
+                # Low CPU mode - keep slider enabled and use FPS limit for timer intervals
+                self.fps_limit_slider.setEnabled(True)
+                fps_limit = max(20, self.settings.get('fps_limit', 60))
+                timer_interval = int(1000 / fps_limit)  # Convert FPS to milliseconds
                 
-                # Apply slower timer intervals for low CPU mode on startup
+                # Apply calculated timer intervals
                 if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(100)  # 100ms instead of 1ms
+                    self._fov_timer.setInterval(timer_interval)
                 if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(50)  # 50ms instead of 10ms
+                    self._anti_flash_timer.setInterval(timer_interval)
                 if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(50)  # 50ms instead of 10ms                save_settings(self.settings)
+                    self._window_monitor_timer.setInterval(timer_interval)
+                
+                self.lbl_fps_limit.setText(f"FPS Limit: ({fps_limit})")
             else:
-                                                                  
+                # Normal mode - use fast timer intervals
                 self.fps_limit_slider.setMinimum(20)                                      
                 current_fps = max(20, self.settings.get('fps_limit', 60))                        
                 self.fps_limit_slider.setValue(current_fps)
@@ -5112,10 +5120,6 @@ class ConfigWindow(QtWidgets.QWidget):
     def update_fps_limit_label(self):
         try:
                                                                  
-            if self.settings.get('low_cpu', 0) == 1:
-                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
-                return
-                
             val = self.fps_limit_slider.value()
             self.lbl_fps_limit.setText(f"FPS Limit: ({val})")
             self.save_settings()
@@ -5944,7 +5948,9 @@ class ESPWindow(QtWidgets.QWidget):
                 self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
                 
                                                                 
-                self.timer.start(100)
+                fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
+                timer_interval = int(1000 / max(fps_limit, 1))
+                self.timer.start(timer_interval)
                 
                 # Adjust additional timers for low CPU mode
                 if hasattr(self, '_rainbow_menu_timer'):
