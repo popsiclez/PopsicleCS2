@@ -1,7 +1,7 @@
 VERSION = "1.0.8"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+#1         
 import threading
 import keyboard
 import os
@@ -265,11 +265,11 @@ def register_cleanup_handlers():
             signal.signal(signal.SIGBREAK, signal_handler)
         
         CLEANUP_REGISTERED = True
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print("[CLEANUP] Cleanup handlers registered successfully")
         
     except Exception as e:
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[CLEANUP] Error registering cleanup handlers: {e}")
 
 def add_temporary_file(file_path):
@@ -277,14 +277,14 @@ def add_temporary_file(file_path):
     global TEMPORARY_FILES
     if file_path:
         TEMPORARY_FILES.add(file_path)
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[CLEANUP] Tracking temporary file: {file_path}")
 
 def track_process(process):
     """Add a process to the cleanup tracking list"""
     global PROCESSES_LIST
     PROCESSES_LIST.append(process)
-    if is_debug_mode():
+    if is_debug_mode() and not is_low_cpu_mode():
         print(f"[CLEANUP] Tracking process for cleanup")
 
 def load_commands():
@@ -306,6 +306,14 @@ def is_debug_mode():
     """Check if debug mode is enabled via commands.txt"""
     commands = load_commands()
     return "debuglog" in commands
+
+def is_low_cpu_mode():
+    """Check if low CPU mode is enabled"""
+    try:
+        settings = load_settings()
+        return settings.get("low_cpu", 0) == 1
+    except Exception:
+        return False
 
 def apply_commands():
     """Apply commands from commands.txt file"""
@@ -362,7 +370,7 @@ def get_offsets_last_update():
                 return dt.strftime("%Y-%m-%d %H:%M UTC")
         return "Unknown"
     except Exception as e:
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[DEBUG] Error fetching offsets update date: {e}")
         return "Unknown"
 
@@ -1093,20 +1101,20 @@ def load_settings():
                     if os.path.exists(selected_config_path):
                         config_to_load = selected_config_path
                         LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
-                        if is_debug_mode():
+                        if is_debug_mode() and not is_low_cpu_mode():
                             print(f"[DEBUG] Loading selected config: {selected_config_name}")
                             print(f"[DEBUG] Config path: {selected_config_path}")
                     else:
-                        if is_debug_mode():
+                        if is_debug_mode() and not is_low_cpu_mode():
                             print(f"[DEBUG] Selected config file does not exist: {selected_config_path}")
                 else:
-                    if is_debug_mode():
+                    if is_debug_mode() and not is_low_cpu_mode():
                         print(f"[DEBUG] Selected config name is empty")
         except Exception as e:
-            if is_debug_mode():
+            if is_debug_mode() and not is_low_cpu_mode():
                 print(f"[DEBUG] Error reading selected config file: {e}")
     else:
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[DEBUG] selected_config.txt not found, using autosave.json")
     
     if not os.path.exists(config_to_load):
@@ -1122,7 +1130,7 @@ def load_settings():
             
             # Migrate legacy recoil settings to weapon-specific format
             if 'recoil_weapons' not in merged_settings or not isinstance(merged_settings['recoil_weapons'], dict):
-                if is_debug_mode():
+                if is_debug_mode() and not is_low_cpu_mode():
                     print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
                 
                 # Get legacy values or defaults
@@ -1153,7 +1161,7 @@ def load_settings():
                 
                 # Save the migrated settings
                 save_settings(merged_settings)
-                if is_debug_mode():
+                if is_debug_mode() and not is_low_cpu_mode():
                     print("[DEBUG] Legacy recoil settings migration completed")
             
             return merged_settings
@@ -1236,7 +1244,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         header_text = app_title
         
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
         
         self.header_label = QtWidgets.QLabel(header_text)
@@ -1442,7 +1450,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Setup FOV application timer for continuous FOV enforcement when not scoped
         self._fov_timer = QtCore.QTimer(self)
         self._fov_timer.timeout.connect(self._apply_continuous_fov)
-        self._fov_timer.start(1)  # Check every 100ms
+        self._fov_timer.start(1)  # Check every 1ms for maximum responsiveness
         
         # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
         self._anti_flash_timer = QtCore.QTimer(self)
@@ -1821,6 +1829,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
 
         self.update_box_mode_dropdown_state()
+        self.update_bone_esp_state()
 
         self.Bones_cb = QtWidgets.QCheckBox("Draw Bones")
         self.Bones_cb.setChecked(self.settings.get("Bones", 1) == 1)
@@ -3308,6 +3317,8 @@ class ConfigWindow(QtWidgets.QWidget):
 
             self.update_box_mode_dropdown_state()
             
+            self.update_bone_esp_state()
+            
 
             self.initialize_fps_slider_state()
             
@@ -3393,11 +3404,16 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if low_cpu_enabled:
                                                                         
-                self.fps_limit_slider.setMinimum(10)                                        
-                self.fps_limit_slider.setValue(10)
                 self.fps_limit_slider.setEnabled(False)
-                self.settings["fps_limit"] = 10
-                self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
+                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
+                
+                # Apply slower timer intervals for low CPU mode
+                if hasattr(self, '_fov_timer') and self._fov_timer:
+                    self._fov_timer.setInterval(100)  # 100ms instead of 1ms
+                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
+                    self._anti_flash_timer.setInterval(50)  # 50ms instead of 10ms
+                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
+                    self._window_monitor_timer.setInterval(50)  # 50ms instead of 10ms
             else:
                                                                  
                 self.fps_limit_slider.setMinimum(20)                           
@@ -3407,6 +3423,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.fps_limit_slider.setEnabled(True)
                 self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
+                
+                # Apply fast timer intervals for normal mode
+                if hasattr(self, '_fov_timer') and self._fov_timer:
+                    self._fov_timer.setInterval(1)  # 1ms for maximum responsiveness
+                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
+                    self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
+                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
+                    self._window_monitor_timer.setInterval(10)  # 10ms for ultra-responsive hiding
             
             self.update_box_mode_dropdown_state()
             
@@ -3420,21 +3444,33 @@ class ConfigWindow(QtWidgets.QWidget):
             low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
             
             if low_cpu_enabled:
-                                                                              
-                self.fps_limit_slider.setMinimum(10)                                        
-                self.fps_limit_slider.setValue(10)
+                                                                      
                 self.fps_limit_slider.setEnabled(False)
-                self.settings["fps_limit"] = 10
-                self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
-                save_settings(self.settings)
+                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
+                
+                # Apply slower timer intervals for low CPU mode on startup
+                if hasattr(self, '_fov_timer') and self._fov_timer:
+                    self._fov_timer.setInterval(100)  # 100ms instead of 1ms
+                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
+                    self._anti_flash_timer.setInterval(50)  # 50ms instead of 10ms
+                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
+                    self._window_monitor_timer.setInterval(50)  # 50ms instead of 10ms                save_settings(self.settings)
             else:
-                                                                          
+                                                                  
                 self.fps_limit_slider.setMinimum(20)                                      
                 current_fps = max(20, self.settings.get('fps_limit', 60))                        
                 self.fps_limit_slider.setValue(current_fps)
                 self.fps_limit_slider.setEnabled(True)
                 self.settings["fps_limit"] = current_fps
                 self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
+                
+                # Apply fast timer intervals for normal mode on startup
+                if hasattr(self, '_fov_timer') and self._fov_timer:
+                    self._fov_timer.setInterval(1)  # 1ms for maximum responsiveness
+                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
+                    self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
+                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
+                    self._window_monitor_timer.setInterval(10)  # 10ms for ultra-responsive hiding
         except Exception:
             pass
 
@@ -3517,7 +3553,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
             try:
 
-                if is_debug_mode():
+                if is_debug_mode() and not is_low_cpu_mode():
                     print("[DEBUG] Application terminating - check debug_log.txt for full output")
                 
 
@@ -3549,6 +3585,24 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.box_mode_combo.setEnabled(True)
                     if hasattr(self, 'box_mode_label'):
                         self.box_mode_label.setToolTip('Choose between 2D flat boxes or 3D boxes that show actual player dimensions in game world')
+        except Exception:
+            pass
+
+    def update_bone_esp_state(self):
+        """Update bone ESP checkbox state based on low CPU mode setting"""
+        try:
+            low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
+            
+            if hasattr(self, 'Bones_cb'):
+                if low_cpu_enabled:
+                    # Disable and uncheck bone ESP when low CPU mode is enabled
+                    self.Bones_cb.setChecked(False)
+                    self.Bones_cb.setEnabled(False)
+                    self.set_tooltip_if_enabled(self.Bones_cb, "Bone ESP is disabled when Low CPU Mode is enabled for better performance")
+                else:
+                    # Re-enable bone ESP when low CPU mode is disabled
+                    self.Bones_cb.setEnabled(True)
+                    self.set_tooltip_if_enabled(self.Bones_cb, "Draw skeletal structure connecting all major bones of each player for detailed body positioning.")
         except Exception:
             pass
 
@@ -5059,8 +5113,7 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
                                                                  
             if self.settings.get('low_cpu', 0) == 1:
-                self.fps_limit_slider.setValue(10)                    
-                self.lbl_fps_limit.setText("FPS Limit: (10) - Locked by Low CPU Mode")
+                self.lbl_fps_limit.setText("FPS Limit: Unlimited - Low CPU Mode")
                 return
                 
             val = self.fps_limit_slider.value()
@@ -5137,7 +5190,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 delattr(self, '_fov_original_value')
                 
         except Exception as e:
-            if is_debug_mode():
+            if is_debug_mode() and not is_low_cpu_mode():
                 print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
             pass
 
@@ -5875,14 +5928,12 @@ class ESPWindow(QtWidgets.QWidget):
 
 
     def apply_low_cpu_mode(self):
-        """Adjust internal timers/intervals for low CPU mode and FPS limit.
+        """Adjust internal timers/intervals for low CPU mode.
 
-        This uses either low CPU mode (10 FPS) or the custom FPS limit setting.
-        Low CPU mode overrides the FPS limit when enabled and disables high-quality rendering.
+        Low CPU mode disables high-quality rendering and FPS limiting for maximum performance.
         """
         try:
             low = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
-            fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
             
                                                                
             if low:
@@ -5892,11 +5943,16 @@ class ESPWindow(QtWidgets.QWidget):
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
                 self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
                 
-                                                       
-                self.target_fps = 10
-                self.target_frame_time = 1.0 / 10.0                   
                                                                 
                 self.timer.start(100)
+                
+                # Adjust additional timers for low CPU mode
+                if hasattr(self, '_rainbow_menu_timer'):
+                    self._rainbow_menu_timer.setInterval(200)  # Slow down rainbow menu updates
+                if hasattr(self, '_menu_toggle_timer'):
+                    self._menu_toggle_timer.setInterval(100)  # Slow down menu toggle checks
+                if hasattr(self, '_rainbow_monitor_timer'):
+                    self._rainbow_monitor_timer.setInterval(200)  # Slow down rainbow color file monitoring
                                                                   
                 self.setUpdatesEnabled(False)
                 self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontAdjustForAntialiasing | 
@@ -5904,6 +5960,8 @@ class ESPWindow(QtWidgets.QWidget):
                 self.setUpdatesEnabled(True)
             else:
                                                                      
+                fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
+                
                 self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
@@ -5911,13 +5969,21 @@ class ESPWindow(QtWidgets.QWidget):
                 
                 self.target_fps = fps_limit
                 self.target_frame_time = 1.0 / max(fps_limit, 1)
-                                                                             
+                                                                            
                                                                             
                 if fps_limit < 80:
                     interval_ms = int(1000 / max(fps_limit, 1))                                          
                 else:
                     interval_ms = max(int(1000 / max(fps_limit, 1)) - 3, 1)                                                 
                 self.timer.start(interval_ms)
+                
+                # Restore normal timer intervals
+                if hasattr(self, '_rainbow_menu_timer'):
+                    self._rainbow_menu_timer.setInterval(100)  # Normal rainbow menu updates
+                if hasattr(self, '_menu_toggle_timer'):
+                    self._menu_toggle_timer.setInterval(50)   # Normal menu toggle checks
+                if hasattr(self, '_rainbow_monitor_timer'):
+                    self._rainbow_monitor_timer.setInterval(100)  # Normal rainbow color file monitoring
                                                           
                 try:
                     self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontSavePainterState)
@@ -5930,8 +5996,6 @@ class ESPWindow(QtWidgets.QWidget):
                 
         except Exception:
             pass
-
-
 
     def check_and_update_window_size(self):
         """Check for CS2 window size and position changes and update overlay accordingly."""
@@ -8919,7 +8983,7 @@ if __name__ == "__main__":
         except Exception:
             pass
         sys.exit(1)
-    if is_debug_mode():
+    if is_debug_mode() and not is_low_cpu_mode():
         print(f"[DEBUG] Running in {SELECTED_MODE.upper()} mode")
     try:
         multiprocessing.freeze_support()
@@ -9018,10 +9082,10 @@ if __name__ == "__main__":
         
         remove_lock_file()
         
-    if is_debug_mode():
+    if is_debug_mode() and not is_low_cpu_mode():
         print("[DEBUG] Starting all processes...")
     for i, p in enumerate(procs):
-        if is_debug_mode():
+        if is_debug_mode() and not is_low_cpu_mode():
             print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
         time.sleep(0.5)
