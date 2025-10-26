@@ -7748,7 +7748,7 @@ def bhop():
     import keyboard
     
                       
-    TICK_64_MS = 0.0156
+    TICK_64_MS = 0.009
     exit_key = "end"
     toggle_key = "+"
     
@@ -7831,10 +7831,10 @@ def bhop():
 
     def send_space(duration):
         try:
-            keyboard.send("space")
-            time.sleep(duration)
+            keyboard.press("space")
+            # Don't sleep here - let the main loop handle timing
         except Exception:
-            time.sleep(duration)
+            pass
     
     def press_space():
         """Press and hold space key"""
@@ -7889,6 +7889,8 @@ def bhop():
         bhop_key_pressed = False
         space_pressed = False
         last_jump_time = 0
+        jump_state = "idle"  # "idle", "jumping", "waiting"
+        jump_start_time = 0
         
         while True:
             try:
@@ -7906,20 +7908,32 @@ def bhop():
                     key_currently_pressed = keyboard.is_pressed(activation_key)
                     current_time = time.time()
                     
-                    if key_currently_pressed and toggle:
-                        if not bhop_key_pressed:
-                            bhop_key_pressed = True
-                            send_space(TICK_64_MS * 1.5)
-                            last_jump_time = current_time
-                        else:
-                            if current_time - last_jump_time >= TICK_64_MS * 3:
-                                send_space(TICK_64_MS * 3)
-                                last_jump_time = current_time
-                    else:
-                        if bhop_key_pressed:
-                            bhop_key_pressed = False
+                    # Handle jump state machine
+                    if jump_state == "jumping":
+                        # Check if we should release the space key
+                        if current_time - jump_start_time >= TICK_64_MS * 1.5:
                             release_space()
-                            time.sleep(0.001)
+                            jump_state = "waiting"
+                            last_jump_time = current_time
+                    
+                    if key_currently_pressed and toggle:
+                        if jump_state == "idle":
+                            # Start first jump
+                            press_space()
+                            jump_state = "jumping"
+                            jump_start_time = current_time
+                            bhop_key_pressed = True
+                        elif jump_state == "waiting" and current_time - last_jump_time >= TICK_64_MS * 3:
+                            # Start subsequent jump
+                            press_space()
+                            jump_state = "jumping"
+                            jump_start_time = current_time
+                    else:
+                        # Key released
+                        if jump_state == "jumping":
+                            release_space()
+                        jump_state = "idle"
+                        bhop_key_pressed = False
                     
                     if keyboard.is_pressed(toggle_key):
                         toggle = not toggle
@@ -7927,19 +7941,20 @@ def bhop():
                     
                     time.sleep(0.001)
                 else:
-                    if bhop_key_pressed:
-                        bhop_key_pressed = False
+                    if jump_state == "jumping":
                         release_space()
+                    jump_state = "idle"
+                    bhop_key_pressed = False
                     time.sleep(0.1)
                     
             except KeyboardInterrupt:
-                if bhop_key_pressed:
+                if jump_state == "jumping":
                     release_space()
                 break
             except Exception:
-                if bhop_key_pressed:
-                    bhop_key_pressed = False
+                if jump_state == "jumping":
                     release_space()
+                jump_state = "idle"
                 time.sleep(1)
 
     def start_main_thread(settings):
