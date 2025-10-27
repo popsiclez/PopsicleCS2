@@ -544,7 +544,7 @@ class LoaderGUI:
         folder_name = os.path.basename(loader_directory)
         run_local_check = ttk.Checkbutton(
             debug_frame,
-            text=f"Run Locally ({folder_name}) 📁",
+            text=f"Run Locally ({folder_name}\script.pyw) 📁",
             variable=self.run_local_var,
             style='Modern.TCheckbutton'
         )
