@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "1.1.0"
+LOADER_VERSION = "1.1.1"
 
 # Try to import requests, fallback if not available
 try:
@@ -292,6 +292,7 @@ class LoaderGUI:
         # Config variables
         self.preload_var = tk.BooleanVar()
         self.config_var = tk.StringVar()
+        self.default_config_var = tk.BooleanVar()
         
         # Get the actual directory where the executable/script is located for configs
         if getattr(sys, 'frozen', False):
@@ -573,6 +574,15 @@ class LoaderGUI:
         )
         preload_check.pack(anchor="w", padx=15, pady=6)
         
+        # Default config checkbox
+        self.default_config_check = ttk.Checkbutton(
+            config_frame,
+            text="Default Config 📋",
+            variable=self.default_config_var,
+            style='Modern.TCheckbutton',
+            command=self.toggle_default_config
+        )
+        
         # Config dropdown
         self.config_label = tk.Label(
             config_frame,
@@ -593,9 +603,11 @@ class LoaderGUI:
         
         # Initially hide dropdown if preload is off
         if not self.preload_var.get():
+            self.default_config_check.pack_forget()
             self.config_label.pack_forget()
             self.config_combo.pack_forget()
         else:
+            self.default_config_check.pack(anchor="w", padx=15, pady=(0, 6))
             self.config_label.pack(anchor="w", padx=15, pady=(6, 2))
             self.config_combo.pack(anchor="w", padx=15, pady=(0, 6))
         
@@ -666,18 +678,44 @@ class LoaderGUI:
     def toggle_config_dropdown(self):
         """Show/hide config dropdown based on preload checkbox state"""
         if self.preload_var.get():
-            # Show dropdown and label
+            # Show default config checkbox, dropdown and label
+            self.default_config_check.pack(anchor="w", padx=15, pady=(0, 6))
             self.config_label.pack(anchor="w", padx=15, pady=(6, 2))
             self.config_combo.pack(anchor="w", padx=15, pady=(0, 6))
             # Set default selection to first config if available
             if self.config_files and not self.config_var.get():
                 self.config_var.set(self.config_files[0])
         else:
-            # Hide dropdown and label
+            # Hide default config checkbox, dropdown and label
+            self.default_config_check.pack_forget()
             self.config_label.pack_forget()
             self.config_combo.pack_forget()
             # Clear selection when hiding
             self.config_var.set("")
+            self.default_config_var.set(False)
+        
+        # Resize window to fit content while keeping current position
+        self.root.update_idletasks()
+        required_height = self.root.winfo_reqheight()
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        self.root.geometry(f"480x{required_height}+{current_x}+{current_y}")
+    
+    def toggle_default_config(self):
+        """Show/hide config dropdown based on default config checkbox state"""
+        if self.default_config_var.get():
+            # Hide config dropdown and label when default config is selected
+            self.config_label.pack_forget()
+            self.config_combo.pack_forget()
+            # Clear selection when hiding
+            self.config_var.set("")
+        else:
+            # Show config dropdown and label when default config is not selected
+            self.config_label.pack(anchor="w", padx=15, pady=(6, 2))
+            self.config_combo.pack(anchor="w", padx=15, pady=(0, 6))
+            # Set default selection to first config if available
+            if self.config_files and not self.config_var.get():
+                self.config_var.set(self.config_files[0])
         
         # Resize window to fit content while keeping current position
         self.root.update_idletasks()
@@ -888,18 +926,22 @@ class LoaderGUI:
         """Background thread for launching script"""
         try:
             # Apply config if enabled and a config is selected
-            if self.preload_var.get() and self.config_var.get():
+            if self.preload_var.get():
                 self.root.after(0, lambda: self.update_status("Pre-Loading Config..."))
                 self.root.after(0, lambda: self.update_progress(5))
                 time.sleep(1.5)  # Add delay for config pre-loading stage
                 try:
-                    # Create selected_config.txt file with the selected config name
+                    # Create selected_config.txt file with the selected config name or "default"
                     selected_config_file = os.path.join(os.getcwd(), 'selected_config.txt')
-                    selected_config = self.config_var.get()
+                    if self.default_config_var.get():
+                        selected_config = "default"
+                    else:
+                        selected_config = self.config_var.get()
+                        if selected_config:
+                            # Strip .json extension if present
+                            if selected_config.endswith('.json'):
+                                selected_config = selected_config[:-5]  # Remove .json (5 characters)
                     if selected_config:
-                        # Strip .json extension if present
-                        if selected_config.endswith('.json'):
-                            selected_config = selected_config[:-5]  # Remove .json (5 characters)
                         import io
                         with io.open(selected_config_file, 'w', encoding='utf-8', newline='') as f:
                             f.write(selected_config)
