@@ -1,5 +1,5 @@
 VERSION = "1.0.9"
-STARTUP_ENABLED = False
+STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
 import threading
@@ -764,6 +764,7 @@ DEFAULT_SETTINGS = {
     "camera_lock_key": "V",
     "camera_lock_draw_range_lines": 0,
     "camera_lock_line_width": 2,
+    "camera_lock_line_transparency": 80,
     "camera_lock_use_radius": 0,
     "camera_lock_draw_radius": 0,
     "camera_lock_radius": 100,
@@ -2103,6 +2104,16 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.camera_lock_line_width_slider, "Adjust the length of camera lock range lines. Higher values make lines wider/longer across the screen.")
         trigger_layout.addWidget(self.camera_lock_line_width_slider)
 
+        self.lbl_camera_lock_line_transparency = QtWidgets.QLabel(f"Camera Lock Line Transparency: ({self.settings.get('camera_lock_line_transparency', 80)})")
+        trigger_layout.addWidget(self.lbl_camera_lock_line_transparency)
+        self.camera_lock_line_transparency_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.camera_lock_line_transparency_slider.setMinimum(0)
+        self.camera_lock_line_transparency_slider.setMaximum(255)
+        self.camera_lock_line_transparency_slider.setValue(self.settings.get('camera_lock_line_transparency', 80))
+        self.camera_lock_line_transparency_slider.valueChanged.connect(self.update_camera_lock_line_transparency_label)
+        self.set_tooltip_if_enabled(self.camera_lock_line_transparency_slider, "Adjust the transparency of camera lock range lines. 0 = invisible, 255 = fully opaque.")
+        trigger_layout.addWidget(self.camera_lock_line_transparency_slider)
+
         self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
         
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
@@ -3209,6 +3220,8 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
             if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
                 self.camera_lock_line_width_slider.setValue(self.settings.get("camera_lock_line_width", 2))
+            if hasattr(self, 'camera_lock_line_transparency_slider') and self.camera_lock_line_transparency_slider:
+                self.camera_lock_line_transparency_slider.setValue(self.settings.get("camera_lock_line_transparency", 80))
             if hasattr(self, 'camera_lock_use_radius_cb') and self.camera_lock_use_radius_cb:
                 self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
             if hasattr(self, 'camera_lock_draw_radius_cb') and self.camera_lock_draw_radius_cb:
@@ -3315,6 +3328,8 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.update_camera_lock_smoothness_label()
             if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
                 self.update_camera_lock_tolerance_label()
+            if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
+                self.update_camera_lock_line_width_label()
             
 
             theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -3964,6 +3979,9 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if getattr(self, "camera_lock_line_width_slider", None):
             self.settings["camera_lock_line_width"] = self.camera_lock_line_width_slider.value()
+        
+        if getattr(self, "camera_lock_line_transparency_slider", None):
+            self.settings["camera_lock_line_transparency"] = self.camera_lock_line_transparency_slider.value()
         
         if getattr(self, "camera_lock_use_radius_cb", None):
             self.settings["camera_lock_use_radius"] = 1 if self.camera_lock_use_radius_cb.isChecked() else 0
@@ -5059,6 +5077,11 @@ class ConfigWindow(QtWidgets.QWidget):
     def update_camera_lock_line_width_label(self):
         val = self.camera_lock_line_width_slider.value()
         self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Width: ({val})")
+        self.save_settings()
+
+    def update_camera_lock_line_transparency_label(self):
+        val = self.camera_lock_line_transparency_slider.value()
+        self.lbl_camera_lock_line_transparency.setText(f"Camera Lock Line Transparency: ({val})")
         self.save_settings()
 
     def update_camera_lock_radius_label(self):
@@ -6510,10 +6533,10 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             else:
                 line_color_hex = settings.get('menu_theme_color', '#FF0000')
             line_color = QtGui.QColor(line_color_hex)
-            line_color.setAlpha(80)  # Made more transparent (was 180)
+            line_color.setAlpha(settings.get('camera_lock_line_transparency', 80))
         except Exception:
             line_color = QtGui.QColor('#FF0000')
-            line_color.setAlpha(80)  # Made more transparent (was 180)
+            line_color.setAlpha(settings.get('camera_lock_line_transparency', 80))
             
         pen = QtGui.QPen(line_color)
         pen.setWidth(0.1)
