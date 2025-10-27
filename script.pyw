@@ -1,4 +1,4 @@
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
@@ -1097,16 +1097,23 @@ def load_settings():
             with open(SELECTED_CONFIG_FILE, 'r', encoding='utf-8') as f:
                 selected_config_name = f.read().strip()
                 if selected_config_name:
-                    selected_config_path = os.path.join(CONFIG_DIR, f"{selected_config_name}.json")
-                    if os.path.exists(selected_config_path):
-                        config_to_load = selected_config_path
-                        LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
+                    if selected_config_name == "default":
+                        # Use default settings instead of loading from file
+                        LOADED_CONFIG_NAME = "default"
                         if is_debug_mode() and not is_low_cpu_mode():
-                            print(f"[DEBUG] Loading selected config: {selected_config_name}")
-                            print(f"[DEBUG] Config path: {selected_config_path}")
+                            print(f"[DEBUG] Loading default settings")
+                        return DEFAULT_SETTINGS.copy()
                     else:
-                        if is_debug_mode() and not is_low_cpu_mode():
-                            print(f"[DEBUG] Selected config file does not exist: {selected_config_path}")
+                        selected_config_path = os.path.join(CONFIG_DIR, f"{selected_config_name}.json")
+                        if os.path.exists(selected_config_path):
+                            config_to_load = selected_config_path
+                            LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
+                            if is_debug_mode() and not is_low_cpu_mode():
+                                print(f"[DEBUG] Loading selected config: {selected_config_name}")
+                                print(f"[DEBUG] Config path: {selected_config_path}")
+                        else:
+                            if is_debug_mode() and not is_low_cpu_mode():
+                                print(f"[DEBUG] Selected config file does not exist: {selected_config_path}")
                 else:
                     if is_debug_mode() and not is_low_cpu_mode():
                         print(f"[DEBUG] Selected config name is empty")
