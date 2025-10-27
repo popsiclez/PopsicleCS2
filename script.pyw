@@ -1,5 +1,5 @@
 VERSION = "1.0.9"
-STARTUP_ENABLED = True
+STARTUP_ENABLED = False
 CONFIG_WINDOW = None
          
 import threading
@@ -6525,11 +6525,13 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
         line_start_x = (window_width - line_width) / 2
         line_end_x = line_start_x + line_width
         
-        if 0 <= upper_line_y <= window_height:
-            upper_line = scene.addLine(line_start_x, upper_line_y, line_end_x, upper_line_y, pen)
-            
-        if 0 <= lower_line_y <= window_height:
-            lower_line = scene.addLine(line_start_x, lower_line_y, line_end_x, lower_line_y, pen)
+        # Only draw upper and lower lines if tolerance > 1
+        if tolerance > 1:
+            if 0 <= upper_line_y <= window_height:
+                upper_line = scene.addLine(line_start_x, upper_line_y, line_end_x, upper_line_y, pen)
+                
+            if 0 <= lower_line_y <= window_height:
+                lower_line = scene.addLine(line_start_x, lower_line_y, line_end_x, lower_line_y, pen)
             
         center_pen = QtGui.QPen(line_color)
         center_pen.setWidth(0)
