@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "1.1.1"
+LOADER_VERSION = "1.1.2"
 
 # Try to import requests, fallback if not available
 try:
@@ -38,6 +38,16 @@ def cleanup_loader_temp_files():
             except Exception as e:
                 print(f"[LOADER CLEANUP] Error removing {temp_file}: {e}")
         LOADER_TEMP_FILES.clear()
+        
+        # Clean up temp directory if it exists and is empty
+        try:
+            if os.path.exists(TEMP_DIR) and os.path.isdir(TEMP_DIR):
+                # Check if directory is empty
+                if not os.listdir(TEMP_DIR):
+                    os.rmdir(TEMP_DIR)
+                    print(f"[LOADER CLEANUP] Removed empty temp directory: {TEMP_DIR}")
+        except Exception as e:
+            print(f"[LOADER CLEANUP] Error removing temp directory: {e}")
     except Exception as e:
         print(f"[LOADER CLEANUP] Error during cleanup: {e}")
 
@@ -51,6 +61,11 @@ URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/s
 TITLE_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/title.txt"
 VERSION_URL = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/loaderversion.txt"
 LOADED_SIGNAL_FILE = "script_loaded.signal"
+
+# Temp directory for temporary files
+TEMP_DIR = os.path.join(os.getcwd(), 'temp')
+# Ensure temp directory exists
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -544,7 +559,7 @@ class LoaderGUI:
         folder_name = os.path.basename(loader_directory)
         run_local_check = ttk.Checkbutton(
             debug_frame,
-            text=f"Run Locally ({folder_name}\script.pyw) 📁",
+            text=f"Run Locally ({folder_name}\\script.pyw) 📁",
             variable=self.run_local_var,
             style='Modern.TCheckbutton'
         )
@@ -807,7 +822,7 @@ class LoaderGUI:
         
         try:
             # Create terminate signal file to signal script to shut down
-            terminate_signal_file = os.path.join(os.getcwd(), 'terminate_now.signal')
+            terminate_signal_file = os.path.join(TEMP_DIR, 'terminate_now.signal')
             try:
                 with open(terminate_signal_file, 'w') as f:
                     f.write('terminate')
@@ -859,7 +874,7 @@ class LoaderGUI:
             ]
             
             for filename in cleanup_files:
-                filepath = os.path.join(os.getcwd(), filename)
+                filepath = os.path.join(TEMP_DIR, filename)
                 try:
                     if os.path.exists(filepath):
                         os.remove(filepath)
@@ -932,7 +947,7 @@ class LoaderGUI:
                 time.sleep(1.5)  # Add delay for config pre-loading stage
                 try:
                     # Create selected_config.txt file with the selected config name or "default"
-                    selected_config_file = os.path.join(os.getcwd(), 'selected_config.txt')
+                    selected_config_file = os.path.join(TEMP_DIR, 'selected_config.txt')
                     if self.default_config_var.get():
                         selected_config = "default"
                     else:
@@ -1033,7 +1048,7 @@ class LoaderGUI:
             add_loader_temp_file(tmp_path)
             
             # Create mode file
-            mode_file = os.path.join(os.getcwd(), 'selected_mode.txt')
+            mode_file = os.path.join(TEMP_DIR, 'selected_mode.txt')
             add_loader_temp_file(mode_file)
             try:
                 import io
@@ -1043,7 +1058,7 @@ class LoaderGUI:
                 pass
             
             # Create commands file
-            commands_file = os.path.join(os.getcwd(), 'commands.txt')
+            commands_file = os.path.join(TEMP_DIR, 'commands.txt')
             add_loader_temp_file(commands_file)
             try:
                 import io
@@ -1092,7 +1107,7 @@ class LoaderGUI:
                 self.root.after(0, lambda: self.enable_cancel_button())
             
             # Clean up loaded signal file
-            loaded_signal_path = os.path.join(os.getcwd(), LOADED_SIGNAL_FILE)
+            loaded_signal_path = os.path.join(TEMP_DIR, LOADED_SIGNAL_FILE)
             try:
                 if os.path.exists(loaded_signal_path):
                     os.remove(loaded_signal_path)
@@ -1298,7 +1313,7 @@ def console_main():
         add_loader_temp_file(tmp_path)
         
         # Create mode file to communicate with script
-        mode_file = os.path.join(os.getcwd(), 'selected_mode.txt')
+        mode_file = os.path.join(TEMP_DIR, 'selected_mode.txt')
         add_loader_temp_file(mode_file)  # Track mode file for cleanup
         try:
             import io
@@ -1308,7 +1323,7 @@ def console_main():
             pass
         
         # Create commands file to communicate selected features with script
-        commands_file = os.path.join(os.getcwd(), 'commands.txt')
+        commands_file = os.path.join(TEMP_DIR, 'commands.txt')
         add_loader_temp_file(commands_file)  # Track commands file for cleanup
         try:
             import io
@@ -1331,7 +1346,7 @@ def console_main():
             print("CS2.exe detected!")
         
         # Clean up any existing loaded signal file
-        loaded_signal_path = os.path.join(os.getcwd(), LOADED_SIGNAL_FILE)
+        loaded_signal_path = os.path.join(TEMP_DIR, LOADED_SIGNAL_FILE)
         try:
             if os.path.exists(loaded_signal_path):
                 os.remove(loaded_signal_path)
