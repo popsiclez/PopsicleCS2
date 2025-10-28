@@ -1,4 +1,4 @@
-VERSION = "1.0.9"
+VERSION = "1.1.0"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
@@ -86,7 +86,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
         'CONSOLE_LOCK_FILE' if 'CONSOLE_LOCK_FILE' in globals() else None,
         'MODE_FILE' if 'MODE_FILE' in globals() else None,
         'RAINBOW_COLOR_FILE' if 'RAINBOW_COLOR_FILE' in globals() else None,
-        os.path.join(os.getcwd(), 'panic_shutdown.signal')
+        os.path.join(TEMP_DIR, 'panic_shutdown.signal')
     ]
     # Only delete commands.txt on final cleanup
     if final_cleanup and 'COMMANDS_FILE' in globals():
@@ -111,7 +111,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
     # Remove *.signal and *.lock files in cwd
     try:
         import glob
-        signal_files = glob.glob(os.path.join(os.getcwd(), '*.signal'))
+        signal_files = glob.glob(os.path.join(TEMP_DIR, '*.signal'))
         for signal_file in signal_files:
             try:
                 os.remove(signal_file)
@@ -121,7 +121,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
             except Exception as e:
                 if debug_mode:
                     print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
-        lock_files = glob.glob(os.path.join(os.getcwd(), '*.lock'))
+        lock_files = glob.glob(os.path.join(TEMP_DIR, '*.lock'))
         for lock_file in lock_files:
             try:
                 os.remove(lock_file)
@@ -156,6 +156,22 @@ def cleanup_all_temporary_files(final_cleanup=False):
     except Exception as e:
         if debug_mode:
             print(f"[CLEANUP] Error cleaning temp scripts: {e}")
+    
+    # Remove temp directory if it exists and is empty
+    try:
+        if os.path.exists(TEMP_DIR):
+            # Check if directory is empty
+            if not os.listdir(TEMP_DIR):
+                os.rmdir(TEMP_DIR)
+                if debug_mode:
+                    print(f"[CLEANUP] Removed empty temp directory: {TEMP_DIR}")
+            else:
+                if debug_mode:
+                    print(f"[CLEANUP] Temp directory not empty, preserving: {TEMP_DIR}")
+    except Exception as e:
+        if debug_mode:
+            print(f"[CLEANUP] Error removing temp directory: {e}")
+    
     cleanup_logging()
     if debug_mode:
         print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
@@ -550,16 +566,19 @@ def trigger_graphics_restart():
     except Exception:
         pass
           
+TEMP_DIR = os.path.join(os.getcwd(), 'temp')
+# Ensure temp directory exists
+os.makedirs(TEMP_DIR, exist_ok=True)
 CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
-SELECTED_CONFIG_FILE = os.path.join(os.getcwd(), 'selected_config.txt')
-RAINBOW_COLOR_FILE = os.path.join(os.getcwd(), 'rainbow_color.json')
-TERMINATE_SIGNAL_FILE = os.path.join(os.getcwd(), 'terminate_now.signal')
-LOCK_FILE = os.path.join(os.getcwd(), 'script_running.lock')
-KEYBIND_COOLDOWNS_FILE = os.path.join(os.getcwd(), 'keybind_cooldowns.json')
-COMMANDS_FILE = os.path.join(os.getcwd(), 'commands.txt')
-CONSOLE_LOCK_FILE = os.path.join(os.getcwd(), 'debug_console.lock')
-MODE_FILE = os.path.join(os.getcwd(), 'selected_mode.txt')
+SELECTED_CONFIG_FILE = os.path.join(TEMP_DIR, 'selected_config.txt')
+RAINBOW_COLOR_FILE = os.path.join(TEMP_DIR, 'rainbow_color.json')
+TERMINATE_SIGNAL_FILE = os.path.join(TEMP_DIR, 'terminate_now.signal')
+LOCK_FILE = os.path.join(TEMP_DIR, 'script_running.lock')
+KEYBIND_COOLDOWNS_FILE = os.path.join(TEMP_DIR, 'keybind_cooldowns.json')
+COMMANDS_FILE = os.path.join(TEMP_DIR, 'commands.txt')
+CONSOLE_LOCK_FILE = os.path.join(TEMP_DIR, 'debug_console.lock')
+MODE_FILE = os.path.join(TEMP_DIR, 'selected_mode.txt')
 
 # Global variable to track the loaded config name for ESP overlay display
 LOADED_CONFIG_NAME = "autosave"
@@ -757,18 +776,18 @@ DEFAULT_SETTINGS = {
     "aim_visibility_check": 0,
     "aim_disable_when_crosshair_on_enemy": 0,
     "require_aimkey": 1,
-    "camera_lock_enabled": 0,
-    "camera_lock_smoothness": 5,
-    "camera_lock_tolerance": 5,
-    "camera_lock_target_bone": 1,
-    "camera_lock_key": "V",
-    "camera_lock_draw_range_lines": 0,
-    "camera_lock_line_width": 2,
-    "camera_lock_line_transparency": 80,
-    "camera_lock_use_radius": 0,
-    "camera_lock_draw_radius": 0,
-    "camera_lock_radius": 100,
-    "camera_lock_spotted_check": 0,
+    "auto_crosshair_placement_enabled": 0,
+    "auto_crosshair_placement_smoothness": 5,
+    "auto_crosshair_placement_tolerance": 5,
+    "auto_crosshair_placement_target_bone": 1,
+    "AutoCrosshairPlacementKey": "V",
+    "auto_crosshair_placement_draw_range_lines": 1,
+    "auto_crosshair_placement_line_width": 2,
+    "auto_crosshair_placement_line_transparency": 80,
+    "auto_crosshair_placement_use_radius": 0,
+    "auto_crosshair_placement_draw_radius": 0,
+    "auto_crosshair_placement_radius": 100,
+    "auto_crosshair_placement_spotted_check": 0,
     "radius": 50,
     "AimKey": "C",
     "circle_opacity": 127,
@@ -835,7 +854,7 @@ DEFAULT_SETTINGS = {
     "skeleton_color": "#FFFFFF",
     "aim_circle_color": "#FF0000",
     "center_dot_color": "#FFFFFF",
-    "camera_lock_radius_color": "#FF0000",
+    "auto_crosshair_placement_radius_color": "#FF0000",
     "menu_theme_color": "#FF0000",
     "rainbow_fov": 0,
     "rainbow_center_dot": 0,
@@ -1267,6 +1286,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         esp_container = self.create_esp_container()
         trigger_container = self.create_trigger_container()
+        crosshair_container = self.create_crosshair_container()
         recoil_container = self.create_recoil_container()
         colors_container = self.create_colors_container()
         misc_container = self.create_misc_container()
@@ -1279,14 +1299,15 @@ class ConfigWindow(QtWidgets.QWidget):
         # Store tab containers and their info
         self.tab_containers = [
             (esp_container, "ESP 👁️"),
-            (trigger_container, "Trigger ⚡"),
+            (trigger_container, "Triggerbot ⚡"),
+            (crosshair_container, "Crosshair 🎯"),
             (recoil_container, "Recoil 🔫")
         ]
         
         # Add aim container for full mode
         if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
             aim_container = self.create_aim_container()
-            self.tab_containers.insert(1, (aim_container, "Aim 🎯"))
+            self.tab_containers.insert(1, (aim_container, "Aimlock 🔗"))
         
         # Add remaining containers to second row
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
@@ -1302,7 +1323,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 (config_container, "Config 📂"),
                 (colors_container, "Colors 🎨"),
                 (misc_container, "Misc ⚙️"),
-                (memory_container, "Memory⚠️")
+                (memory_container, "Memory🧠")
             ])
         
         # Add all containers to stacked widget
@@ -1311,78 +1332,54 @@ class ConfigWindow(QtWidgets.QWidget):
         
         # Create custom tab bar with proper centering
         tab_bar_widget = QtWidgets.QWidget()
-        tab_bar_widget.setMinimumHeight(96)  # Increase height to accommodate taller rows
+        # Remove fixed minimum height to allow dynamic scaling
         main_tab_layout = QtWidgets.QVBoxLayout()
-        main_tab_layout.setSpacing(6)  # Increase spacing between rows
+        main_tab_layout.setSpacing(0)  # Minimize spacing between rows
         main_tab_layout.setContentsMargins(8, 8, 8, 12)  # Increase all margins
         
         self.tab_buttons = []
         
-        # Split containers into top and bottom rows
-        top_row_containers = self.tab_containers[:4]  # First 4 (or less)
-        bottom_row_containers = self.tab_containers[4:]  # Remaining
+        # Create dynamic rows of maximum 4 tabs each with centering
+        tabs_per_row = 4
+        num_rows = (len(self.tab_containers) + tabs_per_row - 1) // tabs_per_row  # Ceiling division
         
-        # Create top row
-        top_row_widget = QtWidgets.QWidget()
-        top_row_widget.setMinimumHeight(44)  # Increase height even more for buttons
-        top_row_layout = QtWidgets.QHBoxLayout()
-        top_row_layout.setSpacing(2)
-        top_row_layout.setContentsMargins(0, 4, 0, 8)  # Increase bottom margin for top row
-        
-        for i, (container, label) in enumerate(top_row_containers):
-            button = QtWidgets.QPushButton(label)
-            button.setCheckable(True)
-            button.setObjectName("tab_button")
-            button.setMinimumHeight(32)
-            button.setMaximumHeight(32)
-            button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
-            button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
-            # Special handling for Memory⚠️ tab
-            if label == "Memory⚠️":
-                button.clicked.connect(lambda checked, index=i: self.handle_memory_tab_click(index))
-            else:
-                button.clicked.connect(lambda checked, index=i: self.switch_tab(index))
+        for row_idx in range(num_rows):
+            start_idx = row_idx * tabs_per_row
+            end_idx = min(start_idx + tabs_per_row, len(self.tab_containers))
+            row_containers = self.tab_containers[start_idx:end_idx]
             
-            top_row_layout.addWidget(button)
-            self.tab_buttons.append(button)
-        
-        top_row_widget.setLayout(top_row_layout)
-        main_tab_layout.addWidget(top_row_widget)
-        
-        # Create bottom row (centered with matching button sizes)
-        if bottom_row_containers:
-            bottom_row_widget = QtWidgets.QWidget()
-            bottom_row_widget.setMinimumHeight(40)  # Increase height for buttons
-            bottom_row_layout = QtWidgets.QHBoxLayout()
-            bottom_row_layout.setSpacing(2)
-            bottom_row_layout.setContentsMargins(0, 4, 0, 4)  # Increase vertical margins
+            row_widget = QtWidgets.QWidget()
+            row_widget.setMinimumHeight(40)  # Reduce height for tighter rows
+            row_layout = QtWidgets.QHBoxLayout()
+            row_layout.setSpacing(2)
+            row_layout.setContentsMargins(0, 0, 0, 0)  # Minimize margins between rows
             
-            # Add stretching spacer on the left
-            bottom_row_layout.addStretch()
+            # Add stretching spacer on the left for centering
+            row_layout.addStretch()
             
-            for i, (container, label) in enumerate(bottom_row_containers):
+            for i, (container, label) in enumerate(row_containers):
                 button = QtWidgets.QPushButton(label)
                 button.setCheckable(True)
                 button.setObjectName("tab_button")
                 button.setMinimumHeight(32)
                 button.setMaximumHeight(32)
-                button.setMinimumWidth(110)  # Set fixed width to match top row buttons
-                button.setMaximumWidth(110)  # Set fixed width to match top row buttons
-                button_index = len(top_row_containers) + i
-                # Special handling for Memory⚠️ tab
-                if label == "Memory⚠️":
+                button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
+                button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
+                button_index = start_idx + i
+                # Special handling for Memory🧠 tab
+                if label == "Memory🧠":
                     button.clicked.connect(lambda checked, index=button_index: self.handle_memory_tab_click(index))
                 else:
                     button.clicked.connect(lambda checked, index=button_index: self.switch_tab(index))
                 
-                bottom_row_layout.addWidget(button)
+                row_layout.addWidget(button)
                 self.tab_buttons.append(button)
             
-            # Add stretching spacer on the right
-            bottom_row_layout.addStretch()
+            # Add stretching spacer on the right for centering
+            row_layout.addStretch()
             
-            bottom_row_widget.setLayout(bottom_row_layout)
-            main_tab_layout.addWidget(bottom_row_widget)
+            row_widget.setLayout(row_layout)
+            main_tab_layout.addWidget(row_widget)
         
         # Set first tab as active
         if self.tab_buttons:
@@ -1393,7 +1390,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         # Main layout
         main_layout = QtWidgets.QVBoxLayout()
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(0)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.addWidget(self.header_label)
         main_layout.addWidget(tab_bar_widget)
@@ -1488,7 +1485,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.tab_content_widget.setCurrentIndex(index)
 
     def handle_memory_tab_click(self, index):
-        """Handle clicking on Memory⚠️ tab with warning dialog"""
+        """Handle clicking on Memory🧠 tab with warning dialog"""
         # Show warning dialog if not shown this session
         if not self._memory_warning_shown:
             # Pause rainbow timer to prevent interference
@@ -1766,7 +1763,7 @@ class ConfigWindow(QtWidgets.QWidget):
         esp_layout.setContentsMargins(6, 6, 6, 6)
         esp_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        esp_label = QtWidgets.QLabel("ESP Settings")
+        esp_label = QtWidgets.QLabel("ESP 👁️")
         esp_label.setAlignment(QtCore.Qt.AlignCenter)
         esp_label.setMinimumHeight(20)
         esp_layout.addWidget(esp_label)
@@ -1945,7 +1942,7 @@ class ConfigWindow(QtWidgets.QWidget):
         trigger_layout.setContentsMargins(6, 6, 6, 6)
         trigger_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        trigger_label = QtWidgets.QLabel("TriggerBot")
+        trigger_label = QtWidgets.QLabel("Triggerbot ⚡")
         trigger_label.setAlignment(QtCore.Qt.AlignCenter)
         trigger_label.setMinimumHeight(18)
         trigger_layout.addWidget(trigger_label)
@@ -1957,7 +1954,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-
         self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Head-Only Mode")
         self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
         self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
@@ -1965,14 +1961,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_head_only_cb)
 
-
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
         self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
         self.triggerbot_burst_mode_cb.stateChanged.connect(self.save_settings)
         self.set_tooltip_if_enabled(self.triggerbot_burst_mode_cb, "Fires a limited number of shots in bursts instead of continuous shooting for better recoil control.")
         self.triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_mode_cb)
-
 
         self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_burst_shots_slider.setMinimum(2)
@@ -1986,21 +1980,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_burst_shots_slider.setMinimumHeight(18)
         self.triggerbot_burst_shots_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_shots_slider)
-        
-
-        self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.triggerbot_delay_slider.setMinimum(0)
-        self.triggerbot_delay_slider.setMaximum(1000)
-        self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
-        self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
-        self.set_tooltip_if_enabled(self.triggerbot_delay_slider, "Delay in milliseconds between each shot to control fire rate. Higher values = slower shooting.")
-        self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.settings.get('triggerbot_between_shots_delay', 30)})")
-        self.lbl_delay.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_delay)
-        self.triggerbot_delay_slider.setMinimumHeight(18)
-        self.triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.triggerbot_delay_slider)
-
 
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
@@ -2015,153 +1994,30 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_first_shot_delay_slider.setValue(current_value)
         self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_triggerbot_first_shot_delay_label)
         self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Set to 0 for instant shooting, higher values add reaction time delay.")
-        self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({current_value})")
+        self.lbl_first_shot_delay = QtWidgets.QLabel(f"Triggerbot - First Shot Delay (ms): ({current_value})")
         self.lbl_first_shot_delay.setMinimumHeight(16)
         trigger_layout.addWidget(self.lbl_first_shot_delay)
         self.triggerbot_first_shot_delay_slider.setMinimumHeight(18)
         self.triggerbot_first_shot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_first_shot_delay_slider)
 
-
-        self.camera_lock_cb = QtWidgets.QCheckBox("Camera Lock")
-        self.camera_lock_cb.setChecked(self.settings.get("camera_lock_enabled", 0) == 1)
-        self.camera_lock_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_cb, "Automatically keeps your camera aligned with the selected body part when the triggerbot key is held. Uses the same key as triggerbot.")
-        self.camera_lock_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_cb)
-
-
-        self.camera_lock_target_label = QtWidgets.QLabel("Camera Lock Target:")
-        trigger_layout.addWidget(self.camera_lock_target_label)
-        self.camera_lock_target_combo = QtWidgets.QComboBox()
-        for mode_id, mode_info in BONE_TARGET_MODES.items():
-            self.camera_lock_target_combo.addItem(mode_info["name"])
-        current_target = self.settings.get('camera_lock_target_bone', 1)
-        self.camera_lock_target_combo.setCurrentIndex(current_target)
-        self.camera_lock_target_combo.currentIndexChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_target_combo, "Choose which body part the camera lock should target when active.")
-        self.camera_lock_target_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_target_combo)
-
-
-        self.camera_lock_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        
-        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.camera_lock_smoothness_slider.setMinimum(20)
-            self.camera_lock_smoothness_slider.setMaximum(50)
-            smoothness_value = max(20, min(50, self.settings.get("camera_lock_smoothness", 20)))
-        else:
-            self.camera_lock_smoothness_slider.setMinimum(1)
-            self.camera_lock_smoothness_slider.setMaximum(50)
-            smoothness_value = max(1, min(50, self.settings.get("camera_lock_smoothness", 5)))
-            
-        self.camera_lock_smoothness_slider.setValue(smoothness_value)
-        self.camera_lock_smoothness_slider.valueChanged.connect(self.update_camera_lock_smoothness_label)
-        self.set_tooltip_if_enabled(self.camera_lock_smoothness_slider, "Controls how aggressively camera lock adjusts to head level. Lower = less smoothness/slower, higher = more smoothness/faster.")
-        self.lbl_camera_lock_smoothness = QtWidgets.QLabel(f"Camera Lock Smoothness: ({smoothness_value})")
-        self.lbl_camera_lock_smoothness.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_camera_lock_smoothness)
-        self.camera_lock_smoothness_slider.setMinimumHeight(18)
-        self.camera_lock_smoothness_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_smoothness_slider)
-
-
-        self.camera_lock_tolerance_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        
-        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.camera_lock_tolerance_slider.setMinimum(8)
-            self.camera_lock_tolerance_slider.setMaximum(50)
-            tolerance_value = max(8, self.settings.get("camera_lock_tolerance", 8))
-        else:
-            self.camera_lock_tolerance_slider.setMinimum(1)
-            self.camera_lock_tolerance_slider.setMaximum(50)
-            tolerance_value = self.settings.get("camera_lock_tolerance", 5)
-            
-        self.camera_lock_tolerance_slider.setValue(tolerance_value)
-        self.camera_lock_tolerance_slider.valueChanged.connect(self.update_camera_lock_tolerance_label)
-        self.set_tooltip_if_enabled(self.camera_lock_tolerance_slider, "Controls the dead zone in pixels. Camera lock only activates when you're more than this many pixels off target. Lower = more sensitive, higher = less sensitive.")
-        self.lbl_camera_lock_tolerance = QtWidgets.QLabel(f"Camera Lock Deadzone: ({tolerance_value}px)")
-        self.lbl_camera_lock_tolerance.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_camera_lock_tolerance)
-        self.camera_lock_tolerance_slider.setMinimumHeight(18)
-        self.camera_lock_tolerance_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_tolerance_slider)
-
-        self.camera_lock_draw_range_lines_cb = QtWidgets.QCheckBox("Draw Range Lines")
-        self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
-        self.camera_lock_draw_range_lines_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_draw_range_lines_cb, "Show horizontal lines indicating the camera lock target's vertical position and deadzone area on screen.")
-        self.camera_lock_draw_range_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_draw_range_lines_cb)
-
-        self.lbl_camera_lock_line_width = QtWidgets.QLabel(f"Camera Lock Line Width: ({self.settings.get('camera_lock_line_width', 2)})")
-        trigger_layout.addWidget(self.lbl_camera_lock_line_width)
-        self.camera_lock_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.camera_lock_line_width_slider.setMinimum(1)
-        self.camera_lock_line_width_slider.setMaximum(10)
-        self.camera_lock_line_width_slider.setValue(self.settings.get('camera_lock_line_width', 2))
-        self.camera_lock_line_width_slider.valueChanged.connect(self.update_camera_lock_line_width_label)
-        self.set_tooltip_if_enabled(self.camera_lock_line_width_slider, "Adjust the length of camera lock range lines. Higher values make lines wider/longer across the screen.")
-        trigger_layout.addWidget(self.camera_lock_line_width_slider)
-
-        self.lbl_camera_lock_line_transparency = QtWidgets.QLabel(f"Camera Lock Line Transparency: ({self.settings.get('camera_lock_line_transparency', 80)})")
-        trigger_layout.addWidget(self.lbl_camera_lock_line_transparency)
-        self.camera_lock_line_transparency_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.camera_lock_line_transparency_slider.setMinimum(0)
-        self.camera_lock_line_transparency_slider.setMaximum(255)
-        self.camera_lock_line_transparency_slider.setValue(self.settings.get('camera_lock_line_transparency', 80))
-        self.camera_lock_line_transparency_slider.valueChanged.connect(self.update_camera_lock_line_transparency_label)
-        self.set_tooltip_if_enabled(self.camera_lock_line_transparency_slider, "Adjust the transparency of camera lock range lines. 0 = invisible, 255 = fully opaque.")
-        trigger_layout.addWidget(self.camera_lock_line_transparency_slider)
-
-        self.camera_lock_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
-        
-        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.camera_lock_use_radius_cb.setChecked(True)
-            self.camera_lock_use_radius_cb.setEnabled(False)
-        else:
-            self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
-            
-        self.camera_lock_use_radius_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_use_radius_cb, "When enabled, camera lock will only target enemies within the radius circle instead of the entire screen.")
-        self.camera_lock_use_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_use_radius_cb)
-
-        self.camera_lock_draw_radius_cb = QtWidgets.QCheckBox("Draw Radius")
-        self.camera_lock_draw_radius_cb.setChecked(self.settings.get("camera_lock_draw_radius", 0) == 1)
-        self.camera_lock_draw_radius_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_draw_radius_cb, "Show a circle on screen indicating the camera lock targeting radius area.")
-        self.camera_lock_draw_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_draw_radius_cb)
-
-        self.camera_lock_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.camera_lock_radius_slider.setMinimum(25)
-        
-        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.camera_lock_radius_slider.setMaximum(150)
-            radius_value = min(150, self.settings.get('camera_lock_radius', 100))
-        else:
-            self.camera_lock_radius_slider.setMaximum(300)
-            radius_value = self.settings.get('camera_lock_radius', 100)
-            
-        self.camera_lock_radius_slider.setValue(radius_value)
-        self.camera_lock_radius_slider.valueChanged.connect(self.update_camera_lock_radius_label)
-        self.set_tooltip_if_enabled(self.camera_lock_radius_slider, "Adjust the size of the camera lock targeting radius. Larger values allow targeting enemies further from the center.")
-        self.lbl_camera_lock_radius = QtWidgets.QLabel(f"Camera Lock Radius: ({radius_value})")
-        trigger_layout.addWidget(self.lbl_camera_lock_radius)
-        trigger_layout.addWidget(self.camera_lock_radius_slider)
-
-        self.camera_lock_spotted_check_cb = QtWidgets.QCheckBox("Camera Lock Spotted Check")
-        self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
-        self.camera_lock_spotted_check_cb.stateChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.camera_lock_spotted_check_cb, "Only lock camera to enemies that are visible/spotted by your team to avoid suspicious targeting through walls.")
-        self.camera_lock_spotted_check_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        trigger_layout.addWidget(self.camera_lock_spotted_check_cb)
+        self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.triggerbot_delay_slider.setMinimum(0)
+        self.triggerbot_delay_slider.setMaximum(1000)
+        self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
+        self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
+        self.set_tooltip_if_enabled(self.triggerbot_delay_slider, "Delay in milliseconds between each shot to control fire rate. Higher values = slower shooting.")
+        self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.settings.get('triggerbot_between_shots_delay', 30)})")
+        self.lbl_delay.setMinimumHeight(16)
+        trigger_layout.addWidget(self.lbl_delay)
+        self.triggerbot_delay_slider.setMinimumHeight(18)
+        self.triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.triggerbot_delay_slider)
 
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
-        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot and camera lock. Hold this key while aiming at enemies to auto-shoot and maintain head level.")
+        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot and auto crosshair placement. Hold this key while aiming at enemies to auto-shoot and maintain head level.")
         self.trigger_key_btn.setMinimumHeight(22)
         self.trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_key_btn)
@@ -2178,7 +2034,7 @@ class ConfigWindow(QtWidgets.QWidget):
         recoil_layout.setContentsMargins(6, 6, 6, 6)
         recoil_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        recoil_label = QtWidgets.QLabel("Recoil Control")
+        recoil_label = QtWidgets.QLabel("Recoil 🔫")
         recoil_label.setAlignment(QtCore.Qt.AlignCenter)
         recoil_label.setMinimumHeight(18)
         recoil_layout.addWidget(recoil_label)
@@ -2369,7 +2225,7 @@ class ConfigWindow(QtWidgets.QWidget):
         aim_layout.setContentsMargins(6, 6, 6, 6)
         aim_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        aim_label = QtWidgets.QLabel("Aim Settings")
+        aim_label = QtWidgets.QLabel("Aimlock 🔗")
         aim_label.setAlignment(QtCore.Qt.AlignCenter)
         aim_label.setMinimumHeight(18)
         aim_layout.addWidget(aim_label)
@@ -2529,7 +2385,7 @@ class ConfigWindow(QtWidgets.QWidget):
         colors_layout.setContentsMargins(6, 6, 6, 6)
         colors_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        colors_label = QtWidgets.QLabel("Color Settings")
+        colors_label = QtWidgets.QLabel("Colors 🎨")
         colors_label.setAlignment(QtCore.Qt.AlignCenter)
         colors_label.setMinimumHeight(18)
         colors_layout.addWidget(colors_label)
@@ -2604,12 +2460,12 @@ class ConfigWindow(QtWidgets.QWidget):
         self.center_dot_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         crosshair_colors_layout.addWidget(self.center_dot_color_btn)
 
-        self.camera_lock_radius_color_btn = QtWidgets.QPushButton('Camera Lock Radius')
-        camera_lock_radius_hex = self.settings.get('camera_lock_radius_color', '#FF0000')
+        self.camera_lock_radius_color_btn = QtWidgets.QPushButton('Auto Crosshair Placement Radius')
+        camera_lock_radius_hex = self.settings.get('auto_crosshair_placement_radius_color', '#FF0000')
         camera_lock_radius_text_color = self.get_contrasting_text_color(camera_lock_radius_hex)
         self.camera_lock_radius_color_btn.setStyleSheet(f'background-color: {camera_lock_radius_hex}; color: {camera_lock_radius_text_color}; border-radius: 6px; font-weight: bold;')
-        self.camera_lock_radius_color_btn.clicked.connect(lambda: self.pick_color('camera_lock_radius_color', self.camera_lock_radius_color_btn))
-        self.set_tooltip_if_enabled(self.camera_lock_radius_color_btn, "Color of the camera lock radius circle that shows the targeting area.")
+        self.camera_lock_radius_color_btn.clicked.connect(lambda: self.pick_color('auto_crosshair_placement_radius_color', self.camera_lock_radius_color_btn))
+        self.set_tooltip_if_enabled(self.camera_lock_radius_color_btn, "Color of the auto crosshair placement radius circle that shows the targeting area.")
         self.camera_lock_radius_color_btn.setMinimumHeight(32)
         self.camera_lock_radius_color_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         crosshair_colors_layout.addWidget(self.camera_lock_radius_color_btn)
@@ -2671,7 +2527,7 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_layout.setContentsMargins(6, 6, 6, 6)
         misc_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        misc_label = QtWidgets.QLabel("Miscellaneous")
+        misc_label = QtWidgets.QLabel("Misc ⚙️")
         misc_label.setAlignment(QtCore.Qt.AlignCenter)
         misc_label.setMinimumHeight(18)
         misc_layout.addWidget(misc_label)
@@ -2816,7 +2672,7 @@ class ConfigWindow(QtWidgets.QWidget):
         memory_layout.setContentsMargins(6, 6, 6, 6)
         memory_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        memory_label = QtWidgets.QLabel("Memory Editing")
+        memory_label = QtWidgets.QLabel("Memory 🧠")
         memory_label.setAlignment(QtCore.Qt.AlignCenter)
         memory_label.setMinimumHeight(18)
         memory_layout.addWidget(memory_label)
@@ -2849,6 +2705,163 @@ class ConfigWindow(QtWidgets.QWidget):
         memory_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return memory_container
 
+    def create_crosshair_container(self):
+        crosshair_container = QtWidgets.QWidget()
+        crosshair_layout = QtWidgets.QVBoxLayout()
+        crosshair_layout.setSpacing(6)
+        crosshair_layout.setContentsMargins(6, 6, 6, 6)
+        crosshair_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        crosshair_label = QtWidgets.QLabel("Crosshair 🎯")
+        crosshair_label.setAlignment(QtCore.Qt.AlignCenter)
+        crosshair_label.setMinimumHeight(20)
+        crosshair_layout.addWidget(crosshair_label)
+
+        self.auto_crosshair_placement_cb = QtWidgets.QCheckBox("Auto Crosshair Placement")
+        self.auto_crosshair_placement_cb.setChecked(self.settings.get("auto_crosshair_placement_enabled", 0) == 1)
+        self.auto_crosshair_placement_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_cb, "Automatically keeps your crosshair aligned with the selected body part when the auto crosshair placement key is held.")
+        self.auto_crosshair_placement_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_cb)
+
+        self.auto_crosshair_placement_target_label = QtWidgets.QLabel("Auto Crosshair Placement Target:")
+        crosshair_layout.addWidget(self.auto_crosshair_placement_target_label)
+        self.auto_crosshair_placement_target_combo = QtWidgets.QComboBox()
+        for mode_id, mode_info in BONE_TARGET_MODES.items():
+            self.auto_crosshair_placement_target_combo.addItem(mode_info["name"])
+        current_target = self.settings.get('auto_crosshair_placement_target_bone', 1)
+        self.auto_crosshair_placement_target_combo.setCurrentIndex(current_target)
+        self.auto_crosshair_placement_target_combo.currentIndexChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_target_combo, "Choose which body part the auto crosshair placement should target when active.")
+        self.auto_crosshair_placement_target_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_target_combo)
+
+        self.auto_crosshair_placement_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.auto_crosshair_placement_smoothness_slider.setMinimum(0)
+            self.auto_crosshair_placement_smoothness_slider.setMaximum(50)
+            smoothness_value = max(0, min(50, self.settings.get("auto_crosshair_placement_smoothness", 20)))
+        else:
+            self.auto_crosshair_placement_smoothness_slider.setMinimum(0)
+            self.auto_crosshair_placement_smoothness_slider.setMaximum(50)
+            smoothness_value = max(0, min(50, self.settings.get("auto_crosshair_placement_smoothness", 5)))
+            
+        self.auto_crosshair_placement_smoothness_slider.setValue(smoothness_value)
+        self.auto_crosshair_placement_smoothness_slider.valueChanged.connect(self.update_auto_crosshair_placement_smoothness_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_smoothness_slider, "Controls how aggressively auto crosshair placement adjusts to head level. Lower = less smoothness/slower, higher = more smoothness/faster.")
+        self.lbl_auto_crosshair_placement_smoothness = QtWidgets.QLabel(f"Auto Crosshair Placement Smoothness: ({smoothness_value})")
+        self.lbl_auto_crosshair_placement_smoothness.setMinimumHeight(16)
+        crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_smoothness)
+        self.auto_crosshair_placement_smoothness_slider.setMinimumHeight(18)
+        self.auto_crosshair_placement_smoothness_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_smoothness_slider)
+
+        self.auto_crosshair_placement_tolerance_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.auto_crosshair_placement_tolerance_slider.setMinimum(0)
+            self.auto_crosshair_placement_tolerance_slider.setMaximum(50)
+            tolerance_value = max(0, self.settings.get("auto_crosshair_placement_tolerance", 8))
+        else:
+            self.auto_crosshair_placement_tolerance_slider.setMinimum(0)
+            self.auto_crosshair_placement_tolerance_slider.setMaximum(50)
+            tolerance_value = self.settings.get("auto_crosshair_placement_tolerance", 5)
+            
+        self.auto_crosshair_placement_tolerance_slider.setValue(tolerance_value)
+        self.auto_crosshair_placement_tolerance_slider.valueChanged.connect(self.update_auto_crosshair_placement_tolerance_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_tolerance_slider, "Controls the dead zone in pixels. Auto crosshair placement only activates when you're more than this many pixels off target. Lower = more sensitive, higher = less sensitive.")
+        self.lbl_auto_crosshair_placement_tolerance = QtWidgets.QLabel(f"Auto Crosshair Placement Deadzone: ({tolerance_value}px)")
+        self.lbl_auto_crosshair_placement_tolerance.setMinimumHeight(16)
+        crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_tolerance)
+        self.auto_crosshair_placement_tolerance_slider.setMinimumHeight(18)
+        self.auto_crosshair_placement_tolerance_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_tolerance_slider)
+
+        self.auto_crosshair_placement_draw_range_lines_cb = QtWidgets.QCheckBox("Draw Deadzone Lines")
+        self.auto_crosshair_placement_draw_range_lines_cb.setChecked(self.settings.get("auto_crosshair_placement_draw_range_lines", 0) == 1)
+        self.auto_crosshair_placement_draw_range_lines_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_draw_range_lines_cb, "Show horizontal lines indicating the auto crosshair placement target's vertical position and deadzone area on screen.")
+        self.auto_crosshair_placement_draw_range_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_draw_range_lines_cb)
+
+        self.lbl_auto_crosshair_placement_line_width = QtWidgets.QLabel(f"Deadzone Line Width: ({self.settings.get('auto_crosshair_placement_line_width', 2)})")
+        crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_line_width)
+        self.auto_crosshair_placement_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.auto_crosshair_placement_line_width_slider.setMinimum(1)
+        self.auto_crosshair_placement_line_width_slider.setMaximum(10)
+        self.auto_crosshair_placement_line_width_slider.setValue(self.settings.get('auto_crosshair_placement_line_width', 2))
+        self.auto_crosshair_placement_line_width_slider.valueChanged.connect(self.update_auto_crosshair_placement_line_width_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_line_width_slider, "Adjust the length of auto crosshair placement deadzone lines. Higher values make lines wider/longer across the screen.")
+        crosshair_layout.addWidget(self.auto_crosshair_placement_line_width_slider)
+
+        self.lbl_auto_crosshair_placement_line_transparency = QtWidgets.QLabel(f"Deadzone Line Transparency: ({self.settings.get('auto_crosshair_placement_line_transparency', 80)})")
+        crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_line_transparency)
+        self.auto_crosshair_placement_line_transparency_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.auto_crosshair_placement_line_transparency_slider.setMinimum(0)
+        self.auto_crosshair_placement_line_transparency_slider.setMaximum(255)
+        self.auto_crosshair_placement_line_transparency_slider.setValue(self.settings.get('auto_crosshair_placement_line_transparency', 80))
+        self.auto_crosshair_placement_line_transparency_slider.valueChanged.connect(self.update_auto_crosshair_placement_line_transparency_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_line_transparency_slider, "Adjust the transparency of auto crosshair placement deadzone lines. 0 = invisible, 255 = fully opaque.")
+        crosshair_layout.addWidget(self.auto_crosshair_placement_line_transparency_slider)
+
+        self.auto_crosshair_placement_use_radius_cb = QtWidgets.QCheckBox("Use Radius for Targeting")
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.auto_crosshair_placement_use_radius_cb.setChecked(True)
+            self.auto_crosshair_placement_use_radius_cb.setEnabled(False)
+        else:
+            self.auto_crosshair_placement_use_radius_cb.setChecked(self.settings.get("auto_crosshair_placement_use_radius", 0) == 1)
+            
+        self.auto_crosshair_placement_use_radius_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_use_radius_cb, "When enabled, auto crosshair placement will only target enemies within the radius circle instead of the entire screen.")
+        self.auto_crosshair_placement_use_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_use_radius_cb)
+
+        self.auto_crosshair_placement_draw_radius_cb = QtWidgets.QCheckBox("Draw Radius")
+        self.auto_crosshair_placement_draw_radius_cb.setChecked(self.settings.get("auto_crosshair_placement_draw_radius", 0) == 1)
+        self.auto_crosshair_placement_draw_radius_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_draw_radius_cb, "Show a circle on screen indicating the auto crosshair placement targeting radius area.")
+        self.auto_crosshair_placement_draw_radius_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_draw_radius_cb)
+
+        self.auto_crosshair_placement_radius_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.auto_crosshair_placement_radius_slider.setMinimum(25)
+        
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            self.auto_crosshair_placement_radius_slider.setMaximum(150)
+            radius_value = min(150, self.settings.get('auto_crosshair_placement_radius', 100))
+        else:
+            self.auto_crosshair_placement_radius_slider.setMaximum(300)
+            radius_value = self.settings.get('auto_crosshair_placement_radius', 100)
+            
+        self.auto_crosshair_placement_radius_slider.setValue(radius_value)
+        self.auto_crosshair_placement_radius_slider.valueChanged.connect(self.update_auto_crosshair_placement_radius_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_radius_slider, "Adjust the size of the auto crosshair placement targeting radius. Larger values allow targeting enemies further from the center.")
+        self.lbl_auto_crosshair_placement_radius = QtWidgets.QLabel(f"Auto Crosshair Placement Radius: ({radius_value})")
+        crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_radius)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_radius_slider)
+
+        self.auto_crosshair_placement_spotted_check_cb = QtWidgets.QCheckBox("Auto Crosshair Placement Spotted Check")
+        self.auto_crosshair_placement_spotted_check_cb.setChecked(self.settings.get("auto_crosshair_placement_spotted_check", 0) == 1)
+        self.auto_crosshair_placement_spotted_check_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_spotted_check_cb, "Only lock camera to enemies that are visible/spotted by your team to avoid suspicious targeting through walls.")
+        self.auto_crosshair_placement_spotted_check_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_spotted_check_cb)
+
+        self.auto_crosshair_placement_key_btn = QtWidgets.QPushButton(f"Auto Crosshair Placement Key: {self.settings.get('AutoCrosshairPlacementKey', 'NONE')}")
+        self.auto_crosshair_placement_key_btn.setObjectName("keybind_button")
+        self.auto_crosshair_placement_key_btn.clicked.connect(lambda: self.record_key('AutoCrosshairPlacementKey', self.auto_crosshair_placement_key_btn))
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_key_btn, "Click to set the key that activates auto crosshair placement. Hold this key to enable automatic crosshair alignment.")
+        self.auto_crosshair_placement_key_btn.setMinimumHeight(22)
+        self.auto_crosshair_placement_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_key_btn)
+        self.auto_crosshair_placement_key_btn.mousePressEvent = lambda event: self.handle_keybind_mouse_event(event, 'AutoCrosshairPlacementKey', self.auto_crosshair_placement_key_btn)
+
+        crosshair_container.setLayout(crosshair_layout)
+        crosshair_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
+        return crosshair_container
+
     def create_config_container(self):
         config_container = QtWidgets.QWidget()
         config_layout = QtWidgets.QVBoxLayout()
@@ -2856,7 +2869,7 @@ class ConfigWindow(QtWidgets.QWidget):
         config_layout.setContentsMargins(6, 6, 6, 6)
         config_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        config_label = QtWidgets.QLabel("Configuration")
+        config_label = QtWidgets.QLabel("Config 📂")
         config_label.setAlignment(QtCore.Qt.AlignCenter)
         config_label.setMinimumHeight(20)
         config_layout.addWidget(config_label)
@@ -3011,31 +3024,31 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'use_radius_cb') and self.use_radius_cb:
                 self.use_radius_cb.setChecked(True)
             
-            # Camera lock smoothness minimum 20
-            current_cam_smoothness = self.settings.get("camera_lock_smoothness", 0)
-            if current_cam_smoothness < 20:
-                self.settings["camera_lock_smoothness"] = 20
-                if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
-                    self.camera_lock_smoothness_slider.setValue(20)
+            # Auto crosshair placement smoothness minimum 0
+            current_cam_smoothness = self.settings.get("auto_crosshair_placement_smoothness", 0)
+            if current_cam_smoothness < 0:
+                self.settings["auto_crosshair_placement_smoothness"] = 0
+                if hasattr(self, 'auto_crosshair_placement_smoothness_slider') and self.auto_crosshair_placement_smoothness_slider:
+                    self.auto_crosshair_placement_smoothness_slider.setValue(0)
             
-            # Camera lock tolerance minimum 8px
-            current_cam_tolerance = self.settings.get("camera_lock_tolerance", 0)
-            if current_cam_tolerance < 8:
-                self.settings["camera_lock_tolerance"] = 8
-                if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
-                    self.camera_lock_tolerance_slider.setValue(8)
+            # Auto crosshair placement tolerance minimum 0px
+            current_cam_tolerance = self.settings.get("auto_crosshair_placement_tolerance", 0)
+            if current_cam_tolerance < 0:
+                self.settings["auto_crosshair_placement_tolerance"] = 0
+                if hasattr(self, 'auto_crosshair_placement_tolerance_slider') and self.auto_crosshair_placement_tolerance_slider:
+                    self.auto_crosshair_placement_tolerance_slider.setValue(0)
             
-            # Camera lock use radius forced on
-            self.settings["camera_lock_use_radius"] = 1
-            if hasattr(self, 'camera_lock_use_radius_cb') and self.camera_lock_use_radius_cb:
-                self.camera_lock_use_radius_cb.setChecked(True)
+            # Auto crosshair placement use radius forced on
+            self.settings["auto_crosshair_placement_use_radius"] = 1
+            if hasattr(self, 'auto_crosshair_placement_use_radius_cb') and self.auto_crosshair_placement_use_radius_cb:
+                self.auto_crosshair_placement_use_radius_cb.setChecked(True)
             
-            # Camera lock radius maximum 150
-            current_cam_radius = self.settings.get("camera_lock_radius", 0)
+            # Auto crosshair placement radius maximum 150
+            current_cam_radius = self.settings.get("auto_crosshair_placement_radius", 0)
             if current_cam_radius > 150:
-                self.settings["camera_lock_radius"] = 150
-                if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
-                    self.camera_lock_radius_slider.setValue(150)
+                self.settings["auto_crosshair_placement_radius"] = 150
+                if hasattr(self, 'auto_crosshair_placement_radius_slider') and self.auto_crosshair_placement_radius_slider:
+                    self.auto_crosshair_placement_radius_slider.setValue(150)
             
             # Recoil strength maximum 20
             if hasattr(self, 'recoil_strength_slider') and self.recoil_strength_slider:
@@ -3062,12 +3075,12 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.aim_smoothness_label.setText(f"Smoothness: {self.settings['aim_smoothness']}")
             if hasattr(self, 'radius_label') and self.radius_label:
                 self.radius_label.setText(f"Radius: {self.settings['radius']}")
-            if hasattr(self, 'camera_lock_radius_label') and self.camera_lock_radius_label:
-                self.camera_lock_radius_label.setText(f"Camera Lock Radius: {self.settings['camera_lock_radius']}")
-            if hasattr(self, 'lbl_camera_lock_smoothness') and self.lbl_camera_lock_smoothness:
-                self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({self.settings['camera_lock_smoothness']})")
-            if hasattr(self, 'lbl_camera_lock_tolerance') and self.lbl_camera_lock_tolerance:
-                self.lbl_camera_lock_tolerance.setText(f"Camera Lock Deadzone: ({self.settings['camera_lock_tolerance']}px)")
+            if hasattr(self, 'lbl_auto_crosshair_placement_radius') and self.lbl_auto_crosshair_placement_radius:
+                self.lbl_auto_crosshair_placement_radius.setText(f"Auto Crosshair Placement Radius: {self.settings['auto_crosshair_placement_radius']}")
+            if hasattr(self, 'lbl_auto_crosshair_placement_smoothness') and self.lbl_auto_crosshair_placement_smoothness:
+                self.lbl_auto_crosshair_placement_smoothness.setText(f"Auto Crosshair Placement Smoothness: ({self.settings['auto_crosshair_placement_smoothness']})")
+            if hasattr(self, 'lbl_auto_crosshair_placement_tolerance') and self.lbl_auto_crosshair_placement_tolerance:
+                self.lbl_auto_crosshair_placement_tolerance.setText(f"Auto Crosshair Placement Deadzone: ({self.settings['auto_crosshair_placement_tolerance']}px)")
             if hasattr(self, 'lbl_radar_scale') and self.lbl_radar_scale:
                 self.lbl_radar_scale.setText(f"Radar Scale: ({self.settings['radar_scale']:.1f})")
                 
@@ -3120,15 +3133,15 @@ class ConfigWindow(QtWidgets.QWidget):
                 widgets_to_block.append(self.require_aimkey_cb)
             
 
-            if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
-                widgets_to_block.append(self.camera_lock_cb)
+            if hasattr(self, 'auto_crosshair_placement_cb') and self.auto_crosshair_placement_cb:
+                widgets_to_block.append(self.auto_crosshair_placement_cb)
             
 
-            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
-                widgets_to_block.append(self.camera_lock_smoothness_slider)
+            if hasattr(self, 'auto_crosshair_placement_smoothness_slider') and self.auto_crosshair_placement_smoothness_slider:
+                widgets_to_block.append(self.auto_crosshair_placement_smoothness_slider)
             
-            if hasattr(self, 'camera_lock_spotted_check_cb') and self.camera_lock_spotted_check_cb:
-                widgets_to_block.append(self.camera_lock_spotted_check_cb)
+            if hasattr(self, 'auto_crosshair_placement_spotted_check_cb') and self.auto_crosshair_placement_spotted_check_cb:
+                widgets_to_block.append(self.auto_crosshair_placement_spotted_check_cb)
             
 
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
@@ -3208,28 +3221,28 @@ class ConfigWindow(QtWidgets.QWidget):
             self.aim_active_cb.setChecked(self.settings.get("aim_active", 0) == 1) if hasattr(self, 'aim_active_cb') else None
             if hasattr(self, 'require_aimkey_cb') and self.require_aimkey_cb:
                 self.require_aimkey_cb.setChecked(self.settings.get("require_aimkey", 1) == 1)
-            if hasattr(self, 'camera_lock_cb') and self.camera_lock_cb:
-                self.camera_lock_cb.setChecked(self.settings.get("camera_lock_enabled", 0) == 1)
-            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
-                self.camera_lock_smoothness_slider.setValue(self.settings.get("camera_lock_smoothness", 5))
-            if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
-                self.camera_lock_tolerance_slider.setValue(self.settings.get("camera_lock_tolerance", 5))
-            if hasattr(self, 'camera_lock_target_combo') and self.camera_lock_target_combo:
-                self.camera_lock_target_combo.setCurrentIndex(self.settings.get("camera_lock_target_bone", 1))
-            if hasattr(self, 'camera_lock_draw_range_lines_cb') and self.camera_lock_draw_range_lines_cb:
-                self.camera_lock_draw_range_lines_cb.setChecked(self.settings.get("camera_lock_draw_range_lines", 0) == 1)
-            if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
-                self.camera_lock_line_width_slider.setValue(self.settings.get("camera_lock_line_width", 2))
-            if hasattr(self, 'camera_lock_line_transparency_slider') and self.camera_lock_line_transparency_slider:
-                self.camera_lock_line_transparency_slider.setValue(self.settings.get("camera_lock_line_transparency", 80))
-            if hasattr(self, 'camera_lock_use_radius_cb') and self.camera_lock_use_radius_cb:
-                self.camera_lock_use_radius_cb.setChecked(self.settings.get("camera_lock_use_radius", 0) == 1)
-            if hasattr(self, 'camera_lock_draw_radius_cb') and self.camera_lock_draw_radius_cb:
-                self.camera_lock_draw_radius_cb.setChecked(self.settings.get("camera_lock_draw_radius", 0) == 1)
-            if hasattr(self, 'camera_lock_spotted_check_cb') and self.camera_lock_spotted_check_cb:
-                self.camera_lock_spotted_check_cb.setChecked(self.settings.get("camera_lock_spotted_check", 0) == 1)
-            if hasattr(self, 'camera_lock_radius_slider') and self.camera_lock_radius_slider:
-                self.camera_lock_radius_slider.setValue(self.settings.get("camera_lock_radius", 100))
+            if hasattr(self, 'auto_crosshair_placement_cb') and self.auto_crosshair_placement_cb:
+                self.auto_crosshair_placement_cb.setChecked(self.settings.get("auto_crosshair_placement_enabled", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_smoothness_slider') and self.auto_crosshair_placement_smoothness_slider:
+                self.auto_crosshair_placement_smoothness_slider.setValue(self.settings.get("auto_crosshair_placement_smoothness", 5))
+            if hasattr(self, 'auto_crosshair_placement_tolerance_slider') and self.auto_crosshair_placement_tolerance_slider:
+                self.auto_crosshair_placement_tolerance_slider.setValue(self.settings.get("auto_crosshair_placement_tolerance", 5))
+            if hasattr(self, 'auto_crosshair_placement_target_combo') and self.auto_crosshair_placement_target_combo:
+                self.auto_crosshair_placement_target_combo.setCurrentIndex(self.settings.get("auto_crosshair_placement_target_bone", 1))
+            if hasattr(self, 'auto_crosshair_placement_draw_range_lines_cb') and self.auto_crosshair_placement_draw_range_lines_cb:
+                self.auto_crosshair_placement_draw_range_lines_cb.setChecked(self.settings.get("auto_crosshair_placement_draw_range_lines", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_line_width_slider') and self.auto_crosshair_placement_line_width_slider:
+                self.auto_crosshair_placement_line_width_slider.setValue(self.settings.get("auto_crosshair_placement_line_width", 2))
+            if hasattr(self, 'auto_crosshair_placement_line_transparency_slider') and self.auto_crosshair_placement_line_transparency_slider:
+                self.auto_crosshair_placement_line_transparency_slider.setValue(self.settings.get("auto_crosshair_placement_line_transparency", 80))
+            if hasattr(self, 'auto_crosshair_placement_use_radius_cb') and self.auto_crosshair_placement_use_radius_cb:
+                self.auto_crosshair_placement_use_radius_cb.setChecked(self.settings.get("auto_crosshair_placement_use_radius", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_draw_radius_cb') and self.auto_crosshair_placement_draw_radius_cb:
+                self.auto_crosshair_placement_draw_radius_cb.setChecked(self.settings.get("auto_crosshair_placement_draw_radius", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_spotted_check_cb') and self.auto_crosshair_placement_spotted_check_cb:
+                self.auto_crosshair_placement_spotted_check_cb.setChecked(self.settings.get("auto_crosshair_placement_spotted_check", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_radius_slider') and self.auto_crosshair_placement_radius_slider:
+                self.auto_crosshair_placement_radius_slider.setValue(self.settings.get("auto_crosshair_placement_radius", 100))
             if hasattr(self, 'aim_circle_visible_cb') and self.aim_circle_visible_cb:
                 self.aim_circle_visible_cb.setChecked(self.settings.get("aim_circle_visible", 1) == 1)
             if hasattr(self, 'aim_visibility_cb') and self.aim_visibility_cb:
@@ -3262,7 +3275,7 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'aim_circle_color_btn') and self.aim_circle_color_btn:
                 self.update_color_button_style(self.aim_circle_color_btn, self.settings.get('aim_circle_color', '#FF0000'))
             self.update_color_button_style(self.center_dot_color_btn, self.settings.get('center_dot_color', '#FFFFFF'))
-            self.update_color_button_style(self.camera_lock_radius_color_btn, self.settings.get('camera_lock_radius_color', '#FF0000'))
+            self.update_color_button_style(self.camera_lock_radius_color_btn, self.settings.get('auto_crosshair_placement_radius_color', '#FF0000'))
             self.update_color_button_style(self.menu_theme_color_btn, self.settings.get('menu_theme_color', '#FF0000'))
             
             # Rainbow settings
@@ -3324,12 +3337,12 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_radar_scale_label()
             self.update_fps_limit_label()
             self.update_game_fov_label_only()
-            if hasattr(self, 'camera_lock_smoothness_slider') and self.camera_lock_smoothness_slider:
-                self.update_camera_lock_smoothness_label()
-            if hasattr(self, 'camera_lock_tolerance_slider') and self.camera_lock_tolerance_slider:
-                self.update_camera_lock_tolerance_label()
-            if hasattr(self, 'camera_lock_line_width_slider') and self.camera_lock_line_width_slider:
-                self.update_camera_lock_line_width_label()
+            if hasattr(self, 'auto_crosshair_placement_smoothness_slider') and self.auto_crosshair_placement_smoothness_slider:
+                self.update_auto_crosshair_placement_smoothness_label()
+            if hasattr(self, 'auto_crosshair_placement_tolerance_slider') and self.auto_crosshair_placement_tolerance_slider:
+                self.update_auto_crosshair_placement_tolerance_label()
+            if hasattr(self, 'auto_crosshair_placement_line_width_slider') and self.auto_crosshair_placement_line_width_slider:
+                self.update_auto_crosshair_placement_line_width_label()
             
 
             theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -3921,9 +3934,9 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["require_aimkey"] = 1
         
         try:
-            self.settings["camera_lock_enabled"] = 1 if getattr(self, 'camera_lock_cb', None) and self.camera_lock_cb.isChecked() else 0
+            self.settings["auto_crosshair_placement_enabled"] = 1 if getattr(self, 'auto_crosshair_placement_cb', None) and self.auto_crosshair_placement_cb.isChecked() else 0
         except Exception:
-            self.settings["camera_lock_enabled"] = 0
+            self.settings["auto_crosshair_placement_enabled"] = 0
         
                                        
         try:
@@ -3965,35 +3978,35 @@ class ConfigWindow(QtWidgets.QWidget):
         if getattr(self, "center_dot_size_slider", None):
             self.settings["center_dot_size"] = self.center_dot_size_slider.value()
 
-        if getattr(self, "camera_lock_smoothness_slider", None):
-            self.settings["camera_lock_smoothness"] = self.camera_lock_smoothness_slider.value()
+        if getattr(self, "auto_crosshair_placement_smoothness_slider", None):
+            self.settings["auto_crosshair_placement_smoothness"] = self.auto_crosshair_placement_smoothness_slider.value()
         
-        if getattr(self, "camera_lock_tolerance_slider", None):
-            self.settings["camera_lock_tolerance"] = self.camera_lock_tolerance_slider.value()
+        if getattr(self, "auto_crosshair_placement_tolerance_slider", None):
+            self.settings["auto_crosshair_placement_tolerance"] = self.auto_crosshair_placement_tolerance_slider.value()
         
-        if getattr(self, "camera_lock_target_combo", None):
-            self.settings["camera_lock_target_bone"] = self.camera_lock_target_combo.currentIndex()
+        if getattr(self, "auto_crosshair_placement_target_combo", None):
+            self.settings["auto_crosshair_placement_target_bone"] = self.auto_crosshair_placement_target_combo.currentIndex()
         
-        if getattr(self, "camera_lock_draw_range_lines_cb", None):
-            self.settings["camera_lock_draw_range_lines"] = 1 if self.camera_lock_draw_range_lines_cb.isChecked() else 0
+        if getattr(self, "auto_crosshair_placement_draw_range_lines_cb", None):
+            self.settings["auto_crosshair_placement_draw_range_lines"] = 1 if self.auto_crosshair_placement_draw_range_lines_cb.isChecked() else 0
         
-        if getattr(self, "camera_lock_line_width_slider", None):
-            self.settings["camera_lock_line_width"] = self.camera_lock_line_width_slider.value()
+        if getattr(self, "auto_crosshair_placement_line_width_slider", None):
+            self.settings["auto_crosshair_placement_line_width"] = self.auto_crosshair_placement_line_width_slider.value()
         
-        if getattr(self, "camera_lock_line_transparency_slider", None):
-            self.settings["camera_lock_line_transparency"] = self.camera_lock_line_transparency_slider.value()
+        if getattr(self, "auto_crosshair_placement_line_transparency_slider", None):
+            self.settings["auto_crosshair_placement_line_transparency"] = self.auto_crosshair_placement_line_transparency_slider.value()
         
-        if getattr(self, "camera_lock_use_radius_cb", None):
-            self.settings["camera_lock_use_radius"] = 1 if self.camera_lock_use_radius_cb.isChecked() else 0
+        if getattr(self, "auto_crosshair_placement_use_radius_cb", None):
+            self.settings["auto_crosshair_placement_use_radius"] = 1 if self.auto_crosshair_placement_use_radius_cb.isChecked() else 0
         
-        if getattr(self, "camera_lock_draw_radius_cb", None):
-            self.settings["camera_lock_draw_radius"] = 1 if self.camera_lock_draw_radius_cb.isChecked() else 0
+        if getattr(self, "auto_crosshair_placement_draw_radius_cb", None):
+            self.settings["auto_crosshair_placement_draw_radius"] = 1 if self.auto_crosshair_placement_draw_radius_cb.isChecked() else 0
         
-        if getattr(self, "camera_lock_radius_slider", None):
-            self.settings["camera_lock_radius"] = self.camera_lock_radius_slider.value()
+        if getattr(self, "auto_crosshair_placement_radius_slider", None):
+            self.settings["auto_crosshair_placement_radius"] = self.auto_crosshair_placement_radius_slider.value()
         
-        if getattr(self, "camera_lock_spotted_check_cb", None):
-            self.settings["camera_lock_spotted_check"] = 1 if self.camera_lock_spotted_check_cb.isChecked() else 0
+        if getattr(self, "auto_crosshair_placement_spotted_check_cb", None):
+            self.settings["auto_crosshair_placement_spotted_check"] = 1 if self.auto_crosshair_placement_spotted_check_cb.isChecked() else 0
 
         # Recoil Control Settings
         if getattr(self, "recoil_control_enabled_cb", None):
@@ -4122,12 +4135,12 @@ class ConfigWindow(QtWidgets.QWidget):
             if self.settings.get("triggerbot_first_shot_delay", 0) < 150:
                 self.settings["triggerbot_first_shot_delay"] = 150
             
-            self.settings["camera_lock_smoothness"] = 20
+            self.settings["auto_crosshair_placement_smoothness"] = 0
             
-            self.settings["camera_lock_use_radius"] = 1
+            self.settings["auto_crosshair_placement_use_radius"] = 1
             
-            if self.settings.get("camera_lock_radius", 100) > 200:
-                self.settings["camera_lock_radius"] = 200
+            if self.settings.get("auto_crosshair_placement_radius", 100) > 200:
+                self.settings["auto_crosshair_placement_radius"] = 200
         
         save_settings(self.settings)
 
@@ -4326,7 +4339,8 @@ class ConfigWindow(QtWidgets.QWidget):
                             'HeadTriggerKey': 'Head TriggerKey',
                             'MenuToggleKey': 'MenuToggleKey',
                             'BhopKey': 'BhopKey',
-                            'ESPToggleKey': 'ESP Toggle'
+                            'ESPToggleKey': 'ESP Toggle',
+                            'AutoCrosshairPlacementKey': 'Auto Crosshair Placement Key'
                         }
                         display_text = button_text_map.get(settings_key, settings_key)
                         btn.setText(f"{display_text}: {val}")
@@ -4869,41 +4883,39 @@ class ConfigWindow(QtWidgets.QWidget):
         """Safe shutdown of all script processes using proper cleanup mechanism"""
         try:
             self.hide()
+        except Exception:
+            pass
             
-            try:
-                self.reset_fov_to_default()
-            except Exception:
-                pass
+        try:
+            self.reset_fov_to_default()
+        except Exception:
+            pass
+        
+        try:
+            with open(TERMINATE_SIGNAL_FILE, 'w') as f:
+                f.write('panic_shutdown')
+            add_temporary_file(TERMINATE_SIGNAL_FILE)
+        except Exception:
+            pass
+        
+        try:
+            panic_file = os.path.join(TEMP_DIR, 'panic_shutdown.signal')
+            if os.path.exists(panic_file):
+                os.remove(panic_file)
+        except Exception:
+            pass
             
-            try:
-                with open(TERMINATE_SIGNAL_FILE, 'w') as f:
-                    f.write('panic_shutdown')
-                add_temporary_file(TERMINATE_SIGNAL_FILE)
-            except Exception:
-                pass
+        try:
+            # Clean up backup file on script exit
+            backup_file = CONFIG_FILE + '.backup'
+            if os.path.exists(backup_file):
+                os.remove(backup_file)
+        except Exception:
+            pass
             
-            try:
-                panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
-                if os.path.exists(panic_file):
-                    os.remove(panic_file)
-            except Exception:
-                pass
-            
-            try:
-                # Clean up backup file on script exit
-                backup_file = CONFIG_FILE + '.backup'
-                if os.path.exists(backup_file):
-                    os.remove(backup_file)
-            except Exception:
-                pass
-                
-            try:
-                import sys
-                sys.exit(0)
-            except Exception:
-                import os
-                os._exit(0)
-                
+        try:
+            import sys
+            sys.exit(0)
         except Exception:
             import os
             os._exit(0)
@@ -5064,39 +5076,39 @@ class ConfigWindow(QtWidgets.QWidget):
             self.lbl_smooth.setText(f"Aim Smoothness: ({val})")
             self.save_settings()
 
-    def update_camera_lock_smoothness_label(self):
-        val = self.camera_lock_smoothness_slider.value()
-        self.lbl_camera_lock_smoothness.setText(f"Camera Lock Smoothness: ({val})")
+    def update_auto_crosshair_placement_smoothness_label(self):
+        val = self.auto_crosshair_placement_smoothness_slider.value()
+        self.lbl_auto_crosshair_placement_smoothness.setText(f"Auto Crosshair Placement Smoothness: ({val})")
         self.save_settings()
 
-    def update_camera_lock_tolerance_label(self):
-        val = self.camera_lock_tolerance_slider.value()
-        self.lbl_camera_lock_tolerance.setText(f"Camera Lock Deadzone: ({val}px)")
+    def update_auto_crosshair_placement_tolerance_label(self):
+        val = self.auto_crosshair_placement_tolerance_slider.value()
+        self.lbl_auto_crosshair_placement_tolerance.setText(f"Auto Crosshair Placement Deadzone: ({val}px)")
         self.save_settings()
 
-    def update_camera_lock_line_width_label(self):
-        val = self.camera_lock_line_width_slider.value()
-        self.lbl_camera_lock_line_width.setText(f"Camera Lock Line Width: ({val})")
+    def update_auto_crosshair_placement_line_width_label(self):
+        val = self.auto_crosshair_placement_line_width_slider.value()
+        self.lbl_auto_crosshair_placement_line_width.setText(f"Deadzone Line Width: ({val})")
         self.save_settings()
 
-    def update_camera_lock_line_transparency_label(self):
-        val = self.camera_lock_line_transparency_slider.value()
-        self.lbl_camera_lock_line_transparency.setText(f"Camera Lock Line Transparency: ({val})")
+    def update_auto_crosshair_placement_line_transparency_label(self):
+        val = self.auto_crosshair_placement_line_transparency_slider.value()
+        self.lbl_auto_crosshair_placement_line_transparency.setText(f"Deadzone Line Transparency: ({val})")
         self.save_settings()
 
-    def update_camera_lock_radius_label(self):
-        val = self.camera_lock_radius_slider.value()
-        self.lbl_camera_lock_radius.setText(f"Camera Lock Radius: ({val})")
+    def update_auto_crosshair_placement_radius_label(self):
+        val = self.auto_crosshair_placement_radius_slider.value()
+        self.lbl_auto_crosshair_placement_radius.setText(f"Auto Crosshair Placement Radius: ({val})")
         self.save_settings()
 
     def update_triggerbot_delay_label(self):
         val = self.triggerbot_delay_slider.value()
-        self.lbl_delay.setText(f"Triggerbot Delay (ms): ({val})")
+        self.lbl_delay.setText(f"Triggerbot - Between Shots Delay (ms): ({val})")
         self.save_settings()
 
     def update_triggerbot_first_shot_delay_label(self):
         val = self.triggerbot_first_shot_delay_slider.value()
-        self.lbl_first_shot_delay.setText(f"First Shot Delay (ms): ({val})")
+        self.lbl_first_shot_delay.setText(f"Triggerbot - First Shot Delay (ms): ({val})")
         self.save_settings()
 
     def update_triggerbot_burst_shots_label(self):
@@ -5717,11 +5729,29 @@ class ESPWindow(QtWidgets.QWidget):
         if window_width is not None and window_height is not None:
             self.window_width, self.window_height = window_width, window_height
                                                                                          
-            self.window_x, self.window_y, _, _ = get_window_client_rect("Counter-Strike 2")
+            # Retry getting window coordinates until valid ones are obtained
+            max_retries = 50  # Retry for up to ~5 seconds (50 * 0.1s)
+            retry_count = 0
+            while retry_count < max_retries:
+                self.window_x, self.window_y, _, _ = get_window_client_rect("Counter-Strike 2")
+                if self.window_x is not None and self.window_y is not None:
+                    break
+                retry_count += 1
+                time.sleep(0.1)  # Wait 100ms between retries
+            
             if self.window_x is None or self.window_y is None:
                 self.window_x, self.window_y = 0, 0
         else:
-            self.window_x, self.window_y, self.window_width, self.window_height = get_window_client_rect("Counter-Strike 2")
+            # Retry getting window coordinates until valid ones are obtained
+            max_retries = 50  # Retry for up to ~5 seconds (50 * 0.1s)
+            retry_count = 0
+            while retry_count < max_retries:
+                self.window_x, self.window_y, self.window_width, self.window_height = get_window_client_rect("Counter-Strike 2")
+                if self.window_width is not None and self.window_height is not None and self.window_x is not None and self.window_y is not None:
+                    break
+                retry_count += 1
+                time.sleep(0.1)  # Wait 100ms between retries
+            
             if self.window_width is None or self.window_height is None:
                 self.window_width, self.window_height = 800, 600
                 self.window_x, self.window_y = 0, 0
@@ -6159,11 +6189,11 @@ class ESPWindow(QtWidgets.QWidget):
             if aim_circle_visible:
                 render_aim_circle(self.scene, self.window_width, self.window_height, self.settings)
             
-            camera_lock_range_lines_enabled = self.settings.get('camera_lock_draw_range_lines', 0) == 1
+            camera_lock_range_lines_enabled = self.settings.get('auto_crosshair_placement_draw_range_lines', 0) == 1
             if camera_lock_range_lines_enabled:
                 render_camera_lock_range_lines(self.scene, self.pm, self.client, self.offsets, self.client_dll, self.window_width, self.window_height, self.settings)
             
-            camera_lock_radius_enabled = self.settings.get('camera_lock_draw_radius', 0) == 1
+            camera_lock_radius_enabled = self.settings.get('auto_crosshair_placement_draw_radius', 0) == 1
             if camera_lock_radius_enabled:
                 render_camera_lock_radius(self.scene, self.window_width, self.window_height, self.settings)
             
@@ -6398,25 +6428,25 @@ def render_aim_circle(scene, window_width, window_height, settings):
         pass
 
 def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, window_width, window_height, settings):
-    """Render horizontal lines showing camera lock target position and deadzone"""
+    """Render horizontal lines showing auto crosshair placement target position and deadzone"""
     try:
-        if not settings.get('camera_lock_draw_range_lines', 0) == 1:
+        if not settings.get('auto_crosshair_placement_draw_range_lines', 0) == 1:
             return
             
-        trigger_key = settings.get('TriggerKey', 'X')
-        trigger_vk = key_str_to_vk(trigger_key)
+        auto_crosshair_key = settings.get('AutoCrosshairPlacementKey', 'NONE')
+        auto_crosshair_vk = key_str_to_vk(auto_crosshair_key)
         
-        if trigger_vk != 0:
+        if auto_crosshair_vk != 0:
             try:
                 import win32api
-                if not (win32api.GetAsyncKeyState(trigger_vk) & 0x8000):
+                if not (win32api.GetAsyncKeyState(auto_crosshair_vk) & 0x8000):
                     return
             except Exception:
                 return
         else:
             return
             
-        tolerance = settings.get('camera_lock_tolerance', 5)
+        tolerance = settings.get('auto_crosshair_placement_tolerance', 5)
         
         target_y = None
         valid_target_found = False
@@ -6470,7 +6500,7 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                     if entity_alive != 256:
                         continue
 
-                    spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
+                    spotted_check_enabled = settings.get('auto_crosshair_placement_spotted_check', 0) == 1
                     if spotted_check_enabled:
                         try:
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
@@ -6484,7 +6514,7 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                     game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                     
-                    target_bone_mode = settings.get('camera_lock_target_bone', 1)
+                    target_bone_mode = settings.get('auto_crosshair_placement_target_bone', 1)
                     target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
                     target_bone_id = bone_ids.get(target_bone_name, 6)
                     
@@ -6502,9 +6532,9 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
                         dy = target_pos[1] - center_y
                         distance = (dx * dx + dy * dy) ** 0.5
                         
-                        use_radius = settings.get('camera_lock_use_radius', 0) == 1
+                        use_radius = settings.get('auto_crosshair_placement_use_radius', 0) == 1
                         if use_radius:
-                            radius = settings.get('camera_lock_radius', 100)
+                            radius = settings.get('auto_crosshair_placement_radius', 100)
                             if distance > radius:
                                 continue
                         
@@ -6533,16 +6563,16 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
             else:
                 line_color_hex = settings.get('menu_theme_color', '#FF0000')
             line_color = QtGui.QColor(line_color_hex)
-            line_color.setAlpha(settings.get('camera_lock_line_transparency', 80))
+            line_color.setAlpha(settings.get('auto_crosshair_placement_line_transparency', 80))
         except Exception:
             line_color = QtGui.QColor('#FF0000')
-            line_color.setAlpha(settings.get('camera_lock_line_transparency', 80))
+            line_color.setAlpha(settings.get('auto_crosshair_placement_line_transparency', 80))
             
         pen = QtGui.QPen(line_color)
         pen.setWidth(0.1)
         pen.setStyle(QtCore.Qt.DashLine)
         
-        line_width_setting = settings.get('camera_lock_line_width', 2)
+        line_width_setting = settings.get('auto_crosshair_placement_line_width', 2)
         line_width_multiplier = line_width_setting / 10.0
         line_width = window_width * (0.05 + line_width_multiplier * 0.3)  # 5% to 35% of screen width
         line_start_x = (window_width - line_width) / 2
@@ -6565,15 +6595,15 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
         pass
 
 def render_camera_lock_radius(scene, window_width, window_height, settings):
-    """Render camera lock radius circle"""
+    """Render auto crosshair placement radius circle"""
     try:
-        if not settings.get('camera_lock_draw_radius', 0) == 1:
+        if not settings.get('auto_crosshair_placement_draw_radius', 0) == 1:
             return
         
-        if not settings.get('camera_lock_enabled', 0) == 1:
+        if not settings.get('auto_crosshair_placement_enabled', 0) == 1:
             return
             
-        radius = settings.get('camera_lock_radius', 100)
+        radius = settings.get('auto_crosshair_placement_radius', 100)
         
         center_x = window_width / 2
         center_y = window_height / 2
@@ -6582,7 +6612,7 @@ def render_camera_lock_radius(scene, window_width, window_height, settings):
             if settings.get('rainbow_menu_theme', 0) == 1:
                 circle_color_hex = settings.get('current_rainbow_color', '#FF0000')
             else:
-                circle_color_hex = settings.get('camera_lock_radius_color', '#FF0000')
+                circle_color_hex = settings.get('auto_crosshair_placement_radius_color', '#FF0000')
             circle_color = QtGui.QColor(circle_color_hex)
             circle_color.setAlpha(100)
         except Exception:
@@ -8460,14 +8490,14 @@ def aim():
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
 
     def camera_lock(pm, client, settings):
-        """Independent camera lock system that scans for enemies and locks to closest head when triggerbot key is held"""
+        """Independent auto crosshair placement system that scans for enemies and locks to closest head when triggerbot key is held"""
         try:
-            if not settings.get('camera_lock_enabled', 0):
+            if not settings.get('auto_crosshair_placement_enabled', 0):
                 return
             
-            trigger_key = settings.get('TriggerKey', 'X')
-            trigger_key_vk = key_str_to_vk(trigger_key)
-            if not trigger_key_vk or not (win32api.GetAsyncKeyState(trigger_key_vk) & 0x8000):
+            auto_crosshair_key = settings.get('AutoCrosshairPlacementKey', 'NONE')
+            auto_crosshair_key_vk = key_str_to_vk(auto_crosshair_key)
+            if not auto_crosshair_key_vk or not (win32api.GetAsyncKeyState(auto_crosshair_key_vk) & 0x8000):
                 return
             
             window_width = win32api.GetSystemMetrics(0)
@@ -8521,7 +8551,7 @@ def aim():
                     if entity_alive != 256:
                         continue
 
-                    spotted_check_enabled = settings.get('camera_lock_spotted_check', 0) == 1
+                    spotted_check_enabled = settings.get('auto_crosshair_placement_spotted_check', 0) == 1
                     if spotted_check_enabled:
                         try:
                             spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
@@ -8535,7 +8565,7 @@ def aim():
                     game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
                     bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
                     
-                    target_bone_mode = settings.get('camera_lock_target_bone', 1)
+                    target_bone_mode = settings.get('auto_crosshair_placement_target_bone', 1)
                     target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
                     target_bone_id = bone_ids.get(target_bone_name, 6)
                     
@@ -8553,9 +8583,9 @@ def aim():
                         dy = target_pos[1] - center_y
                         distance = (dx * dx + dy * dy) ** 0.5
                         
-                        use_radius = settings.get('camera_lock_use_radius', 0) == 1
+                        use_radius = settings.get('auto_crosshair_placement_use_radius', 0) == 1
                         if use_radius:
-                            radius = settings.get('camera_lock_radius', 100)
+                            radius = settings.get('auto_crosshair_placement_radius', 100)
                             if distance > radius:
                                 continue
                         
@@ -8571,10 +8601,10 @@ def aim():
                 
                 dy = target_y - center_y
                 
-                tolerance = settings.get('camera_lock_tolerance', 5)
+                tolerance = settings.get('auto_crosshair_placement_tolerance', 5)
                 
                 if abs(dy) > tolerance:
-                    smoothness_value = settings.get('camera_lock_smoothness', 5)
+                    smoothness_value = settings.get('auto_crosshair_placement_smoothness', 5)
                     if smoothness_value <= 0:
                         smoothness_value = 1
                     smoothness_value = max(1, min(50, smoothness_value))
@@ -9145,7 +9175,7 @@ if __name__ == "__main__":
 
     # Signal to loader that script is fully loaded and processes started
     try:
-        loaded_signal_path = os.path.join(os.getcwd(), 'script_loaded.signal')
+        loaded_signal_path = os.path.join(TEMP_DIR, 'script_loaded.signal')
         with open(loaded_signal_path, 'w') as f:
             f.write('loaded')
     except Exception:
@@ -9163,7 +9193,7 @@ if __name__ == "__main__":
                 print("[DEBUG] Terminate signal detected")
                 break
             
-            panic_file = os.path.join(os.getcwd(), 'panic_shutdown.signal')
+            panic_file = os.path.join(TEMP_DIR, 'panic_shutdown.signal')
             if os.path.exists(panic_file):
                 print("[DEBUG] Panic shutdown signal detected")
                 try:
