@@ -805,45 +805,44 @@ DEFAULT_SETTINGS = {
     "auto_accept_enabled": 0,
     "recoil_control_enabled": 0,
     "recoil_control_strength": 5,
-    "recoil_control_delay": 25,
     "recoil_control_smoothness": 3,
     "recoil_selected_weapon": "All weapons",
 
     "recoil_weapons": {
-        "All weapons": {"strength": 5, "delay": 25, "smoothness": 3},
-        "AK-47": {"strength": 5, "delay": 25, "smoothness": 3},
-        "M4A4": {"strength": 5, "delay": 25, "smoothness": 3},
-        "M4A1-S": {"strength": 5, "delay": 25, "smoothness": 3},
-        "AWP": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Galil AR": {"strength": 5, "delay": 25, "smoothness": 3},
-        "FAMAS": {"strength": 5, "delay": 25, "smoothness": 3},
-        "MP9": {"strength": 5, "delay": 25, "smoothness": 3},
-        "MAC-10": {"strength": 5, "delay": 25, "smoothness": 3},
-        "MP5-SD": {"strength": 5, "delay": 25, "smoothness": 3},
-        "UMP-45": {"strength": 5, "delay": 25, "smoothness": 3},
-        "P90": {"strength": 5, "delay": 25, "smoothness": 3},
-        "PP-Bizon": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Nova": {"strength": 5, "delay": 25, "smoothness": 3},
-        "XM1014": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Sawed-Off": {"strength": 5, "delay": 25, "smoothness": 3},
-        "MAG-7": {"strength": 5, "delay": 25, "smoothness": 3},
-        "M249": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Negev": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Five-SeveN": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Glock-18": {"strength": 5, "delay": 25, "smoothness": 3},
-        "USP-S": {"strength": 5, "delay": 25, "smoothness": 3},
-        "P2000": {"strength": 5, "delay": 25, "smoothness": 3},
-        "P250": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Tec-9": {"strength": 5, "delay": 25, "smoothness": 3},
-        "CZ75-Auto": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Desert Eagle": {"strength": 5, "delay": 25, "smoothness": 3},
-        "Dual Berettas": {"strength": 5, "delay": 25, "smoothness": 3},
-        "R8 Revolver": {"strength": 5, "delay": 25, "smoothness": 3},
-        "SSG 08": {"strength": 5, "delay": 25, "smoothness": 3},
-        "SG 553": {"strength": 5, "delay": 25, "smoothness": 3},
-        "AUG": {"strength": 5, "delay": 25, "smoothness": 3},
-        "G3SG1": {"strength": 5, "delay": 25, "smoothness": 3},
-        "SCAR-20": {"strength": 5, "delay": 25, "smoothness": 3}
+        "All weapons": {"strength": 5, "smoothness": 3},
+        "AK-47": {"strength": 5, "smoothness": 3},
+        "M4A4": {"strength": 5, "smoothness": 3},
+        "M4A1-S": {"strength": 5, "smoothness": 3},
+        "AWP": {"strength": 5, "smoothness": 3},
+        "Galil AR": {"strength": 5, "smoothness": 3},
+        "FAMAS": {"strength": 5, "smoothness": 3},
+        "MP9": {"strength": 5, "smoothness": 3},
+        "MAC-10": {"strength": 5, "smoothness": 3},
+        "MP5-SD": {"strength": 5, "smoothness": 3},
+        "UMP-45": {"strength": 5, "smoothness": 3},
+        "P90": {"strength": 5, "smoothness": 3},
+        "PP-Bizon": {"strength": 5, "smoothness": 3},
+        "Nova": {"strength": 5, "smoothness": 3},
+        "XM1014": {"strength": 5, "smoothness": 3},
+        "Sawed-Off": {"strength": 5, "smoothness": 3},
+        "MAG-7": {"strength": 5, "smoothness": 3},
+        "M249": {"strength": 5, "smoothness": 3},
+        "Negev": {"strength": 5, "smoothness": 3},
+        "Five-SeveN": {"strength": 5, "smoothness": 3},
+        "Glock-18": {"strength": 5, "smoothness": 3},
+        "USP-S": {"strength": 5, "smoothness": 3},
+        "P2000": {"strength": 5, "smoothness": 3},
+        "P250": {"strength": 5, "smoothness": 3},
+        "Tec-9": {"strength": 5, "smoothness": 3},
+        "CZ75-Auto": {"strength": 5, "smoothness": 3},
+        "Desert Eagle": {"strength": 5, "smoothness": 3},
+        "Dual Berettas": {"strength": 5, "smoothness": 3},
+        "R8 Revolver": {"strength": 5, "smoothness": 3},
+        "SSG 08": {"strength": 5, "smoothness": 3},
+        "SG 553": {"strength": 5, "smoothness": 3},
+        "AUG": {"strength": 5, "smoothness": 3},
+        "G3SG1": {"strength": 5, "smoothness": 3},
+        "SCAR-20": {"strength": 5, "smoothness": 3}
     },
 
     "topmost": 1,
@@ -1162,7 +1161,6 @@ def load_settings():
                 
                 # Get legacy values or defaults
                 legacy_strength = merged_settings.get('recoil_control_strength', 5)
-                legacy_delay = merged_settings.get('recoil_control_delay', 25)
                 legacy_smoothness = merged_settings.get('recoil_control_smoothness', 3)
                 
                 # Create weapon-specific settings using legacy values for all weapons
@@ -1179,7 +1177,6 @@ def load_settings():
                 for weapon in weapon_list:
                     weapon_settings[weapon] = {
                         "strength": legacy_strength,
-                        "delay": legacy_delay,
                         "smoothness": legacy_smoothness
                     }
                 
@@ -1403,7 +1400,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_triggerbot_delay_label()
         self.update_triggerbot_burst_shots_label()
         self.update_recoil_strength_label()
-        self.update_recoil_delay_label()
         self.update_recoil_smoothness_label()
         self.update_center_dot_size_label()
         self.update_opacity_label()
@@ -2091,18 +2087,6 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.recoil_strength_slider, "How much the mouse moves down per recoil adjustment. Higher values = more downward movement. (1-100)")
         recoil_layout.addWidget(self.recoil_strength_slider)
 
-        # Recoil Response Speed Slider (formerly delay)
-        self.lbl_recoil_delay = QtWidgets.QLabel(f"Response Speed: ({self.get_current_weapon_setting('delay')})")
-        recoil_layout.addWidget(self.lbl_recoil_delay)
-        self.recoil_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.recoil_delay_slider.setMinimum(1)
-        self.recoil_delay_slider.setMaximum(50)
-        self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
-        self.recoil_delay_slider.valueChanged.connect(self.update_recoil_delay_label)
-        self.recoil_delay_slider.valueChanged.connect(self.save_settings)
-        self.set_tooltip_if_enabled(self.recoil_delay_slider, "Response speed for shot detection. Higher values = faster response but more CPU usage. (1-50)")
-        recoil_layout.addWidget(self.recoil_delay_slider)
-
         # Recoil Smoothness Slider
         self.lbl_recoil_smoothness = QtWidgets.QLabel(f"Recoil Smoothness: ({self.get_current_weapon_setting('smoothness')})")
         recoil_layout.addWidget(self.lbl_recoil_smoothness)
@@ -2131,10 +2115,10 @@ class ConfigWindow(QtWidgets.QWidget):
         weapon_settings = self.settings.get('recoil_weapons', {})
         
         if selected_weapon in weapon_settings:
-            value = weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3)
+            value = weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 3)
         else:
             # Fallback to default values
-            value = 5 if setting_type == 'strength' else 10 if setting_type == 'delay' else 3
+            value = 5 if setting_type == 'strength' else 3
         
         # Enforce legit mode restrictions
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
@@ -2151,7 +2135,7 @@ class ConfigWindow(QtWidgets.QWidget):
         
         # Ensure weapon exists in settings
         if weapon_name not in weapon_settings:
-            weapon_settings[weapon_name] = {"strength": 5, "delay": 10, "smoothness": 3}
+            weapon_settings[weapon_name] = {"strength": 5, "smoothness": 3}
             self.settings['recoil_weapons'] = weapon_settings
 
     def save_current_weapon_settings(self):
@@ -2170,9 +2154,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 strength_value = 20
                 self.recoil_strength_slider.setValue(20)
             weapon_settings[selected_weapon]['strength'] = strength_value
-            
-        if hasattr(self, 'recoil_delay_slider'):
-            weapon_settings[selected_weapon]['delay'] = self.recoil_delay_slider.value()
             
         if hasattr(self, 'recoil_smoothness_slider'):
             smoothness_value = self.recoil_smoothness_slider.value()
@@ -2202,17 +2183,12 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
             self.update_recoil_strength_label()
         
-        if hasattr(self, 'recoil_delay_slider'):
-            self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
-            self.update_recoil_delay_label()
-        
         if hasattr(self, 'recoil_smoothness_slider'):
             self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
             self.update_recoil_smoothness_label()
         
         # Update main recoil control settings to match current weapon
         self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
-        self.settings["recoil_control_delay"] = self.get_current_weapon_setting('delay')
         self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
         
         # Save settings
@@ -3112,7 +3088,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 # Recoil Control widgets
                 self.recoil_control_enabled_cb, self.recoil_strength_slider,
-                self.recoil_delay_slider, self.recoil_smoothness_slider,
+                self.recoil_smoothness_slider,
                 
 
                 self.aim_active_cb, self.aim_circle_visible_cb, self.aim_visibility_cb,
@@ -3209,12 +3185,10 @@ class ConfigWindow(QtWidgets.QWidget):
                 # Load weapon settings and update sliders
                 self.load_weapon_recoil_settings(selected_weapon)
                 self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
-                self.recoil_delay_slider.setValue(self.get_current_weapon_setting('delay'))
                 self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
             else:
                 # Fallback to legacy settings if weapon combo doesn't exist yet
                 self.recoil_strength_slider.setValue(self.settings.get("recoil_control_strength", 5))
-                self.recoil_delay_slider.setValue(self.settings.get("recoil_control_delay", 25))
                 self.recoil_smoothness_slider.setValue(self.settings.get("recoil_control_smoothness", 3))
             
 
@@ -3779,14 +3753,32 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 if hasattr(self, 'esp_toggle_key_btn'):
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
+                    self.esp_toggle_key_btn.update()
+                    self.esp_toggle_key_btn.repaint()
                 if hasattr(self, 'aim_key_btn'):
                     self.aim_key_btn.setText(f"AimKey: {self.settings.get('AimKey', 'C')}")
+                    self.aim_key_btn.update()
+                    self.aim_key_btn.repaint()
                 if hasattr(self, 'trigger_key_btn'):
                     self.trigger_key_btn.setText(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
+                    self.trigger_key_btn.update()
+                    self.trigger_key_btn.repaint()
                 if hasattr(self, 'bhop_key_btn'):
                     self.bhop_key_btn.setText(f"BhopKey: {self.settings.get('BhopKey', 'SPACE')}")
+                    self.bhop_key_btn.update()
+                    self.bhop_key_btn.repaint()
                 if hasattr(self, 'menu_key_btn'):
                     self.menu_key_btn.setText(f"MenuToggleKey: {self.settings.get('MenuToggleKey', 'F8')}")
+                    self.menu_key_btn.update()
+                    self.menu_key_btn.repaint()
+                if hasattr(self, 'exit_key_btn'):
+                    self.exit_key_btn.setText(f"Exit Key: {self.settings.get('ExitKey', 'F7')}")
+                    self.exit_key_btn.update()
+                    self.exit_key_btn.repaint()
+                if hasattr(self, 'auto_crosshair_placement_key_btn'):
+                    self.auto_crosshair_placement_key_btn.setText(f"Auto Crosshair Placement Key: {self.settings.get('AutoCrosshairPlacementKey', 'NONE')}")
+                    self.auto_crosshair_placement_key_btn.update()
+                    self.auto_crosshair_placement_key_btn.repaint()
                 
                 if hasattr(self, 'team_color_btn'):
                     color = self.settings.get('team_color', '#47A76A')
@@ -4020,9 +4012,6 @@ class ConfigWindow(QtWidgets.QWidget):
         # Keep legacy settings for backward compatibility
         if getattr(self, "recoil_strength_slider", None):
             self.settings["recoil_control_strength"] = self.recoil_strength_slider.value()
-        
-        if getattr(self, "recoil_delay_slider", None):
-            self.settings["recoil_control_delay"] = self.recoil_delay_slider.value()
         
         if getattr(self, "recoil_smoothness_slider", None):
             self.settings["recoil_control_smoothness"] = self.recoil_smoothness_slider.value()
@@ -5118,11 +5107,6 @@ class ConfigWindow(QtWidgets.QWidget):
     def update_recoil_strength_label(self):
         val = self.recoil_strength_slider.value()
         self.lbl_recoil_strength.setText(f"Recoil Strength: ({val})")
-        self.save_settings()
-
-    def update_recoil_delay_label(self):
-        val = self.recoil_delay_slider.value()
-        self.lbl_recoil_delay.setText(f"Response Speed: ({val})")
         self.save_settings()
 
     def update_recoil_smoothness_label(self):
@@ -8788,11 +8772,10 @@ def recoil_control():
     default_settings = {
         "recoil_control_enabled": 0,
         "recoil_control_strength": 5,
-        "recoil_control_delay": 25,
         "recoil_control_smoothness": 3,
         "recoil_selected_weapon": "All weapons",
         "recoil_weapons": {
-            "All weapons": {"strength": 5, "delay": 25, "smoothness": 3}
+            "All weapons": {"strength": 5, "smoothness": 3}
         }
     }
     
@@ -8913,16 +8896,14 @@ def recoil_control():
                 # Use weapon-specific settings if available, otherwise fall back to global settings
                 if selected_weapon in weapon_settings:
                     strength = weapon_settings[selected_weapon].get('strength', settings.get('recoil_control_strength', 5))
-                    response_speed = weapon_settings[selected_weapon].get('delay', settings.get('recoil_control_delay', 25))
                     smoothness = weapon_settings[selected_weapon].get('smoothness', settings.get('recoil_control_smoothness', 3))
                 else:
                     # Fallback to global/legacy settings
                     strength = settings.get('recoil_control_strength', 5)
-                    response_speed = settings.get('recoil_control_delay', 25)
                     smoothness = settings.get('recoil_control_smoothness', 3)
                 
-                # Calculate polling interval based on response speed (1-50 -> 0.01-0.001 seconds)
-                polling_interval = 0.01 - (response_speed - 1) * 0.009 / 49
+                # Use maximum response speed (hardcoded for optimal performance)
+                polling_interval = 0.001
                 
                 # Check current ammo continuously
                 current_ammo = get_current_ammo()
@@ -8947,7 +8928,7 @@ def recoil_control():
                             shots_fired = 0
                             ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
                             weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "All weapons" else ""
-                            print(f"[RECOIL] Started shooting - Strength: {strength}, Response Speed: {response_speed}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
+                            print(f"[RECOIL] Started shooting - Strength: {strength}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
                         
                         shots_fired += 1
                         last_ammo_check_time = current_time
