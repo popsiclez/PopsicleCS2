@@ -2761,6 +2761,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.auto_crosshair_placement_draw_range_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         crosshair_layout.addWidget(self.auto_crosshair_placement_draw_range_lines_cb)
 
+        self.auto_crosshair_placement_always_show_deadzone_lines_cb = QtWidgets.QCheckBox("Always Show Deadzone Lines")
+        self.auto_crosshair_placement_always_show_deadzone_lines_cb.setChecked(self.settings.get("auto_crosshair_placement_always_show_deadzone_lines", 0) == 1)
+        self.auto_crosshair_placement_always_show_deadzone_lines_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.auto_crosshair_placement_always_show_deadzone_lines_cb, "Show deadzone lines persistently without needing to hold the auto crosshair placement key. Only works when 'Draw Deadzone Lines' is also enabled.")
+        self.auto_crosshair_placement_always_show_deadzone_lines_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        crosshair_layout.addWidget(self.auto_crosshair_placement_always_show_deadzone_lines_cb)
+
         self.lbl_auto_crosshair_placement_line_width = QtWidgets.QLabel(f"Deadzone Line Width: ({self.settings.get('auto_crosshair_placement_line_width', 2)})")
         crosshair_layout.addWidget(self.lbl_auto_crosshair_placement_line_width)
         self.auto_crosshair_placement_line_width_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -3205,6 +3212,8 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.auto_crosshair_placement_target_combo.setCurrentIndex(self.settings.get("auto_crosshair_placement_target_bone", 1))
             if hasattr(self, 'auto_crosshair_placement_draw_range_lines_cb') and self.auto_crosshair_placement_draw_range_lines_cb:
                 self.auto_crosshair_placement_draw_range_lines_cb.setChecked(self.settings.get("auto_crosshair_placement_draw_range_lines", 0) == 1)
+            if hasattr(self, 'auto_crosshair_placement_always_show_deadzone_lines_cb') and self.auto_crosshair_placement_always_show_deadzone_lines_cb:
+                self.auto_crosshair_placement_always_show_deadzone_lines_cb.setChecked(self.settings.get("auto_crosshair_placement_always_show_deadzone_lines", 0) == 1)
             if hasattr(self, 'auto_crosshair_placement_line_width_slider') and self.auto_crosshair_placement_line_width_slider:
                 self.auto_crosshair_placement_line_width_slider.setValue(self.settings.get("auto_crosshair_placement_line_width", 2))
             if hasattr(self, 'auto_crosshair_placement_line_transparency_slider') and self.auto_crosshair_placement_line_transparency_slider:
@@ -3981,6 +3990,9 @@ class ConfigWindow(QtWidgets.QWidget):
         
         if getattr(self, "auto_crosshair_placement_draw_range_lines_cb", None):
             self.settings["auto_crosshair_placement_draw_range_lines"] = 1 if self.auto_crosshair_placement_draw_range_lines_cb.isChecked() else 0
+        
+        if getattr(self, "auto_crosshair_placement_always_show_deadzone_lines_cb", None):
+            self.settings["auto_crosshair_placement_always_show_deadzone_lines"] = 1 if self.auto_crosshair_placement_always_show_deadzone_lines_cb.isChecked() else 0
         
         if getattr(self, "auto_crosshair_placement_line_width_slider", None):
             self.settings["auto_crosshair_placement_line_width"] = self.auto_crosshair_placement_line_width_slider.value()
@@ -6417,18 +6429,23 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
         if not settings.get('auto_crosshair_placement_draw_range_lines', 0) == 1:
             return
             
-        auto_crosshair_key = settings.get('AutoCrosshairPlacementKey', 'NONE')
-        auto_crosshair_vk = key_str_to_vk(auto_crosshair_key)
+        # Check if always show deadzone lines is enabled
+        always_show_deadzone_lines = settings.get('auto_crosshair_placement_always_show_deadzone_lines', 0) == 1
         
-        if auto_crosshair_vk != 0:
-            try:
-                import win32api
-                if not (win32api.GetAsyncKeyState(auto_crosshair_vk) & 0x8000):
+        # If always show is enabled, skip key check and show lines
+        if not always_show_deadzone_lines:
+            auto_crosshair_key = settings.get('AutoCrosshairPlacementKey', 'NONE')
+            auto_crosshair_vk = key_str_to_vk(auto_crosshair_key)
+            
+            if auto_crosshair_vk != 0:
+                try:
+                    import win32api
+                    if not (win32api.GetAsyncKeyState(auto_crosshair_vk) & 0x8000):
+                        return
+                except Exception:
                     return
-            except Exception:
+            else:
                 return
-        else:
-            return
             
         tolerance = settings.get('auto_crosshair_placement_tolerance', 5)
         
@@ -6558,7 +6575,7 @@ def render_camera_lock_range_lines(scene, pm, client, offsets, client_dll, windo
         
         line_width_setting = settings.get('auto_crosshair_placement_line_width', 2)
         line_width_multiplier = line_width_setting / 10.0
-        line_width = window_width * (0.05 + line_width_multiplier * 0.3)  # 5% to 35% of screen width
+        line_width = window_width * (0.02 + line_width_multiplier * 0.33)  # 2% to 35% of screen width
         line_start_x = (window_width - line_width) / 2
         line_end_x = line_start_x + line_width
         
