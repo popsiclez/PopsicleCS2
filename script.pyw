@@ -1,4 +1,4 @@
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
          
@@ -592,23 +592,14 @@ def load_selected_mode():
                 if mode in ['legit', 'full']:
                     return mode
         else:
-            # Only allow running without mode file if STARTUP_ENABLED is False
-            if not STARTUP_ENABLED:
-                return 'full'
-            else:
-                return None
-    except Exception:
-        # Only allow fallback if STARTUP_ENABLED is False
-        if not STARTUP_ENABLED:
+            # Default to full mode when no mode file is present
             return 'full'
-        else:
-            return None
+    except Exception:
+        # Default to full mode on any error
+        return 'full'
     
     # If we reach here, mode file exists but contains invalid mode
-    if not STARTUP_ENABLED:
-        return 'full'
-    else:
-        return None
+    return 'full'
 
 SELECTED_MODE = load_selected_mode()
 
@@ -798,7 +789,45 @@ DEFAULT_SETTINGS = {
     "triggerbot_first_shot_delay": 0,
     "triggerbot_burst_mode": 0,
     "triggerbot_burst_shots": 3,
-    "triggerbot_head_only": 0,             
+    "triggerbot_head_only": 0,
+    "triggerbot_selected_weapon": "Default",
+
+    "triggerbot_weapons": {
+        "Default": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "AK-47": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "M4A4": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "M4A1-S": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "AWP": {"head_only": 1, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 100},
+        "Galil AR": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "FAMAS": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "MP9": {"head_only": 0, "burst_mode": 1, "burst_shots": 5, "first_shot_delay": 0, "between_shots_delay": 20},
+        "MAC-10": {"head_only": 0, "burst_mode": 1, "burst_shots": 5, "first_shot_delay": 0, "between_shots_delay": 20},
+        "MP5-SD": {"head_only": 0, "burst_mode": 1, "burst_shots": 4, "first_shot_delay": 0, "between_shots_delay": 25},
+        "UMP-45": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "P90": {"head_only": 0, "burst_mode": 1, "burst_shots": 6, "first_shot_delay": 0, "between_shots_delay": 15},
+        "PP-Bizon": {"head_only": 0, "burst_mode": 1, "burst_shots": 5, "first_shot_delay": 0, "between_shots_delay": 20},
+        "Nova": {"head_only": 0, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 80},
+        "XM1014": {"head_only": 0, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 60},
+        "Sawed-Off": {"head_only": 0, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 90},
+        "MAG-7": {"head_only": 0, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 80},
+        "M249": {"head_only": 0, "burst_mode": 1, "burst_shots": 8, "first_shot_delay": 0, "between_shots_delay": 25},
+        "Negev": {"head_only": 0, "burst_mode": 1, "burst_shots": 10, "first_shot_delay": 0, "between_shots_delay": 20},
+        "Five-SeveN": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 40},
+        "Glock-18": {"head_only": 1, "burst_mode": 1, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 35},
+        "USP-S": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 45},
+        "P2000": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 45},
+        "P250": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 40},
+        "Tec-9": {"head_only": 0, "burst_mode": 1, "burst_shots": 4, "first_shot_delay": 0, "between_shots_delay": 30},
+        "CZ75-Auto": {"head_only": 1, "burst_mode": 1, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 35},
+        "Desert Eagle": {"head_only": 1, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 60},
+        "Dual Berettas": {"head_only": 0, "burst_mode": 1, "burst_shots": 4, "first_shot_delay": 0, "between_shots_delay": 30},
+        "R8 Revolver": {"head_only": 1, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 80},
+        "SSG 08": {"head_only": 1, "burst_mode": 0, "burst_shots": 1, "first_shot_delay": 0, "between_shots_delay": 70},
+        "SG 553": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "AUG": {"head_only": 0, "burst_mode": 0, "burst_shots": 3, "first_shot_delay": 0, "between_shots_delay": 30},
+        "G3SG1": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 50},
+        "SCAR-20": {"head_only": 1, "burst_mode": 0, "burst_shots": 2, "first_shot_delay": 0, "between_shots_delay": 50}
+    },             
     "bhop_enabled": 0,
     "BhopKey": "SPACE",                    
     "anti_flash_enabled": 0,                 
@@ -806,10 +835,10 @@ DEFAULT_SETTINGS = {
     "recoil_control_enabled": 0,
     "recoil_control_strength": 5,
     "recoil_control_smoothness": 3,
-    "recoil_selected_weapon": "All weapons",
+    "recoil_selected_weapon": "Default",
 
     "recoil_weapons": {
-        "All weapons": {"strength": 5, "smoothness": 3},
+        "Default": {"strength": 5, "smoothness": 3},
         "AK-47": {"strength": 5, "smoothness": 3},
         "M4A4": {"strength": 5, "smoothness": 3},
         "M4A1-S": {"strength": 5, "smoothness": 3},
@@ -1166,7 +1195,7 @@ def load_settings():
                 # Create weapon-specific settings using legacy values for all weapons
                 weapon_settings = {}
                 weapon_list = [
-                    "All weapons", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
+                    "Default", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
                     "MP9", "MAC-10", "MP5-SD", "UMP-45", "P90", "PP-Bizon",
                     "Nova", "XM1014", "Sawed-Off", "MAG-7", "M249", "Negev",
                     "Five-SeveN", "Glock-18", "USP-S", "P2000", "P250", "Tec-9",
@@ -1181,7 +1210,7 @@ def load_settings():
                     }
                 
                 merged_settings['recoil_weapons'] = weapon_settings
-                merged_settings['recoil_selected_weapon'] = merged_settings.get('recoil_selected_weapon', 'All weapons')
+                merged_settings['recoil_selected_weapon'] = merged_settings.get('recoil_selected_weapon', 'Default')
                 
                 # Save the migrated settings
                 save_settings(merged_settings)
@@ -1362,6 +1391,19 @@ class ConfigWindow(QtWidgets.QWidget):
                 button.setMaximumHeight(32)
                 button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
                 button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
+                
+                # Auto-scale font size to fit text perfectly inside button
+                font = button.font()
+                font_metrics = QtGui.QFontMetrics(font)
+                text_width = font_metrics.horizontalAdvance(label)
+                button_width = 110  # Use the fixed minimum/maximum width we set
+                
+                # Calculate font size to fit text within button width with some padding
+                if text_width > button_width - 20:  # Leave 20px padding
+                    new_font_size = int(font.pointSize() * (button_width - 20) / text_width)
+                    font.setPointSize(max(new_font_size, 8))  # Minimum font size of 8
+                    button.setFont(font)
+                
                 button_index = start_idx + i
                 # Special handling for Memory🧠 tab
                 if label == "Memory🧠":
@@ -1950,70 +1992,96 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
+        # Weapon Selection Dropdown
+        self.lbl_triggerbot_weapon = QtWidgets.QLabel("Weapon Preset:")
+        trigger_layout.addWidget(self.lbl_triggerbot_weapon)
+        self.triggerbot_weapon_combo = QtWidgets.QComboBox()
+        weapon_list = [
+            "Default", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS", 
+            "MP9", "MAC-10", "MP5-SD", "UMP-45", "P90", "PP-Bizon", "Nova", "XM1014", 
+            "Sawed-Off", "MAG-7", "M249", "Negev", "Five-SeveN", "Glock-18", "USP-S", 
+            "P2000", "P250", "Tec-9", "CZ75-Auto", "Desert Eagle", "Dual Berettas", 
+            "R8 Revolver", "SSG 08", "SG 553", "AUG", "G3SG1", "SCAR-20"
+        ]
+        self.triggerbot_weapon_combo.addItems(weapon_list)
+        
+        # Set current weapon selection
+        current_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
+        index = self.triggerbot_weapon_combo.findText(current_weapon)
+        if index >= 0:
+            self.triggerbot_weapon_combo.setCurrentIndex(index)
+        
+        self.triggerbot_weapon_combo.currentTextChanged.connect(self.on_triggerbot_weapon_changed)
+        self.set_tooltip_if_enabled(self.triggerbot_weapon_combo, "Select weapon to configure triggerbot settings for. 'Default' applies settings to all weapons.")
+        self.triggerbot_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        trigger_layout.addWidget(self.triggerbot_weapon_combo)
+
+        # Load current weapon settings
+        self.load_weapon_triggerbot_settings(current_weapon)
+
+        # Head-Only Mode Checkbox
         self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Head-Only Mode")
-        self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
-        self.triggerbot_head_only_cb.stateChanged.connect(self.save_settings)
+        self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
+        self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
         self.set_tooltip_if_enabled(self.triggerbot_head_only_cb, "When enabled, triggerbot will only shoot when crosshair is precisely on enemy heads.")
         self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_head_only_cb)
 
+        # Burst Mode Checkbox
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
-        self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
-        self.triggerbot_burst_mode_cb.stateChanged.connect(self.save_settings)
+        self.triggerbot_burst_mode_cb.setChecked(self.get_current_triggerbot_weapon_setting('burst_mode') == 1)
+        self.triggerbot_burst_mode_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
         self.set_tooltip_if_enabled(self.triggerbot_burst_mode_cb, "Fires a limited number of shots in bursts instead of continuous shooting for better recoil control.")
         self.triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_mode_cb)
 
-        self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.triggerbot_burst_shots_slider.setMinimum(2)
-        self.triggerbot_burst_shots_slider.setMaximum(5)
-        self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
-        self.triggerbot_burst_shots_slider.valueChanged.connect(self.update_triggerbot_burst_shots_label)
-        self.set_tooltip_if_enabled(self.triggerbot_burst_shots_slider, "Number of shots fired per burst when burst mode is enabled. Range: 2-5 shots.")
-        self.lbl_burst_shots = QtWidgets.QLabel(f"Burst Shots: ({self.settings.get('triggerbot_burst_shots', 3)})")
-        self.lbl_burst_shots.setMinimumHeight(16)
+        # Burst Shots Slider
+        self.lbl_burst_shots = QtWidgets.QLabel(f"Burst Shots: ({self.get_current_triggerbot_weapon_setting('burst_shots')})")
         trigger_layout.addWidget(self.lbl_burst_shots)
-        self.triggerbot_burst_shots_slider.setMinimumHeight(18)
-        self.triggerbot_burst_shots_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.triggerbot_burst_shots_slider.setMinimum(1)
+        self.triggerbot_burst_shots_slider.setMaximum(15)
+        self.triggerbot_burst_shots_slider.setValue(self.get_current_triggerbot_weapon_setting('burst_shots'))
+        self.triggerbot_burst_shots_slider.valueChanged.connect(self.update_triggerbot_burst_shots_label)
+        self.triggerbot_burst_shots_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
+        self.set_tooltip_if_enabled(self.triggerbot_burst_shots_slider, "Number of shots fired per burst when burst mode is enabled.")
         trigger_layout.addWidget(self.triggerbot_burst_shots_slider)
 
+        # First Shot Delay Slider
+        self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({self.get_current_triggerbot_weapon_setting('first_shot_delay')})")
+        trigger_layout.addWidget(self.lbl_first_shot_delay)
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             self.triggerbot_first_shot_delay_slider.setMinimum(150)
-            current_value = max(150, self.settings.get("triggerbot_first_shot_delay", 150))
+            self.triggerbot_first_shot_delay_slider.setMaximum(1000)
         else:
             self.triggerbot_first_shot_delay_slider.setMinimum(0)
-            current_value = self.settings.get("triggerbot_first_shot_delay", 0)
+            self.triggerbot_first_shot_delay_slider.setMaximum(1000)
             
-        self.triggerbot_first_shot_delay_slider.setMaximum(1000)
-        self.triggerbot_first_shot_delay_slider.setValue(current_value)
+        self.triggerbot_first_shot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('first_shot_delay'))
         self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_triggerbot_first_shot_delay_label)
-        self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Set to 0 for instant shooting, higher values add reaction time delay.")
-        self.lbl_first_shot_delay = QtWidgets.QLabel(f"Triggerbot - First Shot Delay (ms): ({current_value})")
-        self.lbl_first_shot_delay.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_first_shot_delay)
-        self.triggerbot_first_shot_delay_slider.setMinimumHeight(18)
-        self.triggerbot_first_shot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
+        self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Higher values add reaction time delay.")
         trigger_layout.addWidget(self.triggerbot_first_shot_delay_slider)
 
+        # Between Shots Delay Slider
+        self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.get_current_triggerbot_weapon_setting('between_shots_delay')})")
+        trigger_layout.addWidget(self.lbl_delay)
         self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.triggerbot_delay_slider.setMinimum(0)
         self.triggerbot_delay_slider.setMaximum(1000)
-        self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
+        self.triggerbot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('between_shots_delay'))
         self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
+        self.triggerbot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
         self.set_tooltip_if_enabled(self.triggerbot_delay_slider, "Delay in milliseconds between each shot to control fire rate. Higher values = slower shooting.")
-        self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.settings.get('triggerbot_between_shots_delay', 30)})")
-        self.lbl_delay.setMinimumHeight(16)
-        trigger_layout.addWidget(self.lbl_delay)
-        self.triggerbot_delay_slider.setMinimumHeight(18)
-        self.triggerbot_delay_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_delay_slider)
 
+        # Trigger Key Button
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
-        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot and auto crosshair placement. Hold this key while aiming at enemies to auto-shoot and maintain head level.")
+        self.set_tooltip_if_enabled(self.trigger_key_btn, "Click to set the key that activates trigger bot. Hold this key while aiming at enemies to auto-shoot.")
         self.trigger_key_btn.setMinimumHeight(22)
         self.trigger_key_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_key_btn)
@@ -2043,11 +2111,11 @@ class ConfigWindow(QtWidgets.QWidget):
         recoil_layout.addWidget(self.recoil_control_enabled_cb)
 
         # Weapon Selection Dropdown
-        self.recoil_weapon_label = QtWidgets.QLabel("Weapon:")
+        self.recoil_weapon_label = QtWidgets.QLabel("Weapon Preset:")
         recoil_layout.addWidget(self.recoil_weapon_label)
         self.recoil_weapon_combo = QtWidgets.QComboBox()
         weapon_list = [
-            "All weapons", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
+            "Default", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
             "MP9", "MAC-10", "MP5-SD", "UMP-45", "P90", "PP-Bizon",
             "Nova", "XM1014", "Sawed-Off", "MAG-7", "M249", "Negev",
             "Five-SeveN", "Glock-18", "USP-S", "P2000", "P250", "Tec-9",
@@ -2057,13 +2125,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.recoil_weapon_combo.addItems(weapon_list)
         
         # Set current weapon selection
-        current_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        current_weapon = self.settings.get('recoil_selected_weapon', 'Default')
         index = self.recoil_weapon_combo.findText(current_weapon)
         if index >= 0:
             self.recoil_weapon_combo.setCurrentIndex(index)
         
         self.recoil_weapon_combo.currentTextChanged.connect(self.on_recoil_weapon_changed)
-        self.set_tooltip_if_enabled(self.recoil_weapon_combo, "Select weapon to configure recoil settings for. 'All weapons' applies settings to all weapons.")
+        self.set_tooltip_if_enabled(self.recoil_weapon_combo, "Select weapon to configure recoil settings for. 'Default' applies settings to all weapons.")
         self.recoil_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         recoil_layout.addWidget(self.recoil_weapon_combo)
 
@@ -2083,7 +2151,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
         self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
-        self.recoil_strength_slider.valueChanged.connect(self.save_settings)
+        self.recoil_strength_slider.valueChanged.connect(self.on_recoil_slider_changed)
         self.set_tooltip_if_enabled(self.recoil_strength_slider, "How much the mouse moves down per recoil adjustment. Higher values = more downward movement. (1-100)")
         recoil_layout.addWidget(self.recoil_strength_slider)
 
@@ -2101,7 +2169,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
         self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
-        self.recoil_smoothness_slider.valueChanged.connect(self.save_settings)
+        self.recoil_smoothness_slider.valueChanged.connect(self.on_recoil_slider_changed)
         self.set_tooltip_if_enabled(self.recoil_smoothness_slider, "How smooth the recoil control movements are. Higher values = smoother, more gradual movements.")
         recoil_layout.addWidget(self.recoil_smoothness_slider)
 
@@ -2111,7 +2179,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def get_current_weapon_setting(self, setting_type):
         """Get the current weapon's recoil setting with legit mode enforcement"""
-        selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        selected_weapon = self.settings.get('recoil_selected_weapon', 'Default')
         weapon_settings = self.settings.get('recoil_weapons', {})
         
         if selected_weapon in weapon_settings:
@@ -2140,7 +2208,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def save_current_weapon_settings(self):
         """Save current slider values to the selected weapon's settings"""
-        selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+        selected_weapon = self.settings.get('recoil_selected_weapon', 'Default')
         weapon_settings = self.settings.get('recoil_weapons', {})
         
         if selected_weapon not in weapon_settings:
@@ -2165,6 +2233,12 @@ class ConfigWindow(QtWidgets.QWidget):
         
         self.settings['recoil_weapons'] = weapon_settings
 
+    def on_recoil_slider_changed(self):
+        """Handle recoil slider changes - save weapon-specific settings"""
+        if hasattr(self, 'recoil_weapon_combo'):
+            self.save_current_weapon_settings()
+            self.save_settings()
+
     def on_recoil_weapon_changed(self):
         """Handle weapon selection change"""
         # Save current weapon settings before switching
@@ -2178,6 +2252,12 @@ class ConfigWindow(QtWidgets.QWidget):
         # Load new weapon settings
         self.load_weapon_recoil_settings(selected_weapon)
         
+        # Temporarily disconnect signals to prevent triggering saves during value updates
+        if hasattr(self, 'recoil_strength_slider'):
+            self.recoil_strength_slider.valueChanged.disconnect()
+        if hasattr(self, 'recoil_smoothness_slider'):
+            self.recoil_smoothness_slider.valueChanged.disconnect()
+        
         # Update sliders with new weapon settings
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
@@ -2187,9 +2267,160 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
             self.update_recoil_smoothness_label()
         
+        # Reconnect signals
+        if hasattr(self, 'recoil_strength_slider'):
+            self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
+            self.recoil_strength_slider.valueChanged.connect(self.on_recoil_slider_changed)
+        if hasattr(self, 'recoil_smoothness_slider'):
+            self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
+            self.recoil_smoothness_slider.valueChanged.connect(self.on_recoil_slider_changed)
+        
         # Update main recoil control settings to match current weapon
         self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
         self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
+        
+        # Save settings
+        self.save_settings()
+
+    def get_current_triggerbot_weapon_setting(self, setting_type):
+        """Get the current weapon's triggerbot setting with legit mode enforcement"""
+        selected_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
+        weapon_settings = self.settings.get('triggerbot_weapons', {})
+        
+        if selected_weapon in weapon_settings:
+            value = weapon_settings[selected_weapon].get(setting_type, self.get_triggerbot_default_value(setting_type))
+        else:
+            # Fallback to default values
+            value = self.get_triggerbot_default_value(setting_type)
+        
+        # Enforce legit mode restrictions
+        if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+            if setting_type == 'first_shot_delay' and value < 150:
+                value = 150
+        
+        return value
+
+    def get_triggerbot_default_value(self, setting_type):
+        """Get default value for triggerbot setting type"""
+        defaults = {
+            'head_only': 0,
+            'burst_mode': 0, 
+            'burst_shots': 3,
+            'first_shot_delay': 0,
+            'between_shots_delay': 30
+        }
+        return defaults.get(setting_type, 0)
+
+    def load_weapon_triggerbot_settings(self, weapon_name):
+        """Load triggerbot settings for the specified weapon"""
+        weapon_settings = self.settings.get('triggerbot_weapons', {})
+        
+        if weapon_name not in weapon_settings:
+            weapon_settings[weapon_name] = {}
+            self.settings['triggerbot_weapons'] = weapon_settings
+
+    def save_current_triggerbot_weapon_settings(self):
+        """Save current triggerbot settings to the selected weapon's settings"""
+        selected_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
+        weapon_settings = self.settings.get('triggerbot_weapons', {})
+        
+        if selected_weapon not in weapon_settings:
+            weapon_settings[selected_weapon] = {}
+        
+        # Save current settings with legit mode enforcement
+        if hasattr(self, 'triggerbot_head_only_cb'):
+            weapon_settings[selected_weapon]['head_only'] = 1 if self.triggerbot_head_only_cb.isChecked() else 0
+            
+        if hasattr(self, 'triggerbot_burst_mode_cb'):
+            weapon_settings[selected_weapon]['burst_mode'] = 1 if self.triggerbot_burst_mode_cb.isChecked() else 0
+            
+        if hasattr(self, 'triggerbot_burst_shots_slider'):
+            weapon_settings[selected_weapon]['burst_shots'] = self.triggerbot_burst_shots_slider.value()
+            
+        if hasattr(self, 'triggerbot_first_shot_delay_slider'):
+            first_shot_value = self.triggerbot_first_shot_delay_slider.value()
+            # Enforce legit mode minimum for first shot delay
+            if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and first_shot_value < 150:
+                first_shot_value = 150
+                self.triggerbot_first_shot_delay_slider.setValue(150)
+            weapon_settings[selected_weapon]['first_shot_delay'] = first_shot_value
+            
+        if hasattr(self, 'triggerbot_delay_slider'):
+            weapon_settings[selected_weapon]['between_shots_delay'] = self.triggerbot_delay_slider.value()
+        
+        self.settings['triggerbot_weapons'] = weapon_settings
+
+    def on_triggerbot_setting_changed(self):
+        """Handle triggerbot setting changes - save weapon-specific settings"""
+        if hasattr(self, 'triggerbot_weapon_combo'):
+            self.save_current_triggerbot_weapon_settings()
+            self.save_settings()
+
+    def on_triggerbot_weapon_changed(self):
+        """Handle triggerbot weapon selection change"""
+        # Save current weapon settings before switching
+        if hasattr(self, 'triggerbot_head_only_cb'):
+            self.save_current_triggerbot_weapon_settings()
+        
+        # Update selected weapon
+        selected_weapon = self.triggerbot_weapon_combo.currentText()
+        self.settings['triggerbot_selected_weapon'] = selected_weapon
+        
+        # Load new weapon settings
+        self.load_weapon_triggerbot_settings(selected_weapon)
+        
+        # Temporarily disconnect signals to prevent triggering saves during value updates
+        if hasattr(self, 'triggerbot_head_only_cb'):
+            self.triggerbot_head_only_cb.stateChanged.disconnect()
+        if hasattr(self, 'triggerbot_burst_mode_cb'):
+            self.triggerbot_burst_mode_cb.stateChanged.disconnect()
+        if hasattr(self, 'triggerbot_burst_shots_slider'):
+            self.triggerbot_burst_shots_slider.valueChanged.disconnect()
+        if hasattr(self, 'triggerbot_first_shot_delay_slider'):
+            self.triggerbot_first_shot_delay_slider.valueChanged.disconnect()
+        if hasattr(self, 'triggerbot_delay_slider'):
+            self.triggerbot_delay_slider.valueChanged.disconnect()
+        
+        # Update controls with new weapon settings
+        if hasattr(self, 'triggerbot_head_only_cb'):
+            self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
+        
+        if hasattr(self, 'triggerbot_burst_mode_cb'):
+            self.triggerbot_burst_mode_cb.setChecked(self.get_current_triggerbot_weapon_setting('burst_mode') == 1)
+        
+        if hasattr(self, 'triggerbot_burst_shots_slider'):
+            self.triggerbot_burst_shots_slider.setValue(self.get_current_triggerbot_weapon_setting('burst_shots'))
+            self.update_triggerbot_burst_shots_label()
+        
+        if hasattr(self, 'triggerbot_first_shot_delay_slider'):
+            self.triggerbot_first_shot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('first_shot_delay'))
+            self.update_triggerbot_first_shot_delay_label()
+        
+        if hasattr(self, 'triggerbot_delay_slider'):
+            self.triggerbot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('between_shots_delay'))
+            self.update_triggerbot_delay_label()
+        
+        # Reconnect signals
+        if hasattr(self, 'triggerbot_head_only_cb'):
+            self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
+        if hasattr(self, 'triggerbot_burst_mode_cb'):
+            self.triggerbot_burst_mode_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
+        if hasattr(self, 'triggerbot_burst_shots_slider'):
+            self.triggerbot_burst_shots_slider.valueChanged.connect(self.update_triggerbot_burst_shots_label)
+            self.triggerbot_burst_shots_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
+        if hasattr(self, 'triggerbot_first_shot_delay_slider'):
+            self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.update_triggerbot_first_shot_delay_label)
+            self.triggerbot_first_shot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
+        if hasattr(self, 'triggerbot_delay_slider'):
+            self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
+            self.triggerbot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
+        
+        # Update main triggerbot control settings to match current weapon
+        self.settings["triggerbot_head_only"] = self.get_current_triggerbot_weapon_setting('head_only')
+        self.settings["triggerbot_burst_mode"] = self.get_current_triggerbot_weapon_setting('burst_mode')
+        self.settings["triggerbot_burst_shots"] = self.get_current_triggerbot_weapon_setting('burst_shots')
+        self.settings["triggerbot_first_shot_delay"] = self.get_current_triggerbot_weapon_setting('first_shot_delay')
+        self.settings["triggerbot_between_shots_delay"] = self.get_current_triggerbot_weapon_setting('between_shots_delay')
         
         # Save settings
         self.save_settings()
@@ -3172,11 +3403,29 @@ class ConfigWindow(QtWidgets.QWidget):
             
 
             self.trigger_bot_active_cb.setChecked(self.settings.get("trigger_bot_active", 0) == 1)
-            self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
-            self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
-            self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
-            self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
-            self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
+            
+            # Handle weapon-specific triggerbot settings
+            if hasattr(self, 'triggerbot_weapon_combo'):
+                # Set weapon selection
+                selected_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
+                index = self.triggerbot_weapon_combo.findText(selected_weapon)
+                if index >= 0:
+                    self.triggerbot_weapon_combo.setCurrentIndex(index)
+                
+                # Load weapon settings and update controls
+                self.load_weapon_triggerbot_settings(selected_weapon)
+                self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
+                self.triggerbot_burst_mode_cb.setChecked(self.get_current_triggerbot_weapon_setting('burst_mode') == 1)
+                self.triggerbot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('between_shots_delay'))
+                self.triggerbot_first_shot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('first_shot_delay'))
+                self.triggerbot_burst_shots_slider.setValue(self.get_current_triggerbot_weapon_setting('burst_shots'))
+            else:
+                # Fallback to legacy settings if weapon combo doesn't exist yet
+                self.triggerbot_head_only_cb.setChecked(self.settings.get("triggerbot_head_only", 0) == 1)
+                self.triggerbot_burst_mode_cb.setChecked(self.settings.get("triggerbot_burst_mode", 0) == 1)
+                self.triggerbot_delay_slider.setValue(self.settings.get("triggerbot_between_shots_delay", 30))
+                self.triggerbot_first_shot_delay_slider.setValue(self.settings.get("triggerbot_first_shot_delay", 0))
+                self.triggerbot_burst_shots_slider.setValue(self.settings.get("triggerbot_burst_shots", 3))
             
             # Recoil Control settings
             self.recoil_control_enabled_cb.setChecked(self.settings.get("recoil_control_enabled", 0) == 1)
@@ -3184,7 +3433,7 @@ class ConfigWindow(QtWidgets.QWidget):
             # Handle weapon-specific recoil settings
             if hasattr(self, 'recoil_weapon_combo'):
                 # Set weapon selection
-                selected_weapon = self.settings.get('recoil_selected_weapon', 'All weapons')
+                selected_weapon = self.settings.get('recoil_selected_weapon', 'Default')
                 index = self.recoil_weapon_combo.findText(selected_weapon)
                 if index >= 0:
                     self.recoil_weapon_combo.setCurrentIndex(index)
@@ -3976,6 +4225,12 @@ class ConfigWindow(QtWidgets.QWidget):
         if getattr(self, "triggerbot_head_only_cb", None):
             self.settings["triggerbot_head_only"] = 1 if self.triggerbot_head_only_cb.isChecked() else 0
 
+        # Save triggerbot weapon-specific settings
+        if hasattr(self, 'triggerbot_weapon_combo'):
+            if not hasattr(self.settings, 'get') or 'triggerbot_weapons' not in self.settings:
+                self.settings['triggerbot_weapons'] = {}
+            self.settings['triggerbot_selected_weapon'] = self.triggerbot_weapon_combo.currentText()
+
         if getattr(self, "center_dot_size_slider", None):
             self.settings["center_dot_size"] = self.center_dot_size_slider.value()
 
@@ -4020,13 +4275,17 @@ class ConfigWindow(QtWidgets.QWidget):
         if hasattr(self, 'recoil_weapon_combo'):
             self.settings["recoil_selected_weapon"] = self.recoil_weapon_combo.currentText()
             self.save_current_weapon_settings()
-        
-        # Keep legacy settings for backward compatibility
-        if getattr(self, "recoil_strength_slider", None):
-            self.settings["recoil_control_strength"] = self.recoil_strength_slider.value()
-        
-        if getattr(self, "recoil_smoothness_slider", None):
-            self.settings["recoil_control_smoothness"] = self.recoil_smoothness_slider.value()
+            
+            # Update legacy settings to match current weapon for backward compatibility
+            self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
+            self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
+        else:
+            # Fallback to legacy settings when weapon combo doesn't exist
+            if getattr(self, "recoil_strength_slider", None):
+                self.settings["recoil_control_strength"] = self.recoil_strength_slider.value()
+            
+            if getattr(self, "recoil_smoothness_slider", None):
+                self.settings["recoil_control_smoothness"] = self.recoil_smoothness_slider.value()
 
         
         try:
@@ -4620,7 +4879,6 @@ class ConfigWindow(QtWidgets.QWidget):
                 padding: 7px 11px;
                 font-family: "MS PGothic";
                 font-weight: bold;
-                font-size: 12px;
             }}
             
             QPushButton[objectName="tab_button"]:hover {{
@@ -5119,12 +5377,10 @@ class ConfigWindow(QtWidgets.QWidget):
     def update_recoil_strength_label(self):
         val = self.recoil_strength_slider.value()
         self.lbl_recoil_strength.setText(f"Recoil Strength: ({val})")
-        self.save_settings()
 
     def update_recoil_smoothness_label(self):
         val = self.recoil_smoothness_slider.value()
         self.lbl_recoil_smoothness.setText(f"Recoil Smoothness: ({val})")
-        self.save_settings()
 
     def update_center_dot_size_label(self):
         val = self.center_dot_size_slider.value()
@@ -5813,7 +6069,7 @@ class ESPWindow(QtWidgets.QWidget):
             except Exception:
                 self.pm = None
                 self.client = None
-                time.sleep(1)  
+                time.sleep(0.1)  
         
 
         self.scene = QGraphicsScene(self)
@@ -6169,6 +6425,35 @@ class ESPWindow(QtWidgets.QWidget):
                                        
         if hasattr(self, 'scene'):
             self.scene.clear()
+            
+            # Check if config window is open, then draw theme-colored overlay
+            if self.is_config_window_open():
+                # Use menu theme color for overlay with rainbow theme compatibility
+                if self.settings.get('rainbow_menu_theme', 0) == 1:
+                    try:
+                        rainbow_color_hex = self.settings.get('current_rainbow_color')
+                        if not rainbow_color_hex:
+                            # Try to load from rainbow color file as fallback
+                            rainbow_color_hex = load_rainbow_color()
+                        if rainbow_color_hex:
+                            overlay_color = QtGui.QColor(rainbow_color_hex)
+                            overlay_color.setAlpha(30)  # More transparent
+                        else:
+                            # Fallback to default menu theme color
+                            theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                            overlay_color = QtGui.QColor(theme_color_hex)
+                            overlay_color.setAlpha(30)
+                    except Exception:
+                        theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                        overlay_color = QtGui.QColor(theme_color_hex)
+                        overlay_color.setAlpha(30)
+                else:
+                    theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                    overlay_color = QtGui.QColor(theme_color_hex)
+                    overlay_color.setAlpha(30)
+                
+                overlay_rect = QtCore.QRectF(0, 0, self.window_width, self.window_height)
+                self.scene.addRect(overlay_rect, QtGui.QPen(QtCore.Qt.NoPen), QtGui.QBrush(overlay_color))
         
         try:
                                                                                 
@@ -6212,49 +6497,51 @@ class ESPWindow(QtWidgets.QWidget):
                 self.last_time = current_time
             
                                                                                  
-            try:
-                fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
-                fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)
-                
-                # Get Windows username
+            # Only show FPS info when menu is hidden (same system as the overlay)
+            if not self.is_config_window_open():
                 try:
-                    username = os.getlogin()
-                except Exception:
+                    fps_font = QtGui.QFont('MS PGothic', 15, QtGui.QFont.Bold)
+                    fps_font.setHintingPreference(QtGui.QFont.PreferFullHinting)
+                    
+                    # Get Windows username
                     try:
-                        username = os.environ.get('USERNAME', 'Unknown')
+                        username = os.getlogin()
                     except Exception:
-                        username = 'Unknown'
-                
-                # Get mode information
-                mode = "FULL"  # Default to FULL
-                if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-                    mode = "LEGIT"
-                
-                fps_item = self.scene.addText(f"V{VERSION} | Mode: {mode} | Session Name: {username} | FPS: {self.fps}", fps_font)
-                
-                                                               
-                if self.settings.get('rainbow_menu_theme', 0) == 1:
-                    try:
-                        rainbow_color_hex = self.settings.get('current_rainbow_color')
-                        if not rainbow_color_hex:
-                            # Try to load from rainbow color file as fallback
-                            rainbow_color_hex = load_rainbow_color()
-                        if rainbow_color_hex:
-                            theme_color = QtGui.QColor(rainbow_color_hex)
-                        else:
-                            # Fallback to default menu theme color
+                        try:
+                            username = os.environ.get('USERNAME', 'Unknown')
+                        except Exception:
+                            username = 'Unknown'
+                    
+                    # Get mode information
+                    mode = "FULL"  # Default to FULL
+                    if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
+                        mode = "LEGIT"
+                    
+                    fps_item = self.scene.addText(f"V{VERSION} | Mode: {mode} | Session Name: {username} | FPS: {self.fps}", fps_font)
+                    
+                                                                   
+                    if self.settings.get('rainbow_menu_theme', 0) == 1:
+                        try:
+                            rainbow_color_hex = self.settings.get('current_rainbow_color')
+                            if not rainbow_color_hex:
+                                # Try to load from rainbow color file as fallback
+                                rainbow_color_hex = load_rainbow_color()
+                            if rainbow_color_hex:
+                                theme_color = QtGui.QColor(rainbow_color_hex)
+                            else:
+                                # Fallback to default menu theme color
+                                theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
+                                theme_color = QtGui.QColor(theme_color_hex)
+                        except Exception:
                             theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
                             theme_color = QtGui.QColor(theme_color_hex)
-                    except Exception:
+                    else:
                         theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
                         theme_color = QtGui.QColor(theme_color_hex)
-                else:
-                    theme_color_hex = self.settings.get('menu_theme_color', '#FF0000')
-                    theme_color = QtGui.QColor(theme_color_hex)
-                fps_item.setDefaultTextColor(theme_color)
-                fps_item.setPos(5, 5)
-            except Exception:
-                pass
+                    fps_item.setDefaultTextColor(theme_color)
+                    fps_item.setPos(5, 5)
+                except Exception:
+                    pass
             
         except Exception as e:
                                                           
@@ -6298,6 +6585,36 @@ class ESPWindow(QtWidgets.QWidget):
                 cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
                 return cs2_hwnd and cs2_hwnd == foreground_hwnd
                 
+        except Exception:
+            return False
+
+    def is_config_window_open(self):
+        """Check if any config window is currently open (not just active)"""
+        try:
+            def enum_windows_callback(hwnd, windows):
+                try:
+                    window_title = win32gui.GetWindowText(hwnd)
+                    if "Config" in window_title and win32gui.IsWindowVisible(hwnd):
+                        windows.append(hwnd)
+                except Exception:
+                    pass
+                return True
+            
+            config_windows = []
+            win32gui.EnumWindows(enum_windows_callback, config_windows)
+            return len(config_windows) > 0
+        except Exception:
+            return False
+
+    def is_config_window_foreground(self):
+        """Check if any config window is currently the foreground window"""
+        try:
+            foreground_hwnd = win32gui.GetForegroundWindow()
+            if not foreground_hwnd:
+                return False
+            
+            window_title = win32gui.GetWindowText(foreground_hwnd)
+            return "Config" in window_title
         except Exception:
             return False
 
@@ -7490,15 +7807,23 @@ def esp_main():
         
         window_width = None
         window_height = None
+        cached_window_size = None
+        window_size_cache_time = 0
         pm = None
         client = None
         while True:
             
-            w, h = get_window_size("Counter-Strike 2")
-            if w is not None and h is not None:
-                window_width, window_height = w, h
+            current_time = time.time()
+            if cached_window_size is None or current_time - window_size_cache_time > 2.0:
+                w, h = get_window_size("Counter-Strike 2")
+                if w is not None and h is not None:
+                    cached_window_size = (w, h)
+                    window_size_cache_time = current_time
             
-                                                     
+            if cached_window_size:
+                window_width, window_height = cached_window_size
+            
+                                      
             if is_cs2_running():
                 try:
                     pm = pymem.Pymem("cs2.exe")
@@ -7515,9 +7840,7 @@ def esp_main():
             
             if window_width and window_height and pm is not None and client is not None:
                 break
-            time.sleep(1)
-
-        
+            time.sleep(0.1)        
         window = ESPWindow(settings, window_width=window_width, window_height=window_height)
         
         try:
@@ -7600,16 +7923,36 @@ def triggerbot():
                     if bone_ptr:
                         bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
                         if bone_matrix:
+                            # Calculate head position
                             head_id = 6
                             head_x = pm.read_float(bone_matrix + head_id * 0x20)
                             head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                            head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                            sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                            head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8) + 8
                             
-                            if sx != -999 and sy != -999:
+                            # Calculate leg position for bounding box
+                            leg_z = pm.read_float(bone_matrix + 28 * 0x20 + 0x8)
+                            
+                            head_pos = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                            leg_pos = w2s(view_matrix, head_x, head_y, leg_z, w, h)
+                            
+                            if head_pos[0] != -999 and head_pos[1] != -999 and leg_pos[0] != -999 and leg_pos[1] != -999:
+                                # Calculate bounding box (same as ESP)
+                                deltaZ = abs(head_pos[1] - leg_pos[1])
+                                leftX = head_pos[0] - deltaZ // 4
+                                rightX = head_pos[0] + deltaZ // 4
+                                
+                                # Calculate head hitbox (same as ESP)
+                                head_hitbox_size = (rightX - leftX) / 5
+                                head_hitbox_radius = head_hitbox_size * (2 ** 0.5) / 2
+                                head_hitbox_x = leftX + 2.5 * head_hitbox_size
+                                head_hitbox_y = head_pos[1] + deltaZ / 9
+                                
+                                # Check if crosshair is within head hitbox circle
                                 cx, cy = w // 2, h // 2
-                                distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
-                                return distance_to_head <= 8
+                                distance_to_hitbox_center = ((cx - head_hitbox_x) ** 2 + (cy - head_hitbox_y) ** 2) ** 0.5
+                                
+                                if distance_to_hitbox_center <= head_hitbox_radius:
+                                    return True
                 return False
             
             return True
@@ -7633,11 +7976,11 @@ def triggerbot():
                 except Exception:
                     pm = None
                     client = None
-                    time.sleep(1)
+                    time.sleep(0.1)
             else:
                 pm = None
                 client = None
-                time.sleep(1)
+                time.sleep(0.1)
         while True:
             try:
                 trigger_bot_active = settings.get("trigger_bot_active", 0)
@@ -7697,16 +8040,35 @@ def triggerbot():
                                             if bone_ptr:
                                                 bone_matrix = pm.read_longlong(bone_ptr + m_modelState + 0x80)
                                                 if bone_matrix:
+                                                    # Calculate head position
                                                     head_id = 6
                                                     head_x = pm.read_float(bone_matrix + head_id * 0x20)
                                                     head_y = pm.read_float(bone_matrix + head_id * 0x20 + 0x4)
-                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8)
-                                                    sx, sy = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                    head_z = pm.read_float(bone_matrix + head_id * 0x20 + 0x8) + 8
                                                     
-                                                    if sx != -999 and sy != -999:
+                                                    # Calculate leg position for bounding box
+                                                    leg_z = pm.read_float(bone_matrix + 28 * 0x20 + 0x8)
+                                                    
+                                                    head_pos = w2s(view_matrix, head_x, head_y, head_z, w, h)
+                                                    leg_pos = w2s(view_matrix, head_x, head_y, leg_z, w, h)
+                                                    
+                                                    if head_pos[0] != -999 and head_pos[1] != -999 and leg_pos[0] != -999 and leg_pos[1] != -999:
+                                                        # Calculate bounding box (same as ESP)
+                                                        deltaZ = abs(head_pos[1] - leg_pos[1])
+                                                        leftX = head_pos[0] - deltaZ // 4
+                                                        rightX = head_pos[0] + deltaZ // 4
+                                                        
+                                                        # Calculate head hitbox (same as ESP)
+                                                        head_hitbox_size = (rightX - leftX) / 5
+                                                        head_hitbox_radius = head_hitbox_size * (2 ** 0.5) / 2
+                                                        head_hitbox_x = leftX + 2.5 * head_hitbox_size
+                                                        head_hitbox_y = head_pos[1] + deltaZ / 9
+                                                        
+                                                        # Check if crosshair is within head hitbox circle
                                                         cx, cy = w // 2, h // 2
-                                                        distance_to_head = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
-                                                        if distance_to_head <= 8:
+                                                        distance_to_hitbox_center = ((cx - head_hitbox_x) ** 2 + (cy - head_hitbox_y) ** 2) ** 0.5
+                                                        
+                                                        if distance_to_hitbox_center <= head_hitbox_radius:
                                                             should_shoot = True
                                     except Exception:
                                         pass
@@ -8637,11 +8999,11 @@ def aim():
                 except Exception:
                     pm = None
                     client = None
-                    time.sleep(1)
+                    time.sleep(0.1)
             else:
                 pm = None
                 client = None
-                time.sleep(1)
+                time.sleep(0.1)
         window_size = get_window_size()
         
         loop_counter = 0
@@ -8790,9 +9152,9 @@ def recoil_control():
         "recoil_control_enabled": 0,
         "recoil_control_strength": 5,
         "recoil_control_smoothness": 3,
-        "recoil_selected_weapon": "All weapons",
+        "recoil_selected_weapon": "Default",
         "recoil_weapons": {
-            "All weapons": {"strength": 5, "smoothness": 3}
+            "Default": {"strength": 5, "smoothness": 3}
         }
     }
     
@@ -8907,7 +9269,7 @@ def recoil_control():
                     main._last_enabled_state = False
                 
                 # Get weapon-specific settings
-                selected_weapon = settings.get('recoil_selected_weapon', 'All weapons')
+                selected_weapon = settings.get('recoil_selected_weapon', 'Default')
                 weapon_settings = settings.get('recoil_weapons', {})
                 
                 # Use weapon-specific settings if available, otherwise fall back to global settings
@@ -8944,7 +9306,7 @@ def recoil_control():
                             is_shooting = True
                             shots_fired = 0
                             ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
-                            weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "All weapons" else ""
+                            weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "Default" else ""
                             print(f"[RECOIL] Started shooting - Strength: {strength}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
                         
                         shots_fired += 1
@@ -9169,7 +9531,6 @@ if __name__ == "__main__":
         if is_debug_mode() and not is_low_cpu_mode():
             print(f"[DEBUG] Starting process: {process_names[i]}")
         p.start()
-        time.sleep(0.5)
 
     # Signal to loader that script is fully loaded and processes started
     try:
