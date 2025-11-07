@@ -1,7 +1,7 @@
 VERSION = "1.1.1"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+#1         
 import threading
 import keyboard
 import os
@@ -1494,7 +1494,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Setup FOV application timer for continuous FOV enforcement when not scoped
         self._fov_timer = QtCore.QTimer(self)
         self._fov_timer.timeout.connect(self._apply_continuous_fov)
-        self._fov_timer.start(1)  # Check every 1ms for maximum responsiveness
+        self._fov_timer.start(200)  # Check every 200ms (5 times per second) while waiting for slider interaction
         
         # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
         self._anti_flash_timer = QtCore.QTimer(self)
@@ -3688,7 +3688,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 # Apply calculated timer intervals
                 if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(timer_interval)
+                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use timer_interval
+                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else timer_interval
+                    self._fov_timer.setInterval(fov_interval)
                 if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
                     self._anti_flash_timer.setInterval(timer_interval)
                 if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
@@ -3707,7 +3709,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 # Apply fast timer intervals for normal mode
                 if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(1)  # 1ms for maximum responsiveness
+                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use 20ms for active enforcement
+                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else 20
+                    self._fov_timer.setInterval(fov_interval)
                 if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
                     self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
                 if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
@@ -3750,7 +3754,9 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 # Apply fast timer intervals for normal mode on startup
                 if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(1)  # 1ms for maximum responsiveness
+                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use 20ms for active enforcement
+                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else 20
+                    self._fov_timer.setInterval(fov_interval)
                 if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
                     self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
                 if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
@@ -5478,6 +5484,10 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
             self.update_game_fov_label_only()
             
+            # Speed up FOV timer when slider is being modified
+            if hasattr(self, '_fov_timer') and self._fov_timer:
+                self._fov_timer.setInterval(20)  # 50 times per second during modification
+            
         except Exception:
             pass
 
@@ -5499,6 +5509,10 @@ class ConfigWindow(QtWidgets.QWidget):
             self.save_settings()
             self._fov_manual_change = True
             self.update_game_fov_label()
+            
+            # Keep fast timer interval after slider is released for continuous FOV application
+            if hasattr(self, '_fov_timer') and self._fov_timer:
+                self._fov_timer.setInterval(20)  # Continue at 50 times per second for active FOV enforcement
             
             if hasattr(self, '_fov_original_value'):
                 delattr(self, '_fov_original_value')
@@ -8189,6 +8203,7 @@ def triggerbot():
         app = QCoreApplication(sys.argv)
         settings = load_settings()
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
+        threading.Thread(target=start_camera_lock_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
     try:
@@ -8438,6 +8453,7 @@ def bhop():
         app = QCoreApplication(sys.argv)
         settings = load_settings()
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
+        threading.Thread(target=start_camera_lock_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
     try:
@@ -8451,6 +8467,189 @@ def bhop():
         except:
             pass
         sys.exit(0)
+
+def camera_lock_thread(settings):
+    """Independent thread for auto crosshair placement that runs separately from aimbot"""
+    import time
+    pm = None
+    client = None
+    
+    # Initialize connection to CS2 process
+    while pm is None or client is None:
+        if is_cs2_running():
+            try:
+                pm = pymem.Pymem("cs2.exe")
+                client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
+            except Exception:
+                pm = None
+                client = None
+                time.sleep(0.1)
+        else:
+            pm = None
+            client = None
+            time.sleep(0.1)
+    
+    # Main camera lock loop
+    loop_counter = 0
+    while True:
+        try:
+            # Reload settings every 20 iterations (every 200ms)
+            if loop_counter % 20 == 0:
+                try:
+                    new_settings = load_settings()
+                    settings.update(new_settings)
+                except Exception:
+                    pass
+            loop_counter += 1
+            
+            # Check for termination signal
+            if os.path.exists(TERMINATE_SIGNAL_FILE):
+                break
+            
+            # Only run if auto crosshair placement is enabled
+            if settings.get('auto_crosshair_placement_enabled', 0) == 1:
+                # Only work when CS2 is active
+                try:
+                    hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
+                    if hwnd:
+                        foreground_hwnd = win32gui.GetForegroundWindow()
+                        cs2_active = hwnd == foreground_hwnd
+                    else:
+                        cs2_active = False
+                except Exception:
+                    cs2_active = False
+                    
+                if cs2_active:
+                    # Standalone camera lock logic (copied from nested function)
+                    try:
+                        if settings.get('auto_crosshair_placement_enabled', 0):
+                            auto_crosshair_key = settings.get('AutoCrosshairPlacementKey', 'NONE')
+                            auto_crosshair_key_vk = key_str_to_vk(auto_crosshair_key)
+                            if auto_crosshair_key_vk and (win32api.GetAsyncKeyState(auto_crosshair_key_vk) & 0x8000):
+                                
+                                window_width = win32api.GetSystemMetrics(0)
+                                window_height = win32api.GetSystemMetrics(1)
+                                center_x = window_width // 2
+                                center_y = window_height // 2
+                                
+                                view_matrix = [pm.read_float(client + dwViewMatrix + i * 4) for i in range(16)]
+                                local_player_pawn_addr = pm.read_longlong(client + dwLocalPlayerPawn)
+                                
+                                if local_player_pawn_addr:
+                                    local_player_team = pm.read_int(local_player_pawn_addr + m_iTeamNum)
+                                    entity_list = pm.read_longlong(client + dwEntityList)
+                                    list_entry = pm.read_longlong(entity_list + 0x10)
+                                    
+                                    closest_target = None
+                                    min_distance = float('inf')
+                                    
+                                    for i in range(1, 64):
+                                        try:
+                                            if list_entry == 0:
+                                                break
+
+                                            current_controller = pm.read_longlong(list_entry + i * 0x70)
+                                            if current_controller == 0:
+                                                continue
+
+                                            pawn_handle = pm.read_int(current_controller + m_hPlayerPawn)
+                                            if pawn_handle == 0:
+                                                continue
+
+                                            list_entry2 = pm.read_longlong(entity_list + 0x8 * ((pawn_handle & 0x7FFF) >> 9) + 0x10)
+                                            if list_entry2 == 0:
+                                                continue
+
+                                            entity_pawn_addr = pm.read_longlong(list_entry2 + 0x70 * (pawn_handle & 0x1FF))
+                                            if entity_pawn_addr == 0 or entity_pawn_addr == local_player_pawn_addr:
+                                                continue
+
+                                            entity_team = pm.read_int(entity_pawn_addr + m_iTeamNum)
+                                            targeting_type = settings.get('targeting_type', 0)
+                                            if targeting_type == 0 and entity_team == local_player_team:
+                                                continue
+
+                                            entity_alive = pm.read_int(entity_pawn_addr + m_lifeState)
+                                            if entity_alive != 256:
+                                                continue
+
+                                            spotted_check_enabled = settings.get('auto_crosshair_placement_spotted_check', 0) == 1
+                                            if spotted_check_enabled:
+                                                spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
+                                                if spotted_flag == 0:
+                                                    continue
+
+                                            game_scene = pm.read_longlong(entity_pawn_addr + m_pGameSceneNode)
+                                            bone_matrix = pm.read_longlong(game_scene + m_modelState + 0x80)
+                                            
+                                            target_bone_mode = settings.get('auto_crosshair_placement_target_bone', 1)
+                                            target_bone_name = BONE_TARGET_MODES.get(target_bone_mode, {"bone": "head"}).get("bone", "head")
+                                            target_bone_id = bone_ids.get(target_bone_name, 6)
+                                            
+                                            target_x = pm.read_float(bone_matrix + target_bone_id * 0x20)
+                                            target_y = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x4)
+                                            target_z = pm.read_float(bone_matrix + target_bone_id * 0x20 + 0x8)
+                                            
+                                            target_pos = w2s(view_matrix, target_x, target_y, target_z, window_width, window_height)
+                                            
+                                            if (target_pos[0] != -999 and target_pos[1] != -999 and
+                                                0 <= target_pos[0] <= window_width and 
+                                                0 <= target_pos[1] <= window_height):
+                                                
+                                                dx = target_pos[0] - center_x
+                                                dy = target_pos[1] - center_y
+                                                distance = (dx * dx + dy * dy) ** 0.5
+                                                
+                                                use_radius = settings.get('auto_crosshair_placement_use_radius', 0) == 1
+                                                if use_radius:
+                                                    radius = settings.get('auto_crosshair_placement_radius', 100)
+                                                    if distance > radius:
+                                                        continue
+                                                
+                                                if distance < min_distance:
+                                                    min_distance = distance
+                                                    closest_target = target_pos
+                                        except Exception:
+                                            continue
+                                    
+                                    if closest_target:
+                                        target_x, target_y = closest_target
+                                        dy = target_y - center_y
+                                        tolerance = settings.get('auto_crosshair_placement_tolerance', 5)
+                                        
+                                        if abs(dy) > tolerance:
+                                            smoothness_value = settings.get('auto_crosshair_placement_smoothness', 5)
+                                            if smoothness_value <= 0:
+                                                smoothness_value = 1
+                                            smoothness_value = max(1, min(50, smoothness_value))
+                                            
+                                            if smoothness_value == 1:
+                                                move_y = dy
+                                            else:
+                                                movement_fraction = 1.0 / smoothness_value
+                                                move_y = int(dy * movement_fraction)
+                                                if dy != 0 and move_y == 0:
+                                                    move_y = 1 if dy > 0 else -1
+
+                                            win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, move_y, 0, 0)
+                    except Exception:
+                        pass
+                    time.sleep(0.010)  # 100 FPS for responsive crosshair placement
+                else:
+                    time.sleep(0.050)  # 20 FPS when CS2 is not active
+            else:
+                time.sleep(0.100)  # 10 FPS when disabled to save CPU
+                
+        except Exception:
+            time.sleep(0.050)  # 20 FPS on error
+            
+def start_camera_lock_thread(settings):
+    """Wrapper to restart camera lock thread if it crashes"""
+    while True:
+        try:
+            camera_lock_thread(settings)
+        except Exception:
+            time.sleep(1)  # Wait 1 second before restart
 
 def misc_features():
     """Miscellaneous features function - placeholder for future misc features"""
@@ -8504,6 +8703,7 @@ def misc_features():
         app = QCoreApplication(sys.argv)
         settings = load_settings()
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
+        threading.Thread(target=start_camera_lock_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
     try:
@@ -9045,6 +9245,10 @@ def aim():
         loop_counter = 0
         
         while True:
+            # Check for termination signal first
+            if os.path.exists(TERMINATE_SIGNAL_FILE):
+                break
+                
             if loop_counter % 10 == 0:
                 try:
                     new_settings = load_settings()
@@ -9053,6 +9257,7 @@ def aim():
                     pass
             loop_counter += 1
             
+            # Only run intensive aimbot loop when aimbot is enabled
             if settings.get('aim_active', 0) == 1:
                 target_list = []
                 target_list = esp(pm, client, settings, target_list, window_size)
@@ -9104,10 +9309,11 @@ def aim():
                                                     
                     smoothness = settings.get('aim_smoothness', 0)
                     aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
-            
-            camera_lock(pm, client, settings)
-            
-            time.sleep(0.001)
+                
+                time.sleep(0.001)  # 1000 FPS when aimbot is active
+            else:
+                # Aimbot disabled - run at much lower frequency to save CPU
+                time.sleep(0.100)  # 10 FPS when aimbot is disabled
 
     def start_main_thread(settings):
         while True:
@@ -9126,6 +9332,7 @@ def aim():
         app = QCoreApplication(sys.argv)
         settings = load_settings()
         threading.Thread(target=start_main_thread, args=(settings,), daemon=True).start()
+        threading.Thread(target=start_camera_lock_thread, args=(settings,), daemon=True).start()
         setup_watcher(app, settings)
 
     try:
@@ -9411,6 +9618,7 @@ def recoil_control():
         app = QCoreApplication([])
         settings = load_settings()
         thread = start_main_thread(settings)
+        camera_thread = start_camera_lock_thread(settings)
         watcher = setup_watcher(app, settings)
         app.exec()
     
