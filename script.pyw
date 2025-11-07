@@ -747,6 +747,7 @@ DEFAULT_SETTINGS = {
     "nickname": 1,
     "bomb_esp": 1,
     "show_visibility": 1,
+    "hide_spotted": 0,
     "ESPToggleKey": "NONE",
     "center_dot": 0,
     "center_dot_size": 3,             
@@ -1591,7 +1592,7 @@ class ConfigWindow(QtWidgets.QWidget):
             checkboxes = [
                 self.esp_rendering_cb, self.line_rendering_cb, self.hp_bar_rendering_cb,
                 self.head_hitbox_rendering_cb, self.box_rendering_cb, self.Bones_cb,
-                self.nickname_cb, self.show_visibility_cb, self.bomb_esp_cb,
+                self.nickname_cb, self.show_visibility_cb, self.hide_spotted_cb, self.bomb_esp_cb,
                 self.radar_cb, self.center_dot_cb, self.trigger_bot_active_cb,
                 self.triggerbot_burst_mode_cb, self.triggerbot_head_only_cb,
             ]
@@ -1812,6 +1813,13 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.esp_rendering_cb, "Toggle ESP rendering on/off. When disabled, no ESP elements will be drawn.")
         self.esp_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.esp_rendering_cb)
+
+        self.hide_spotted_cb = QtWidgets.QCheckBox("Hide Spotted Players")
+        self.hide_spotted_cb.setChecked(self.settings.get("hide_spotted", 0) == 1)
+        self.hide_spotted_cb.stateChanged.connect(self.save_settings)
+        self.set_tooltip_if_enabled(self.hide_spotted_cb, "Hide ESP elements (Lines, HP Bars, Boxes, Bones) for enemies that are spotted by your team.")
+        self.hide_spotted_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        esp_layout.addWidget(self.hide_spotted_cb)
 
         self.line_rendering_cb = QtWidgets.QCheckBox("Draw Lines")
         self.line_rendering_cb.setChecked(self.settings.get("line_rendering", 1) == 1)
@@ -3378,6 +3386,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.Bones_cb.setChecked(self.settings.get("Bones", 1) == 1)
             self.nickname_cb.setChecked(self.settings.get("nickname", 1) == 1)
             self.show_visibility_cb.setChecked(self.settings.get("show_visibility", 1) == 1)
+            self.hide_spotted_cb.setChecked(self.settings.get("hide_spotted", 0) == 1)
             self.bomb_esp_cb.setChecked(self.settings.get("bomb_esp", 1) == 1)
             self.radar_cb.setChecked(self.settings.get("radar_enabled", 0) == 1)
             
@@ -3943,6 +3952,8 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.nickname_cb.setChecked(self.settings.get('nickname', 1) == 1)
                 if hasattr(self, 'show_visibility_cb'):
                     self.show_visibility_cb.setChecked(self.settings.get('show_visibility', 1) == 1)
+                if hasattr(self, 'hide_spotted_cb'):
+                    self.hide_spotted_cb.setChecked(self.settings.get('hide_spotted', 0) == 1)
                 if hasattr(self, 'bomb_esp_cb'):
                     self.bomb_esp_cb.setChecked(self.settings.get('bomb_esp', 1) == 1)
                 if hasattr(self, 'radar_cb'):
@@ -4174,6 +4185,11 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings["show_visibility"] = 1 if getattr(self, 'show_visibility_cb', None) and self.show_visibility_cb.isChecked() else 0
         except Exception:
             self.settings["show_visibility"] = self.settings.get("show_visibility", 1)
+        
+        try:
+            self.settings["hide_spotted"] = 1 if getattr(self, 'hide_spotted_cb', None) and self.hide_spotted_cb.isChecked() else 0
+        except Exception:
+            self.settings["hide_spotted"] = self.settings.get("hide_spotted", 0)
         self.settings["bomb_esp"] = 1 if self.bomb_esp_cb.isChecked() else 0
         self.settings["radar_enabled"] = 1 if self.radar_cb.isChecked() else 0
         self.settings["aim_active"] = 1 if hasattr(self, 'aim_active_cb') and self.aim_active_cb.isChecked() else 0
@@ -7501,8 +7517,28 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                 leftX = head_pos[0] - deltaZ // 4
                 rightX = head_pos[0] + deltaZ // 4
                 
+                # Check if Hide Spotted is enabled and if this player is spotted
+                hide_spotted_enabled = settings.get('hide_spotted', 0) == 1
+                is_spotted = False
+                
+                if hide_spotted_enabled:
+                    try:
+                        try:
+                            spotted_flag = pm.read_int(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
+                            is_spotted = spotted_flag != 0
+                        except Exception:
+                            try:
+                                is_spotted = pm.read_bool(entity_pawn_addr + m_entitySpottedState + m_bSpotted)
+                            except Exception:
+                                is_spotted = False
+                    except Exception:
+                        is_spotted = False
+                
+                # If Hide Spotted is enabled and player is spotted, skip Lines, HP Bars, Boxes, and Bones
+                skip_main_esp = hide_spotted_enabled and is_spotted
+                
                                         
-                if line_rendering:
+                if line_rendering and not skip_main_esp:
                     if lines_position == 'Top':
                         connection_x = head_pos[0]
                         connection_y = head_pos[1]
@@ -7516,7 +7552,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     line = scene.addLine(connection_x, connection_y, no_center_x, no_center_y, line_pen)
                 
                                        
-                if box_rendering:
+                if box_rendering and not skip_main_esp:
                                                                      
                     box_pen = QtGui.QPen(color, 0.5)                                             
                     box_pen.setCapStyle(QtCore.Qt.SquareCap)                                  
@@ -7594,7 +7630,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     else:
 
                         scene.addRect(QtCore.QRectF(leftX, head_pos[1], rightX - leftX, leg_pos[1] - head_pos[1]), box_pen, QtCore.Qt.NoBrush)                                          
-                if hp_bar_rendering:
+                if hp_bar_rendering and not skip_main_esp:
                     max_hp = 100
                     hp_percentage = min(1.0, max(0.0, entity_hp / max_hp))
                     
@@ -7647,7 +7683,7 @@ def esp(scene, pm, client, offsets, client_dll, window_width, window_height, set
                     ellipse = scene.addEllipse(QtCore.QRectF(head_hitbox_x - head_hitbox_radius, head_hitbox_y - head_hitbox_radius, head_hitbox_radius * 2, head_hitbox_radius * 2), hitbox_pen, hitbox_color)
 
                                          
-                if bones_rendering:
+                if bones_rendering and not skip_main_esp:
                     draw_Bones(scene, pm, bone_matrix, view_matrix, window_width, window_height, settings)
 
                                                      
