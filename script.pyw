@@ -1,7 +1,7 @@
 VERSION = "1.1.1"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-         
+#1         
 import threading
 import keyboard
 import os
@@ -9732,6 +9732,9 @@ if __name__ == "__main__":
                 time.sleep(1)
 
 
+    # Allow time for initialization when launched from loader
+    time.sleep(0.5)
+    
     procs = [
         multiprocessing.Process(target=configurator),
         multiprocessing.Process(target=esp_main),
@@ -9775,10 +9778,28 @@ if __name__ == "__main__":
         
     if is_debug_mode() and not is_low_cpu_mode():
         print("[DEBUG] Starting all processes...")
+    
+    # Start processes with staggered delays to prevent race conditions
     for i, p in enumerate(procs):
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[DEBUG] Starting process: {process_names[i]}")
-        p.start()
+        try:
+            if is_debug_mode() and not is_low_cpu_mode():
+                print(f"[DEBUG] Starting process: {process_names[i]}")
+            p.start()
+            # Add small delay between process starts to prevent initialization conflicts
+            time.sleep(0.1)
+        except Exception as e:
+            print(f"[DEBUG] Error starting {process_names[i]}: {e}")
+            continue
+
+    # Verify all processes started successfully
+    time.sleep(1.0)  # Give processes time to initialize
+    failed_processes = []
+    for i, p in enumerate(procs):
+        if not p.is_alive():
+            failed_processes.append(process_names[i])
+    
+    if failed_processes and is_debug_mode():
+        print(f"[DEBUG] Warning: Failed to start processes: {', '.join(failed_processes)}")
 
     # Signal to loader that script is fully loaded and processes started
     try:
