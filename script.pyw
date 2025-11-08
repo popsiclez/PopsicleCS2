@@ -1,7 +1,7 @@
 VERSION = "1.1.1"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#1         
+
 import threading
 import keyboard
 import os
@@ -47,7 +47,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
     except Exception:
         pass
     files_cleaned = 0
-    # Terminate tracked processes
+
     if PROCESSES_LIST:
         if debug_mode:
             print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
@@ -64,7 +64,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
             except Exception as e:
                 if debug_mode:
                     print(f"[CLEANUP] Error terminating process {i+1}: {e}")
-    # Remove tracked temporary files
+
     if TEMPORARY_FILES:
         if debug_mode:
             print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
@@ -78,7 +78,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
             except Exception as e:
                 if debug_mode:
                     print(f"[CLEANUP] Error removing {temp_file}: {e}")
-    # Build list of standard temp files - only include commands.txt on final cleanup
+
     standard_temp_files = [
         'LOCK_FILE' if 'LOCK_FILE' in globals() else None,
         'TERMINATE_SIGNAL_FILE' if 'TERMINATE_SIGNAL_FILE' in globals() else None,
@@ -88,7 +88,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
         'RAINBOW_COLOR_FILE' if 'RAINBOW_COLOR_FILE' in globals() else None,
         os.path.join(TEMP_DIR, 'panic_shutdown.signal')
     ]
-    # Only delete commands.txt on final cleanup
+ 
     if final_cleanup and 'COMMANDS_FILE' in globals():
         standard_temp_files.append(COMMANDS_FILE)
         if debug_mode:
@@ -108,7 +108,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
         except Exception as e:
             if debug_mode:
                 print(f"[CLEANUP] Error removing {temp_file}: {e}")
-    # Remove *.signal and *.lock files in cwd
+ 
     try:
         import glob
         signal_files = glob.glob(os.path.join(TEMP_DIR, '*.signal'))
@@ -134,7 +134,7 @@ def cleanup_all_temporary_files(final_cleanup=False):
     except Exception as e:
         if debug_mode:
             print(f"[CLEANUP] Error cleaning signal/lock files: {e}")
-    # Remove temp .pyw files in tempdir
+    
     try:
         import tempfile
         import glob
@@ -157,10 +157,10 @@ def cleanup_all_temporary_files(final_cleanup=False):
         if debug_mode:
             print(f"[CLEANUP] Error cleaning temp scripts: {e}")
     
-    # Remove temp directory if it exists and is empty
+   
     try:
         if os.path.exists(TEMP_DIR):
-            # Check if directory is empty
+            
             if not os.listdir(TEMP_DIR):
                 os.rmdir(TEMP_DIR)
                 if debug_mode:
@@ -199,8 +199,7 @@ def setup_logging():
     
 
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
-    # DO NOT add LOG_FILE to temporary files when debug logging is enabled
-    # We want to keep the debug log for analysis after script closes
+   
     
 
     original_stdout = sys.stdout
@@ -252,10 +251,7 @@ def cleanup_logging():
         LOG_FILE = None
         _debug_log_file = None
     
-    # Remove all code referencing 'final_cleanup' from this function, as it is not defined here. This function should only restore stdout/stderr and close the log file.
-    # ...existing code...
-    # (No reference to final_cleanup here)
-    # ...existing code...
+  
 
 def register_cleanup_handlers():
     """Register cleanup handlers for various exit scenarios"""
@@ -265,12 +261,12 @@ def register_cleanup_handlers():
         return
     
     try:
-        # Register final cleanup for normal exit
+        
         atexit.register(lambda: cleanup_all_temporary_files(final_cleanup=True))
         
         def signal_handler(signum, frame):
             print(f"[CLEANUP] Signal {signum} received, cleaning up...")
-            cleanup_all_temporary_files(final_cleanup=False)  # Don't delete commands.txt on signal
+            cleanup_all_temporary_files(final_cleanup=False)  
             os._exit(1)
         
         if hasattr(signal, 'SIGTERM'):
@@ -372,15 +368,15 @@ def check_version():
 def get_offsets_last_update():
     """Get the last update date for the offsets repository output directory"""
     try:
-        # GitHub API endpoint for commits affecting the /output directory
+       
         api_url = "https://api.github.com/repos/popsiclez/offsets/commits?path=output&per_page=1"
         response = requests.get(api_url, timeout=10)
         if response.status_code == 200:
             commits = response.json()
             if commits:
-                # Get the date from the most recent commit
+                
                 commit_date = commits[0]["commit"]["author"]["date"]
-                # Parse the ISO date and format it nicely
+               
                 from datetime import datetime
                 dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
                 return dt.strftime("%Y-%m-%d %H:%M UTC")
@@ -567,7 +563,7 @@ def trigger_graphics_restart():
         pass
           
 TEMP_DIR = os.path.join(os.getcwd(), 'temp')
-# Ensure temp directory exists
+
 os.makedirs(TEMP_DIR, exist_ok=True)
 CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
@@ -580,7 +576,7 @@ COMMANDS_FILE = os.path.join(TEMP_DIR, 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(TEMP_DIR, 'debug_console.lock')
 MODE_FILE = os.path.join(TEMP_DIR, 'selected_mode.txt')
 
-# Global variable to track the loaded config name for ESP overlay display
+
 LOADED_CONFIG_NAME = "autosave"
 
 def load_selected_mode():
@@ -592,18 +588,18 @@ def load_selected_mode():
                 if mode in ['legit', 'full']:
                     return mode
         else:
-            # Default to full mode when no mode file is present
+           
             return 'full'
     except Exception:
-        # Default to full mode on any error
+        
         return 'full'
     
-    # If we reach here, mode file exists but contains invalid mode
+   
     return 'full'
 
 SELECTED_MODE = load_selected_mode()
 
-# Apply commands after mode is loaded
+
 apply_commands()
                        
 RAINBOW_HUE = 0.0
@@ -1135,19 +1131,19 @@ def load_settings():
 
     merged_settings = DEFAULT_SETTINGS.copy()
     
-    # Track the loaded config name for ESP overlay display
-    global LOADED_CONFIG_NAME
-    LOADED_CONFIG_NAME = "autosave"  # Default fallback
     
-    # Check for selected config file first (for pre-load config system)
-    config_to_load = CONFIG_FILE  # Default to autosave.json
+    global LOADED_CONFIG_NAME
+    LOADED_CONFIG_NAME = "autosave"  
+    
+    
+    config_to_load = CONFIG_FILE  
     if os.path.exists(SELECTED_CONFIG_FILE):
         try:
             with open(SELECTED_CONFIG_FILE, 'r', encoding='utf-8') as f:
                 selected_config_name = f.read().strip()
                 if selected_config_name:
                     if selected_config_name == "default":
-                        # Use default settings instead of loading from file
+                        
                         LOADED_CONFIG_NAME = "default"
                         if is_debug_mode() and not is_low_cpu_mode():
                             print(f"[DEBUG] Loading default settings")
@@ -1156,7 +1152,7 @@ def load_settings():
                         selected_config_path = os.path.join(CONFIG_DIR, f"{selected_config_name}.json")
                         if os.path.exists(selected_config_path):
                             config_to_load = selected_config_path
-                            LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
+                            LOADED_CONFIG_NAME = selected_config_name 
                             if is_debug_mode() and not is_low_cpu_mode():
                                 print(f"[DEBUG] Loading selected config: {selected_config_name}")
                                 print(f"[DEBUG] Config path: {selected_config_path}")
@@ -1184,16 +1180,16 @@ def load_settings():
 
             merged_settings.update(loaded_settings)
             
-            # Migrate legacy recoil settings to weapon-specific format
+            
             if 'recoil_weapons' not in merged_settings or not isinstance(merged_settings['recoil_weapons'], dict):
                 if is_debug_mode() and not is_low_cpu_mode():
                     print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
                 
-                # Get legacy values or defaults
+                
                 legacy_strength = merged_settings.get('recoil_control_strength', 5)
                 legacy_smoothness = merged_settings.get('recoil_control_smoothness', 3)
                 
-                # Create weapon-specific settings using legacy values for all weapons
+                
                 weapon_settings = {}
                 weapon_list = [
                     "Default", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
@@ -1213,7 +1209,7 @@ def load_settings():
                 merged_settings['recoil_weapons'] = weapon_settings
                 merged_settings['recoil_selected_weapon'] = merged_settings.get('recoil_selected_weapon', 'Default')
                 
-                # Save the migrated settings
+                
                 save_settings(merged_settings)
                 if is_debug_mode() and not is_low_cpu_mode():
                     print("[DEBUG] Legacy recoil settings migration completed")
@@ -1250,7 +1246,7 @@ def load_rainbow_color():
         if os.path.exists(RAINBOW_COLOR_FILE):
             with open(RAINBOW_COLOR_FILE, 'r') as f:
                 rainbow_data = json.load(f)
-                # Check if the color data is recent (within 5 seconds)
+               
                 if time.time() - rainbow_data.get('timestamp', 0) < 5.0:
                     return rainbow_data.get('current_rainbow_color')
     except Exception:
@@ -1267,18 +1263,17 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_toggle_pressed = False
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False
-        self._fov_manually_interacted = False  # Track if FOV has been manually adjusted during this session
-        # Track if anti-flash has been interacted with this session (resets each restart)
-        # For legit mode: if anti-flash is already enabled at startup, don't allow it to apply values
+        self._fov_manually_interacted = False  
+       
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and self.settings.get("anti_flash_enabled", 0) == 1:
-            self._anti_flash_interacted = False  # Prevent anti-flash from applying in legit mode if pre-enabled
+            self._anti_flash_interacted = False  
         else:
-            # For full mode: if anti-flash is already enabled in config, mark as interacted so it applies immediately
+            
             self._anti_flash_interacted = self.settings.get("anti_flash_enabled", 0) == 1
-        self._memory_warning_shown = False  # Track if memory warning has been shown this session
-        self._memory_dialog_active = False  # Track if memory warning dialog is currently active
+        self._memory_warning_shown = False 
+        self._memory_dialog_active = False  
         self._is_initializing = True
-        self._cached_app_title = None  # Cache app title to avoid network calls during window monitoring
+        self._cached_app_title = None 
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -1288,9 +1283,9 @@ class ConfigWindow(QtWidgets.QWidget):
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         
-        # Cache app title during initialization to avoid network calls during window monitoring
+    
         app_title = get_app_title()
-        self._cached_app_title = app_title  # Pre-cache to avoid delays during window monitoring
+        self._cached_app_title = app_title  
         self.setWindowTitle(f"{app_title} Config")
         
 
@@ -1320,10 +1315,10 @@ class ConfigWindow(QtWidgets.QWidget):
         memory_container = self.create_memory_container()
         config_container = self.create_config_container()
 
-        # Create custom tab widget with grid layout
+        
         self.tab_content_widget = QtWidgets.QStackedWidget()
         
-        # Store tab containers and their info
+        
         self.tab_containers = [
             (esp_container, "ESP 👁️"),
             (trigger_container, "Triggerbot ⚡"),
@@ -1331,21 +1326,21 @@ class ConfigWindow(QtWidgets.QWidget):
             (recoil_container, "Recoil 🔫")
         ]
         
-        # Add aim container for full mode
+       
         if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
             aim_container = self.create_aim_container()
             self.tab_containers.insert(1, (aim_container, "Aimlock 🔗"))
         
-        # Add remaining containers to second row
+       
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            # Exclude memory tab in legit mode
+            
             self.tab_containers.extend([
                 (config_container, "Config 📂"),
                 (colors_container, "Colors 🎨"),
                 (misc_container, "Misc ⚙️")
             ])
         else:
-            # Include all tabs in full mode
+           
             self.tab_containers.extend([
                 (config_container, "Config 📂"),
                 (colors_container, "Colors 🎨"),
@@ -1353,22 +1348,22 @@ class ConfigWindow(QtWidgets.QWidget):
                 (memory_container, "Memory🧠")
             ])
         
-        # Add all containers to stacked widget
+        
         for container, _ in self.tab_containers:
             self.tab_content_widget.addWidget(container)
         
-        # Create custom tab bar with proper centering
+        
         tab_bar_widget = QtWidgets.QWidget()
-        # Remove fixed minimum height to allow dynamic scaling
+        
         main_tab_layout = QtWidgets.QVBoxLayout()
-        main_tab_layout.setSpacing(0)  # Minimize spacing between rows
-        main_tab_layout.setContentsMargins(8, 8, 8, 12)  # Increase all margins
+        main_tab_layout.setSpacing(0)  
+        main_tab_layout.setContentsMargins(8, 8, 8, 12)  
         
         self.tab_buttons = []
         
-        # Create dynamic rows of maximum 4 tabs each with centering
+        
         tabs_per_row = 4
-        num_rows = (len(self.tab_containers) + tabs_per_row - 1) // tabs_per_row  # Ceiling division
+        num_rows = (len(self.tab_containers) + tabs_per_row - 1) // tabs_per_row  
         
         for row_idx in range(num_rows):
             start_idx = row_idx * tabs_per_row
@@ -1376,12 +1371,12 @@ class ConfigWindow(QtWidgets.QWidget):
             row_containers = self.tab_containers[start_idx:end_idx]
             
             row_widget = QtWidgets.QWidget()
-            row_widget.setMinimumHeight(40)  # Reduce height for tighter rows
+            row_widget.setMinimumHeight(40) 
             row_layout = QtWidgets.QHBoxLayout()
             row_layout.setSpacing(2)
-            row_layout.setContentsMargins(0, 0, 0, 0)  # Minimize margins between rows
+            row_layout.setContentsMargins(0, 0, 0, 0) 
             
-            # Add stretching spacer on the left for centering
+            
             row_layout.addStretch()
             
             for i, (container, label) in enumerate(row_containers):
@@ -1390,23 +1385,23 @@ class ConfigWindow(QtWidgets.QWidget):
                 button.setObjectName("tab_button")
                 button.setMinimumHeight(32)
                 button.setMaximumHeight(32)
-                button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
-                button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
+                button.setMinimumWidth(110) 
+                button.setMaximumWidth(110)  
                 
-                # Auto-scale font size to fit text perfectly inside button
+              
                 font = button.font()
                 font_metrics = QtGui.QFontMetrics(font)
                 text_width = font_metrics.horizontalAdvance(label)
-                button_width = 110  # Use the fixed minimum/maximum width we set
+                button_width = 110  
                 
-                # Calculate font size to fit text within button width with some padding
-                if text_width > button_width - 20:  # Leave 20px padding
+           
+                if text_width > button_width - 20: 
                     new_font_size = int(font.pointSize() * (button_width - 20) / text_width)
-                    font.setPointSize(max(new_font_size, 8))  # Minimum font size of 8
+                    font.setPointSize(max(new_font_size, 8)) 
                     button.setFont(font)
                 
                 button_index = start_idx + i
-                # Special handling for Memory🧠 tab
+               
                 if label == "Memory🧠":
                     button.clicked.connect(lambda checked, index=button_index: self.handle_memory_tab_click(index))
                 else:
@@ -1415,20 +1410,20 @@ class ConfigWindow(QtWidgets.QWidget):
                 row_layout.addWidget(button)
                 self.tab_buttons.append(button)
             
-            # Add stretching spacer on the right for centering
+          
             row_layout.addStretch()
             
             row_widget.setLayout(row_layout)
             main_tab_layout.addWidget(row_widget)
         
-        # Set first tab as active
+       
         if self.tab_buttons:
             self.tab_buttons[0].setChecked(True)
             self.tab_content_widget.setCurrentIndex(0)
         
         tab_bar_widget.setLayout(main_tab_layout)
         
-        # Main layout
+        
         main_layout = QtWidgets.QVBoxLayout()
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -1479,27 +1474,27 @@ class ConfigWindow(QtWidgets.QWidget):
                                               
         self.keybind_cooldowns = {}                                        
 
-        # Window monitoring timer - check very frequently for instant hiding when tabbing out
+     
         self._window_monitor_timer = QtCore.QTimer(self)
         self._window_monitor_timer.timeout.connect(self._check_cs2_window_active)
-        self._window_monitor_timer.start(10)  # 10ms for ultra-responsive hiding when tabbing out
+        self._window_monitor_timer.start(10) 
         self._was_visible = True                          
         self._drag_end_time = 0                             
         
                                                     
         self._rainbow_menu_timer = QtCore.QTimer(self)
         self._rainbow_menu_timer.timeout.connect(self._update_rainbow_menu_theme)
-        self._rainbow_menu_timer.start(100)  # Reduced frequency to prevent flashing (was 50ms)
+        self._rainbow_menu_timer.start(100)  
         
-        # Setup FOV application timer for continuous FOV enforcement when not scoped
+       
         self._fov_timer = QtCore.QTimer(self)
         self._fov_timer.timeout.connect(self._apply_continuous_fov)
-        self._fov_timer.start(200)  # Check every 200ms (5 times per second) while waiting for slider interaction
+        self._fov_timer.start(200)  
         
-        # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
+       
         self._anti_flash_timer = QtCore.QTimer(self)
         self._anti_flash_timer.timeout.connect(self._apply_continuous_anti_flash)
-        self._anti_flash_timer.start(20)  # Check every 10ms for responsive anti-flash
+        self._anti_flash_timer.start(20)  
         
                                                           
         if not self.is_game_window_active():
@@ -1508,7 +1503,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.disable_ui_focus()
         
-        # Initialize rainbow theme if enabled
+       
         self._initialize_rainbow_theme_on_startup()
         
         self._is_initializing = False
@@ -1516,24 +1511,24 @@ class ConfigWindow(QtWidgets.QWidget):
     def switch_tab(self, index):
         """Switch to the specified tab and update button states"""
         if 0 <= index < len(self.tab_buttons):
-            # Update button states
+           
             for i, button in enumerate(self.tab_buttons):
                 button.setChecked(i == index)
             
-            # Switch to the corresponding content
+            
             self.tab_content_widget.setCurrentIndex(index)
 
     def handle_memory_tab_click(self, index):
         """Handle clicking on Memory🧠 tab with warning dialog"""
-        # Show warning dialog if not shown this session
+     
         if not self._memory_warning_shown:
-            # Pause rainbow timer to prevent interference
+          
             self.pause_rainbow_timer()
             
-            # Mark dialog as active to prevent window monitoring interference
+        
             self._memory_dialog_active = True
             
-            # Create warning message box as child of this window
+            
             msg_box = QtWidgets.QMessageBox(self)
             msg_box.setWindowTitle("Memory Modification Warning")
             msg_box.setText("Memory Modification has risk of ban. Proceed?")
@@ -1541,29 +1536,29 @@ class ConfigWindow(QtWidgets.QWidget):
             msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             msg_box.setDefaultButton(QtWidgets.QMessageBox.No)
             
-            # Make dialog stay on top and modal
+           
             msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.WindowSystemMenuHint)
             msg_box.setWindowModality(QtCore.Qt.ApplicationModal)
             
-            # Show dialog and get result
+            
             result = msg_box.exec_()
             
-            # Mark dialog as no longer active
+           
             self._memory_dialog_active = False
             
-            # Resume rainbow timer
+            
             self.resume_rainbow_timer()
             
             if result == QtWidgets.QMessageBox.Yes:
-                # User accepted, mark warning as shown and switch to tab
+                
                 self._memory_warning_shown = True
                 self.switch_tab(index)
             else:
-                # User declined, don't switch to memory tab
-                # Keep current tab selected by not changing anything
+          
+               
                 pass
         else:
-            # Warning already shown this session, switch directly
+       
             self.switch_tab(index)
 
     def pause_rainbow_timer(self):
@@ -1679,11 +1674,11 @@ class ConfigWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-            # Fast check: get window title first, avoid FindWindow if possible
+            
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
                 
-                # Quick string checks first (fastest)
+                
                 if window_title == "Counter-Strike 2":
                     return True
                 if "ESP Overlay" in window_title:
@@ -1691,14 +1686,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 if "Memory Modification Warning" in window_title:
                     return True
                 
-                # Use pre-cached app title (no network calls during monitoring)
+                
                 if hasattr(self, '_cached_app_title') and self._cached_app_title:
                     if f"{self._cached_app_title} Config" in window_title:
                         return True
                     
                 return False
             except Exception:
-                # Fallback to slower FindWindow method
+               
                 cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
                 return cs2_hwnd and cs2_hwnd == foreground_hwnd
                 
@@ -1708,14 +1703,14 @@ class ConfigWindow(QtWidgets.QWidget):
     def _check_cs2_window_active(self):
         """Monitor CS2 window activity and show/hide config window accordingly"""
         try:
-            # Skip window monitoring if memory dialog is active or dragging
+            
             if (hasattr(self, '_memory_dialog_active') and self._memory_dialog_active) or self.is_dragging:
                 return
             
             is_cs2_active = self.is_game_window_active()
             
             if is_cs2_active and not self._was_visible:
-                # Only check drag end time when showing (not hiding)
+              
                 if hasattr(self, '_drag_end_time') and time.time() - self._drag_end_time < 0.1:
                     return
                 
@@ -1723,7 +1718,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.show()
                     self._was_visible = True
             elif not is_cs2_active and self._was_visible:
-                # Hide immediately without any delays
+            
                 self.hide()
                 self._was_visible = False
                 self._manually_hidden = False
@@ -1935,9 +1930,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radar_scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.radar_scale_slider.setRange(10, 300)  # 1.0 to 30.0 scale
+            self.radar_scale_slider.setRange(10, 300)  
         else:
-            self.radar_scale_slider.setRange(10, 500)  # 1.0 to 50.0 scale
+            self.radar_scale_slider.setRange(10, 500)  
             
         self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
         self.radar_scale_slider.valueChanged.connect(self.update_radar_scale_label)
@@ -2000,7 +1995,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-        # Weapon Selection Dropdown
+        
         self.lbl_triggerbot_weapon = QtWidgets.QLabel("Weapon Preset:")
         trigger_layout.addWidget(self.lbl_triggerbot_weapon)
         self.triggerbot_weapon_combo = QtWidgets.QComboBox()
@@ -2013,7 +2008,7 @@ class ConfigWindow(QtWidgets.QWidget):
         ]
         self.triggerbot_weapon_combo.addItems(weapon_list)
         
-        # Set current weapon selection
+      
         current_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
         index = self.triggerbot_weapon_combo.findText(current_weapon)
         if index >= 0:
@@ -2024,10 +2019,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_weapon_combo)
 
-        # Load current weapon settings
+        
         self.load_weapon_triggerbot_settings(current_weapon)
 
-        # Head-Only Mode Checkbox
+        
         self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Head-Only Mode")
         self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
         self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
@@ -2035,7 +2030,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_head_only_cb)
 
-        # Burst Mode Checkbox
+       
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
         self.triggerbot_burst_mode_cb.setChecked(self.get_current_triggerbot_weapon_setting('burst_mode') == 1)
         self.triggerbot_burst_mode_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
@@ -2043,7 +2038,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_mode_cb)
 
-        # Burst Shots Slider
+        
         self.lbl_burst_shots = QtWidgets.QLabel(f"Burst Shots: ({self.get_current_triggerbot_weapon_setting('burst_shots')})")
         trigger_layout.addWidget(self.lbl_burst_shots)
         self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2055,7 +2050,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_burst_shots_slider, "Number of shots fired per burst when burst mode is enabled.")
         trigger_layout.addWidget(self.triggerbot_burst_shots_slider)
 
-        # First Shot Delay Slider
+        
         self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({self.get_current_triggerbot_weapon_setting('first_shot_delay')})")
         trigger_layout.addWidget(self.lbl_first_shot_delay)
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2073,7 +2068,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Higher values add reaction time delay.")
         trigger_layout.addWidget(self.triggerbot_first_shot_delay_slider)
 
-        # Between Shots Delay Slider
+        
         self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.get_current_triggerbot_weapon_setting('between_shots_delay')})")
         trigger_layout.addWidget(self.lbl_delay)
         self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2085,7 +2080,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_delay_slider, "Delay in milliseconds between each shot to control fire rate. Higher values = slower shooting.")
         trigger_layout.addWidget(self.triggerbot_delay_slider)
 
-        # Trigger Key Button
+       
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
@@ -2118,7 +2113,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.recoil_control_enabled_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         recoil_layout.addWidget(self.recoil_control_enabled_cb)
 
-        # Weapon Selection Dropdown
+       
         self.recoil_weapon_label = QtWidgets.QLabel("Weapon Preset:")
         recoil_layout.addWidget(self.recoil_weapon_label)
         self.recoil_weapon_combo = QtWidgets.QComboBox()
@@ -2132,7 +2127,7 @@ class ConfigWindow(QtWidgets.QWidget):
         ]
         self.recoil_weapon_combo.addItems(weapon_list)
         
-        # Set current weapon selection
+        
         current_weapon = self.settings.get('recoil_selected_weapon', 'Default')
         index = self.recoil_weapon_combo.findText(current_weapon)
         if index >= 0:
@@ -2143,10 +2138,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.recoil_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         recoil_layout.addWidget(self.recoil_weapon_combo)
 
-        # Load current weapon settings
+       
         self.load_weapon_recoil_settings(current_weapon)
 
-        # Recoil Strength Slider
+        
         self.lbl_recoil_strength = QtWidgets.QLabel(f"Recoil Strength: ({self.get_current_weapon_setting('strength')})")
         recoil_layout.addWidget(self.lbl_recoil_strength)
         self.recoil_strength_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2163,7 +2158,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.recoil_strength_slider, "How much the mouse moves down per recoil adjustment. Higher values = more downward movement. (1-100)")
         recoil_layout.addWidget(self.recoil_strength_slider)
 
-        # Recoil Smoothness Slider
+        
         self.lbl_recoil_smoothness = QtWidgets.QLabel(f"Recoil Smoothness: ({self.get_current_weapon_setting('smoothness')})")
         recoil_layout.addWidget(self.lbl_recoil_smoothness)
         self.recoil_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2193,10 +2188,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon in weapon_settings:
             value = weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 3)
         else:
-            # Fallback to default values
+            
             value = 5 if setting_type == 'strength' else 3
         
-        # Enforce legit mode restrictions
+        
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             if setting_type == 'strength' and value > 20:
                 value = 20
@@ -2209,7 +2204,7 @@ class ConfigWindow(QtWidgets.QWidget):
         """Load recoil settings for the specified weapon"""
         weapon_settings = self.settings.get('recoil_weapons', {})
         
-        # Ensure weapon exists in settings
+       
         if weapon_name not in weapon_settings:
             weapon_settings[weapon_name] = {"strength": 5, "smoothness": 3}
             self.settings['recoil_weapons'] = weapon_settings
@@ -2222,10 +2217,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon not in weapon_settings:
             weapon_settings[selected_weapon] = {}
         
-        # Save current slider values with legit mode enforcement
+       
         if hasattr(self, 'recoil_strength_slider'):
             strength_value = self.recoil_strength_slider.value()
-            # Enforce legit mode maximum for recoil strength
+         
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and strength_value > 20:
                 strength_value = 20
                 self.recoil_strength_slider.setValue(20)
@@ -2233,7 +2228,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         if hasattr(self, 'recoil_smoothness_slider'):
             smoothness_value = self.recoil_smoothness_slider.value()
-            # Enforce legit mode minimum for recoil smoothness
+           
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and smoothness_value < 20:
                 smoothness_value = 20
                 self.recoil_smoothness_slider.setValue(20)
@@ -2249,24 +2244,24 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_recoil_weapon_changed(self):
         """Handle weapon selection change"""
-        # Save current weapon settings before switching
+    
         if hasattr(self, 'recoil_strength_slider'):
             self.save_current_weapon_settings()
         
-        # Update selected weapon
+     
         selected_weapon = self.recoil_weapon_combo.currentText()
         self.settings['recoil_selected_weapon'] = selected_weapon
         
-        # Load new weapon settings
+       
         self.load_weapon_recoil_settings(selected_weapon)
         
-        # Temporarily disconnect signals to prevent triggering saves during value updates
+        
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.valueChanged.disconnect()
         if hasattr(self, 'recoil_smoothness_slider'):
             self.recoil_smoothness_slider.valueChanged.disconnect()
         
-        # Update sliders with new weapon settings
+       
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
             self.update_recoil_strength_label()
@@ -2275,7 +2270,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
             self.update_recoil_smoothness_label()
         
-        # Reconnect signals
+       
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
             self.recoil_strength_slider.valueChanged.connect(self.on_recoil_slider_changed)
@@ -2283,11 +2278,11 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
             self.recoil_smoothness_slider.valueChanged.connect(self.on_recoil_slider_changed)
         
-        # Update main recoil control settings to match current weapon
+        
         self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
         self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
         
-        # Save settings
+    
         self.save_settings()
 
     def get_current_triggerbot_weapon_setting(self, setting_type):
@@ -2298,10 +2293,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon in weapon_settings:
             value = weapon_settings[selected_weapon].get(setting_type, self.get_triggerbot_default_value(setting_type))
         else:
-            # Fallback to default values
+           
             value = self.get_triggerbot_default_value(setting_type)
         
-        # Enforce legit mode restrictions
+     
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             if setting_type == 'first_shot_delay' and value < 150:
                 value = 150
@@ -2335,7 +2330,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon not in weapon_settings:
             weapon_settings[selected_weapon] = {}
         
-        # Save current settings with legit mode enforcement
+     
         if hasattr(self, 'triggerbot_head_only_cb'):
             weapon_settings[selected_weapon]['head_only'] = 1 if self.triggerbot_head_only_cb.isChecked() else 0
             
@@ -2347,7 +2342,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         if hasattr(self, 'triggerbot_first_shot_delay_slider'):
             first_shot_value = self.triggerbot_first_shot_delay_slider.value()
-            # Enforce legit mode minimum for first shot delay
+           
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and first_shot_value < 150:
                 first_shot_value = 150
                 self.triggerbot_first_shot_delay_slider.setValue(150)
@@ -2366,18 +2361,18 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_triggerbot_weapon_changed(self):
         """Handle triggerbot weapon selection change"""
-        # Save current weapon settings before switching
+    
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.save_current_triggerbot_weapon_settings()
         
-        # Update selected weapon
+      
         selected_weapon = self.triggerbot_weapon_combo.currentText()
         self.settings['triggerbot_selected_weapon'] = selected_weapon
         
-        # Load new weapon settings
+      
         self.load_weapon_triggerbot_settings(selected_weapon)
         
-        # Temporarily disconnect signals to prevent triggering saves during value updates
+       
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.stateChanged.disconnect()
         if hasattr(self, 'triggerbot_burst_mode_cb'):
@@ -2389,7 +2384,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if hasattr(self, 'triggerbot_delay_slider'):
             self.triggerbot_delay_slider.valueChanged.disconnect()
         
-        # Update controls with new weapon settings
+      
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
         
@@ -2408,7 +2403,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('between_shots_delay'))
             self.update_triggerbot_delay_label()
         
-        # Reconnect signals
+       
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
         if hasattr(self, 'triggerbot_burst_mode_cb'):
@@ -2423,14 +2418,14 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
             self.triggerbot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
         
-        # Update main triggerbot control settings to match current weapon
+        
         self.settings["triggerbot_head_only"] = self.get_current_triggerbot_weapon_setting('head_only')
         self.settings["triggerbot_burst_mode"] = self.get_current_triggerbot_weapon_setting('burst_mode')
         self.settings["triggerbot_burst_shots"] = self.get_current_triggerbot_weapon_setting('burst_shots')
         self.settings["triggerbot_first_shot_delay"] = self.get_current_triggerbot_weapon_setting('first_shot_delay')
         self.settings["triggerbot_between_shots_delay"] = self.get_current_triggerbot_weapon_setting('between_shots_delay')
         
-        # Save settings
+      
         self.save_settings()
 
     def create_aim_container(self):
