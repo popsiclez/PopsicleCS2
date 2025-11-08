@@ -1,7 +1,7 @@
 VERSION = "1.1.1"
 STARTUP_ENABLED = True
 CONFIG_WINDOW = None
-#1         
+         
 import threading
 import keyboard
 import os
@@ -1499,7 +1499,7 @@ class ConfigWindow(QtWidgets.QWidget):
         # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
         self._anti_flash_timer = QtCore.QTimer(self)
         self._anti_flash_timer.timeout.connect(self._apply_continuous_anti_flash)
-        self._anti_flash_timer.start(10)  # Check every 10ms for responsive anti-flash
+        self._anti_flash_timer.start(20)  # Check every 10ms for responsive anti-flash
         
                                                           
         if not self.is_game_window_active():
@@ -8636,7 +8636,7 @@ def camera_lock_thread(settings):
                         pass
                     time.sleep(0.010)  # 100 FPS for responsive crosshair placement
                 else:
-                    time.sleep(0.050)  # 20 FPS when CS2 is not active
+                    time.sleep(0.100)  # 20 FPS when CS2 is not active
             else:
                 time.sleep(0.100)  # 10 FPS when disabled to save CPU
                 
@@ -9310,7 +9310,11 @@ def aim():
                     smoothness = settings.get('aim_smoothness', 0)
                     aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
                 
-                time.sleep(0.001)  # 1000 FPS when aimbot is active
+                # Interval based on whether aimbot key is being held
+                if pressed:
+                    time.sleep(0.002)  # High frequency when aimbot key is held
+                else:
+                    time.sleep(0.1)    # Low frequency when aimbot key is not held
             else:
                 # Aimbot disabled - run at much lower frequency to save CPU
                 time.sleep(0.100)  # 10 FPS when aimbot is disabled
