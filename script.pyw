@@ -1,6 +1,5 @@
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 STARTUP_ENABLED = True
-CONFIG_WINDOW = None
 
 import threading
 import keyboard
@@ -31,6 +30,11 @@ import pyautogui
 from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtCore import QFileSystemWatcher, QCoreApplication, QTimer
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
+
+CONFIG_WINDOW = None
+
+# Suppress Qt DPI awareness warnings globally
+os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false;qt.qpa.window.warning=false"
                  
 import win32api
 import win32con
@@ -47,38 +51,28 @@ def cleanup_all_temporary_files(final_cleanup=False):
     except Exception:
         pass
     files_cleaned = 0
-
+    # Terminate tracked processes
     if PROCESSES_LIST:
-        if debug_mode:
-            print(f"[CLEANUP] Terminating {len(PROCESSES_LIST)} processes...")
         for i, p in enumerate(PROCESSES_LIST):
             try:
                 if hasattr(p, 'is_alive') and p.is_alive():
-                    if debug_mode:
-                        print(f"[CLEANUP] Terminating process {i+1}")
                     p.terminate()
                     p.join(2)
                     if p.is_alive():
                         p.kill()
                         p.join(1)
             except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error terminating process {i+1}: {e}")
-
+                pass
+    # Remove tracked temporary files
     if TEMPORARY_FILES:
-        if debug_mode:
-            print(f"[CLEANUP] Cleaning {len(TEMPORARY_FILES)} tracked temporary files...")
         for temp_file in list(TEMPORARY_FILES):
             try:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
                     files_cleaned += 1
-                    if debug_mode:
-                        print(f"[CLEANUP] Removed: {temp_file}")
             except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error removing {temp_file}: {e}")
-
+                pass
+    # Build list of standard temp files - only include commands.txt on final cleanup
     standard_temp_files = [
         'LOCK_FILE' if 'LOCK_FILE' in globals() else None,
         'TERMINATE_SIGNAL_FILE' if 'TERMINATE_SIGNAL_FILE' in globals() else None,
@@ -88,27 +82,18 @@ def cleanup_all_temporary_files(final_cleanup=False):
         'RAINBOW_COLOR_FILE' if 'RAINBOW_COLOR_FILE' in globals() else None,
         os.path.join(TEMP_DIR, 'panic_shutdown.signal')
     ]
- 
+    # Only delete commands.txt on final cleanup
     if final_cleanup and 'COMMANDS_FILE' in globals():
         standard_temp_files.append(COMMANDS_FILE)
-        if debug_mode:
-            print("[CLEANUP] Final cleanup - including commands.txt")
-    else:
-        if debug_mode:
-            print("[CLEANUP] Intermediate cleanup - preserving commands.txt")
-    if debug_mode:
-        print("[CLEANUP] Cleaning standard temporary files...")
+    
     for temp_file in standard_temp_files:
         try:
             if temp_file and temp_file in globals() and os.path.exists(globals()[temp_file]):
                 os.remove(globals()[temp_file])
                 files_cleaned += 1
-                if debug_mode:
-                    print(f"[CLEANUP] Removed: {globals()[temp_file]}")
         except Exception as e:
-            if debug_mode:
-                print(f"[CLEANUP] Error removing {temp_file}: {e}")
- 
+            pass
+    # Remove *.signal and *.lock files in cwd
     try:
         import glob
         signal_files = glob.glob(os.path.join(TEMP_DIR, '*.signal'))
@@ -116,25 +101,18 @@ def cleanup_all_temporary_files(final_cleanup=False):
             try:
                 os.remove(signal_file)
                 files_cleaned += 1
-                if debug_mode:
-                    print(f"[CLEANUP] Removed signal file: {signal_file}")
             except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error removing signal file {signal_file}: {e}")
+                pass
         lock_files = glob.glob(os.path.join(TEMP_DIR, '*.lock'))
         for lock_file in lock_files:
             try:
                 os.remove(lock_file)
                 files_cleaned += 1
-                if debug_mode:
-                    print(f"[CLEANUP] Removed lock file: {lock_file}")
             except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error removing lock file {lock_file}: {e}")
+                pass
     except Exception as e:
-        if debug_mode:
-            print(f"[CLEANUP] Error cleaning signal/lock files: {e}")
-    
+        pass
+    # Remove temp .pyw files in tempdir
     try:
         import tempfile
         import glob
@@ -148,35 +126,21 @@ def cleanup_all_temporary_files(final_cleanup=False):
                     if file_age < 3600 and 1000 < file_size < 1000000:
                         os.remove(temp_file)
                         files_cleaned += 1
-                        if debug_mode:
-                            print(f"[CLEANUP] Removed temp script: {temp_file}")
             except Exception as e:
-                if debug_mode:
-                    print(f"[CLEANUP] Error removing temp script {temp_file}: {e}")
+                pass
     except Exception as e:
-        if debug_mode:
-            print(f"[CLEANUP] Error cleaning temp scripts: {e}")
+        pass
     
-   
+    # Remove temp directory if it exists and is empty
     try:
         if os.path.exists(TEMP_DIR):
-            
+            # Check if directory is empty
             if not os.listdir(TEMP_DIR):
                 os.rmdir(TEMP_DIR)
-                if debug_mode:
-                    print(f"[CLEANUP] Removed empty temp directory: {TEMP_DIR}")
-            else:
-                if debug_mode:
-                    print(f"[CLEANUP] Temp directory not empty, preserving: {TEMP_DIR}")
     except Exception as e:
-        if debug_mode:
-            print(f"[CLEANUP] Error removing temp directory: {e}")
+        pass
     
     cleanup_logging()
-    if debug_mode:
-        print(f"[CLEANUP] Cleanup completed. Removed {files_cleaned} files.")
-    elif files_cleaned > 0:
-        print(f"Cleanup completed - removed {files_cleaned} temporary files.")
     return files_cleaned
 
 
@@ -199,7 +163,8 @@ def setup_logging():
     
 
     LOG_FILE = os.path.join(os.getcwd(), 'debug_log.txt')
-   
+    # DO NOT add LOG_FILE to temporary files when debug logging is enabled
+    # We want to keep the debug log for analysis after script closes
     
 
     original_stdout = sys.stdout
@@ -251,7 +216,36 @@ def cleanup_logging():
         LOG_FILE = None
         _debug_log_file = None
     
-  
+    # Remove all code referencing 'final_cleanup' from this function, as it is not defined here. This function should only restore stdout/stderr and close the log file.
+    # ...existing code...
+    # (No reference to final_cleanup here)
+    # ...existing code...
+
+def log(message):
+    """Log message to console and debug_log.txt file when debug mode is enabled"""
+    try:
+        # Check if we have a console window available (either from loader or script)
+        has_console = False
+        try:
+            console_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            has_console = console_hwnd != 0
+        except:
+            has_console = False
+        
+        # Only print to console if we have one available
+        if has_console:
+            print(f"{datetime.now().strftime('%H:%M:%S')} | {message}")
+        
+        # Also write to debug_log.txt if debug logging is enabled
+        if is_debug_mode():
+            try:
+                debug_log_file = os.path.join(os.getcwd(), 'debug_log.txt')
+                with open(debug_log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"{datetime.now().strftime('%H:%M:%S')} | {message}\n")
+            except Exception:
+                pass  # If file logging fails, continue with console only
+    except Exception:
+        pass  # If all logging fails, fail silently
 
 def register_cleanup_handlers():
     """Register cleanup handlers for various exit scenarios"""
@@ -261,12 +255,12 @@ def register_cleanup_handlers():
         return
     
     try:
-        
+        # Register final cleanup for normal exit
         atexit.register(lambda: cleanup_all_temporary_files(final_cleanup=True))
         
         def signal_handler(signum, frame):
-            print(f"[CLEANUP] Signal {signum} received, cleaning up...")
-            cleanup_all_temporary_files(final_cleanup=False)  
+            log(f"[EXIT] Signal {signum} received, cleaning up...")
+            cleanup_all_temporary_files(final_cleanup=False)  # Don't delete commands.txt on signal
             os._exit(1)
         
         if hasattr(signal, 'SIGTERM'):
@@ -277,27 +271,21 @@ def register_cleanup_handlers():
             signal.signal(signal.SIGBREAK, signal_handler)
         
         CLEANUP_REGISTERED = True
-        if is_debug_mode() and not is_low_cpu_mode():
-            print("[CLEANUP] Cleanup handlers registered successfully")
         
     except Exception as e:
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[CLEANUP] Error registering cleanup handlers: {e}")
+        if is_debug_mode():
+            log(f"[ERROR] An error occurred: Error registering cleanup handlers - {e}")
 
 def add_temporary_file(file_path):
     """Add a file to the temporary files tracking list"""
     global TEMPORARY_FILES
     if file_path:
         TEMPORARY_FILES.add(file_path)
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[CLEANUP] Tracking temporary file: {file_path}")
 
 def track_process(process):
     """Add a process to the cleanup tracking list"""
     global PROCESSES_LIST
     PROCESSES_LIST.append(process)
-    if is_debug_mode() and not is_low_cpu_mode():
-        print(f"[CLEANUP] Tracking process for cleanup")
 
 def load_commands():
     """Load commands from commands.txt file if it exists"""
@@ -320,7 +308,7 @@ def is_debug_mode():
     return "debuglog" in commands
 
 def is_low_cpu_mode():
-    """Check if low CPU mode is enabled"""
+    """Check if anti-aliasing is disabled (formerly low CPU mode)"""
     try:
         settings = load_settings()
         return settings.get("low_cpu", 0) == 1
@@ -334,8 +322,14 @@ def apply_commands():
     
     if "debuglog" in commands:
         setup_logging()
-        print("Debug logging enabled - detailed output will be written to debug_log.txt")
-        print("Commands processed:", commands)
+        # Check if we have a console (from loader or script)
+        try:
+            console_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if console_hwnd != 0:
+                log("[STARTUP] Debug logging enabled - detailed output will be written to debug_log.txt")
+                log(f"[STARTUP] Commands processed: {commands}")
+        except:
+            pass
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -368,22 +362,20 @@ def check_version():
 def get_offsets_last_update():
     """Get the last update date for the offsets repository output directory"""
     try:
-       
+        # GitHub API endpoint for commits affecting the /output directory
         api_url = "https://api.github.com/repos/popsiclez/offsets/commits?path=output&per_page=1"
         response = requests.get(api_url, timeout=10)
         if response.status_code == 200:
             commits = response.json()
             if commits:
-                
+                # Get the date from the most recent commit
                 commit_date = commits[0]["commit"]["author"]["date"]
-               
+                # Parse the ISO date and format it nicely
                 from datetime import datetime
                 dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
                 return dt.strftime("%Y-%m-%d %H:%M UTC")
         return "Unknown"
     except Exception as e:
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[DEBUG] Error fetching offsets update date: {e}")
         return "Unknown"
 
 def version_check_worker():
@@ -563,7 +555,7 @@ def trigger_graphics_restart():
         pass
           
 TEMP_DIR = os.path.join(os.getcwd(), 'temp')
-
+# Ensure temp directory exists
 os.makedirs(TEMP_DIR, exist_ok=True)
 CONFIG_DIR = os.path.join(os.getcwd(), 'configs')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'autosave.json')
@@ -576,7 +568,7 @@ COMMANDS_FILE = os.path.join(TEMP_DIR, 'commands.txt')
 CONSOLE_LOCK_FILE = os.path.join(TEMP_DIR, 'debug_console.lock')
 MODE_FILE = os.path.join(TEMP_DIR, 'selected_mode.txt')
 
-
+# Global variable to track the loaded config name for ESP overlay display
 LOADED_CONFIG_NAME = "autosave"
 
 def load_selected_mode():
@@ -588,18 +580,18 @@ def load_selected_mode():
                 if mode in ['legit', 'full']:
                     return mode
         else:
-           
+            # Default to full mode when no mode file is present
             return 'full'
     except Exception:
-        
+        # Default to full mode on any error
         return 'full'
     
-   
+    # If we reach here, mode file exists but contains invalid mode
     return 'full'
 
 SELECTED_MODE = load_selected_mode()
 
-
+# Apply commands after mode is loaded
 apply_commands()
                        
 RAINBOW_HUE = 0.0
@@ -885,9 +877,16 @@ DEFAULT_SETTINGS = {
     "rainbow_center_dot": 0,
     "rainbow_menu_theme": 0,
     "low_cpu": 0,
-    "fps_limit": 60,
     "game_fov": 90,
     "auto_apply_fov": 0,
+    
+    # Loop interval settings (in milliseconds)
+    "overlay_timer_interval": 10,
+    "aimbot_active_interval": 2,
+    "triggerbot_interval": 2,
+    "recoil_control_interval": 10,
+    "auto_crosshair_interval": 5,
+    "fov_timer_interval": 200,
 }
 
 def key_str_to_vk(key_str):
@@ -1131,43 +1130,38 @@ def load_settings():
 
     merged_settings = DEFAULT_SETTINGS.copy()
     
-    
+    # Track the loaded config name for ESP overlay display
     global LOADED_CONFIG_NAME
-    LOADED_CONFIG_NAME = "autosave"  
+    LOADED_CONFIG_NAME = "autosave"  # Default fallback
     
-    
-    config_to_load = CONFIG_FILE  
+    # Check for selected config file first (for pre-load config system)
+    config_to_load = CONFIG_FILE  # Default to autosave.json
     if os.path.exists(SELECTED_CONFIG_FILE):
         try:
             with open(SELECTED_CONFIG_FILE, 'r', encoding='utf-8') as f:
                 selected_config_name = f.read().strip()
                 if selected_config_name:
                     if selected_config_name == "default":
-                        
+                        # Use default settings instead of loading from file
                         LOADED_CONFIG_NAME = "default"
-                        if is_debug_mode() and not is_low_cpu_mode():
-                            print(f"[DEBUG] Loading default settings")
+                        pass
                         return DEFAULT_SETTINGS.copy()
                     else:
                         selected_config_path = os.path.join(CONFIG_DIR, f"{selected_config_name}.json")
                         if os.path.exists(selected_config_path):
                             config_to_load = selected_config_path
-                            LOADED_CONFIG_NAME = selected_config_name 
-                            if is_debug_mode() and not is_low_cpu_mode():
-                                print(f"[DEBUG] Loading selected config: {selected_config_name}")
-                                print(f"[DEBUG] Config path: {selected_config_path}")
+                            LOADED_CONFIG_NAME = selected_config_name  # Track the loaded config name
+
+                            log(f"[CONFIG] Applied config values from {selected_config_name}")
                         else:
-                            if is_debug_mode() and not is_low_cpu_mode():
-                                print(f"[DEBUG] Selected config file does not exist: {selected_config_path}")
+                            pass
                 else:
-                    if is_debug_mode() and not is_low_cpu_mode():
-                        print(f"[DEBUG] Selected config name is empty")
+                    pass
         except Exception as e:
-            if is_debug_mode() and not is_low_cpu_mode():
-                print(f"[DEBUG] Error reading selected config file: {e}")
+            pass
     else:
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[DEBUG] selected_config.txt not found, using autosave.json")
+        pass
+
     
     if not os.path.exists(config_to_load):
         with open(CONFIG_FILE, "w") as f:
@@ -1180,16 +1174,13 @@ def load_settings():
 
             merged_settings.update(loaded_settings)
             
-            
+            # Migrate legacy recoil settings to weapon-specific format
             if 'recoil_weapons' not in merged_settings or not isinstance(merged_settings['recoil_weapons'], dict):
-                if is_debug_mode() and not is_low_cpu_mode():
-                    print("[DEBUG] Migrating legacy recoil settings to weapon-specific format")
-                
-                
+                # Get legacy values or defaults
                 legacy_strength = merged_settings.get('recoil_control_strength', 5)
                 legacy_smoothness = merged_settings.get('recoil_control_smoothness', 3)
                 
-                
+                # Create weapon-specific settings using legacy values for all weapons
                 weapon_settings = {}
                 weapon_list = [
                     "Default", "AK-47", "M4A4", "M4A1-S", "AWP", "Galil AR", "FAMAS",
@@ -1209,10 +1200,8 @@ def load_settings():
                 merged_settings['recoil_weapons'] = weapon_settings
                 merged_settings['recoil_selected_weapon'] = merged_settings.get('recoil_selected_weapon', 'Default')
                 
-                
+                # Save the migrated settings
                 save_settings(merged_settings)
-                if is_debug_mode() and not is_low_cpu_mode():
-                    print("[DEBUG] Legacy recoil settings migration completed")
             
             return merged_settings
     except (json.JSONDecodeError, FileNotFoundError, PermissionError):
@@ -1246,7 +1235,7 @@ def load_rainbow_color():
         if os.path.exists(RAINBOW_COLOR_FILE):
             with open(RAINBOW_COLOR_FILE, 'r') as f:
                 rainbow_data = json.load(f)
-               
+                # Check if the color data is recent (within 5 seconds)
                 if time.time() - rainbow_data.get('timestamp', 0) < 5.0:
                     return rainbow_data.get('current_rainbow_color')
     except Exception:
@@ -1263,17 +1252,18 @@ class ConfigWindow(QtWidgets.QWidget):
         self.esp_toggle_pressed = False
         self._manually_hidden = False                                         
         self._fov_changed_during_runtime = False
-        self._fov_manually_interacted = False  
-       
+        self._fov_manually_interacted = False  # Track if FOV has been manually adjusted during this session
+        # Track if anti-flash has been interacted with this session (resets each restart)
+        # For legit mode: if anti-flash is already enabled at startup, don't allow it to apply values
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and self.settings.get("anti_flash_enabled", 0) == 1:
-            self._anti_flash_interacted = False  
+            self._anti_flash_interacted = False  # Prevent anti-flash from applying in legit mode if pre-enabled
         else:
-            
+            # For full mode: if anti-flash is already enabled in config, mark as interacted so it applies immediately
             self._anti_flash_interacted = self.settings.get("anti_flash_enabled", 0) == 1
-        self._memory_warning_shown = False 
-        self._memory_dialog_active = False  
+        self._memory_warning_shown = False  # Track if memory warning has been shown this session
+        self._memory_dialog_active = False  # Track if memory warning dialog is currently active
         self._is_initializing = True
-        self._cached_app_title = None 
+        self._cached_app_title = None  # Cache app title to avoid network calls during window monitoring
         
                                                               
         initial_theme_color = self.settings.get('menu_theme_color', '#FF0000')
@@ -1283,18 +1273,15 @@ class ConfigWindow(QtWidgets.QWidget):
     def initUI(self):
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         
-    
+        # Cache app title during initialization to avoid network calls during window monitoring
         app_title = get_app_title()
-        self._cached_app_title = app_title  
+        self._cached_app_title = app_title  # Pre-cache to avoid delays during window monitoring
         self.setWindowTitle(f"{app_title} Config")
         
 
         self.tooltips_enabled = "tooltips" in load_commands()
         
         header_text = app_title
-        
-        if is_debug_mode() and not is_low_cpu_mode():
-            print(f"[DEBUG] UI Header text set to: {header_text} (Mode: {SELECTED_MODE})")
         
         self.header_label = QtWidgets.QLabel(header_text)
         self.header_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -1314,11 +1301,12 @@ class ConfigWindow(QtWidgets.QWidget):
         misc_container = self.create_misc_container()
         memory_container = self.create_memory_container()
         config_container = self.create_config_container()
+        performance_container = self.create_performance_container()
 
-        
+        # Create custom tab widget with grid layout
         self.tab_content_widget = QtWidgets.QStackedWidget()
         
-        
+        # Store tab containers and their info
         self.tab_containers = [
             (esp_container, "ESP 👁️"),
             (trigger_container, "Triggerbot ⚡"),
@@ -1326,44 +1314,46 @@ class ConfigWindow(QtWidgets.QWidget):
             (recoil_container, "Recoil 🔫")
         ]
         
-       
+        # Add aim container for full mode
         if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
             aim_container = self.create_aim_container()
             self.tab_containers.insert(1, (aim_container, "Aimlock 🔗"))
         
-       
+        # Add remaining containers to second row
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            
-            self.tab_containers.extend([
-                (config_container, "Config 📂"),
-                (colors_container, "Colors 🎨"),
-                (misc_container, "Misc ⚙️")
-            ])
-        else:
-           
+            # Exclude memory tab in legit mode
             self.tab_containers.extend([
                 (config_container, "Config 📂"),
                 (colors_container, "Colors 🎨"),
                 (misc_container, "Misc ⚙️"),
-                (memory_container, "Memory🧠")
+                (performance_container, "FPS 📊")
+            ])
+        else:
+            # Include all tabs in full mode
+            self.tab_containers.extend([
+                (config_container, "Config 📂"),
+                (colors_container, "Colors 🎨"),
+                (misc_container, "Misc ⚙️"),
+                (memory_container, "Memory🧠"),
+                (performance_container, "FPS 📊")
             ])
         
-        
+        # Add all containers to stacked widget
         for container, _ in self.tab_containers:
             self.tab_content_widget.addWidget(container)
         
-        
+        # Create custom tab bar with proper centering
         tab_bar_widget = QtWidgets.QWidget()
-        
+        # Remove fixed minimum height to allow dynamic scaling
         main_tab_layout = QtWidgets.QVBoxLayout()
-        main_tab_layout.setSpacing(0)  
-        main_tab_layout.setContentsMargins(8, 8, 8, 12)  
+        main_tab_layout.setSpacing(0)  # Minimize spacing between rows
+        main_tab_layout.setContentsMargins(8, 8, 8, 12)  # Increase all margins
         
         self.tab_buttons = []
         
-        
+        # Create dynamic rows of maximum 4 tabs each with centering
         tabs_per_row = 4
-        num_rows = (len(self.tab_containers) + tabs_per_row - 1) // tabs_per_row  
+        num_rows = (len(self.tab_containers) + tabs_per_row - 1) // tabs_per_row  # Ceiling division
         
         for row_idx in range(num_rows):
             start_idx = row_idx * tabs_per_row
@@ -1371,12 +1361,12 @@ class ConfigWindow(QtWidgets.QWidget):
             row_containers = self.tab_containers[start_idx:end_idx]
             
             row_widget = QtWidgets.QWidget()
-            row_widget.setMinimumHeight(40) 
+            row_widget.setMinimumHeight(40)  # Reduce height for tighter rows
             row_layout = QtWidgets.QHBoxLayout()
             row_layout.setSpacing(2)
-            row_layout.setContentsMargins(0, 0, 0, 0) 
+            row_layout.setContentsMargins(0, 0, 0, 0)  # Minimize margins between rows
             
-            
+            # Add stretching spacer on the left for centering
             row_layout.addStretch()
             
             for i, (container, label) in enumerate(row_containers):
@@ -1385,23 +1375,23 @@ class ConfigWindow(QtWidgets.QWidget):
                 button.setObjectName("tab_button")
                 button.setMinimumHeight(32)
                 button.setMaximumHeight(32)
-                button.setMinimumWidth(110) 
-                button.setMaximumWidth(110)  
+                button.setMinimumWidth(110)  # Set fixed width for consistent button sizes
+                button.setMaximumWidth(110)  # Set fixed width for consistent button sizes
                 
-              
+                # Auto-scale font size to fit text perfectly inside button
                 font = button.font()
                 font_metrics = QtGui.QFontMetrics(font)
                 text_width = font_metrics.horizontalAdvance(label)
-                button_width = 110  
+                button_width = 110  # Use the fixed minimum/maximum width we set
                 
-           
-                if text_width > button_width - 20: 
+                # Calculate font size to fit text within button width with some padding
+                if text_width > button_width - 20:  # Leave 20px padding
                     new_font_size = int(font.pointSize() * (button_width - 20) / text_width)
-                    font.setPointSize(max(new_font_size, 8)) 
+                    font.setPointSize(max(new_font_size, 8))  # Minimum font size of 8
                     button.setFont(font)
                 
                 button_index = start_idx + i
-               
+                # Special handling for Memory🧠 tab
                 if label == "Memory🧠":
                     button.clicked.connect(lambda checked, index=button_index: self.handle_memory_tab_click(index))
                 else:
@@ -1410,20 +1400,20 @@ class ConfigWindow(QtWidgets.QWidget):
                 row_layout.addWidget(button)
                 self.tab_buttons.append(button)
             
-          
+            # Add stretching spacer on the right for centering
             row_layout.addStretch()
             
             row_widget.setLayout(row_layout)
             main_tab_layout.addWidget(row_widget)
         
-       
+        # Set first tab as active
         if self.tab_buttons:
             self.tab_buttons[0].setChecked(True)
             self.tab_content_widget.setCurrentIndex(0)
         
         tab_bar_widget.setLayout(main_tab_layout)
         
-        
+        # Main layout
         main_layout = QtWidgets.QVBoxLayout()
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -1444,10 +1434,15 @@ class ConfigWindow(QtWidgets.QWidget):
         self.update_thickness_label()
         self.update_smooth_label()
 
-        self.update_game_fov_label_only()
+        # Initialize new loop interval slider labels
+        self.update_overlay_timer_label()
+        self.update_aimbot_active_label()
+        self.update_triggerbot_interval_label()
+        self.update_recoil_control_interval_label()
+        self.update_auto_crosshair_interval_label()
+        self.update_fov_timer_label()
 
-                                                           
-        self.initialize_fps_slider_state()
+        self.update_game_fov_label_only()
 
         
         self._menu_toggle_timer = QtCore.QTimer(self)
@@ -1474,27 +1469,27 @@ class ConfigWindow(QtWidgets.QWidget):
                                               
         self.keybind_cooldowns = {}                                        
 
-     
+        # Window monitoring timer - check very frequently for instant hiding when tabbing out
         self._window_monitor_timer = QtCore.QTimer(self)
         self._window_monitor_timer.timeout.connect(self._check_cs2_window_active)
-        self._window_monitor_timer.start(10) 
+        self._window_monitor_timer.start(10)  # 10ms for ultra-responsive hiding when tabbing out
         self._was_visible = True                          
         self._drag_end_time = 0                             
         
                                                     
         self._rainbow_menu_timer = QtCore.QTimer(self)
         self._rainbow_menu_timer.timeout.connect(self._update_rainbow_menu_theme)
-        self._rainbow_menu_timer.start(100)  
+        self._rainbow_menu_timer.start(100)  # Reduced frequency to prevent flashing (was 50ms)
         
-       
+        # Setup FOV application timer for continuous FOV enforcement when not scoped
         self._fov_timer = QtCore.QTimer(self)
         self._fov_timer.timeout.connect(self._apply_continuous_fov)
-        self._fov_timer.start(200)  
+        self._fov_timer.start(self.settings.get('fov_timer_interval', 200))  # Use configurable FOV timer interval
         
-       
+        # Setup anti-flash application timer for continuous anti-flash when enabled and interacted
         self._anti_flash_timer = QtCore.QTimer(self)
         self._anti_flash_timer.timeout.connect(self._apply_continuous_anti_flash)
-        self._anti_flash_timer.start(20)  
+        self._anti_flash_timer.start(20)  # Check every 10ms for responsive anti-flash
         
                                                           
         if not self.is_game_window_active():
@@ -1503,7 +1498,7 @@ class ConfigWindow(QtWidgets.QWidget):
 
         self.disable_ui_focus()
         
-       
+        # Initialize rainbow theme if enabled
         self._initialize_rainbow_theme_on_startup()
         
         self._is_initializing = False
@@ -1511,24 +1506,24 @@ class ConfigWindow(QtWidgets.QWidget):
     def switch_tab(self, index):
         """Switch to the specified tab and update button states"""
         if 0 <= index < len(self.tab_buttons):
-           
+            # Update button states
             for i, button in enumerate(self.tab_buttons):
                 button.setChecked(i == index)
             
-            
+            # Switch to the corresponding content
             self.tab_content_widget.setCurrentIndex(index)
 
     def handle_memory_tab_click(self, index):
         """Handle clicking on Memory🧠 tab with warning dialog"""
-     
+        # Show warning dialog if not shown this session
         if not self._memory_warning_shown:
-          
+            # Pause rainbow timer to prevent interference
             self.pause_rainbow_timer()
             
-        
+            # Mark dialog as active to prevent window monitoring interference
             self._memory_dialog_active = True
             
-            
+            # Create warning message box as child of this window
             msg_box = QtWidgets.QMessageBox(self)
             msg_box.setWindowTitle("Memory Modification Warning")
             msg_box.setText("Memory Modification has risk of ban. Proceed?")
@@ -1536,29 +1531,29 @@ class ConfigWindow(QtWidgets.QWidget):
             msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             msg_box.setDefaultButton(QtWidgets.QMessageBox.No)
             
-           
+            # Make dialog stay on top and modal
             msg_box.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.WindowSystemMenuHint)
             msg_box.setWindowModality(QtCore.Qt.ApplicationModal)
             
-            
+            # Show dialog and get result
             result = msg_box.exec_()
             
-           
+            # Mark dialog as no longer active
             self._memory_dialog_active = False
             
-            
+            # Resume rainbow timer
             self.resume_rainbow_timer()
             
             if result == QtWidgets.QMessageBox.Yes:
-                
+                # User accepted, mark warning as shown and switch to tab
                 self._memory_warning_shown = True
                 self.switch_tab(index)
             else:
-          
-               
+                # User declined, don't switch to memory tab
+                # Keep current tab selected by not changing anything
                 pass
         else:
-       
+            # Warning already shown this session, switch directly
             self.switch_tab(index)
 
     def pause_rainbow_timer(self):
@@ -1618,8 +1613,7 @@ class ConfigWindow(QtWidgets.QWidget):
             sliders = [
                 self.triggerbot_delay_slider, self.triggerbot_first_shot_delay_slider,
                 self.triggerbot_burst_shots_slider, 
-                self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider, 
-                self.fps_limit_slider
+                self.center_dot_size_slider, self.radar_size_slider, self.radar_scale_slider
             ]
             
             aim_sliders = [
@@ -1674,11 +1668,11 @@ class ConfigWindow(QtWidgets.QWidget):
             if not foreground_hwnd:
                 return False
             
-            
+            # Fast check: get window title first, avoid FindWindow if possible
             try:
                 window_title = win32gui.GetWindowText(foreground_hwnd)
                 
-                
+                # Quick string checks first (fastest)
                 if window_title == "Counter-Strike 2":
                     return True
                 if "ESP Overlay" in window_title:
@@ -1686,14 +1680,14 @@ class ConfigWindow(QtWidgets.QWidget):
                 if "Memory Modification Warning" in window_title:
                     return True
                 
-                
+                # Use pre-cached app title (no network calls during monitoring)
                 if hasattr(self, '_cached_app_title') and self._cached_app_title:
                     if f"{self._cached_app_title} Config" in window_title:
                         return True
                     
                 return False
             except Exception:
-               
+                # Fallback to slower FindWindow method
                 cs2_hwnd = win32gui.FindWindow(None, "Counter-Strike 2")
                 return cs2_hwnd and cs2_hwnd == foreground_hwnd
                 
@@ -1703,14 +1697,14 @@ class ConfigWindow(QtWidgets.QWidget):
     def _check_cs2_window_active(self):
         """Monitor CS2 window activity and show/hide config window accordingly"""
         try:
-            
+            # Skip window monitoring if memory dialog is active or dragging
             if (hasattr(self, '_memory_dialog_active') and self._memory_dialog_active) or self.is_dragging:
                 return
             
             is_cs2_active = self.is_game_window_active()
             
             if is_cs2_active and not self._was_visible:
-              
+                # Only check drag end time when showing (not hiding)
                 if hasattr(self, '_drag_end_time') and time.time() - self._drag_end_time < 0.1:
                     return
                 
@@ -1718,7 +1712,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.show()
                     self._was_visible = True
             elif not is_cs2_active and self._was_visible:
-            
+                # Hide immediately without any delays
                 self.hide()
                 self._was_visible = False
                 self._manually_hidden = False
@@ -1808,6 +1802,14 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.esp_rendering_cb, "Toggle ESP rendering on/off. When disabled, no ESP elements will be drawn.")
         self.esp_rendering_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         esp_layout.addWidget(self.esp_rendering_cb)
+
+        # Disable Anti-Aliasing
+        self.low_cpu_cb = QtWidgets.QCheckBox("Disable Anti-Aliasing")
+        self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
+        self.low_cpu_cb.stateChanged.connect(self.on_disable_aa_changed)
+        self.set_tooltip_if_enabled(self.low_cpu_cb, "Disables anti-aliasing for better performance. Improves FPS but may reduce visual quality.")
+        self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        esp_layout.addWidget(self.low_cpu_cb)
 
         self.hide_spotted_cb = QtWidgets.QCheckBox("Hide Spotted Players")
         self.hide_spotted_cb.setChecked(self.settings.get("hide_spotted", 0) == 1)
@@ -1930,9 +1932,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.radar_scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
-            self.radar_scale_slider.setRange(10, 300)  
+            self.radar_scale_slider.setRange(10, 300)  # 1.0 to 30.0 scale
         else:
-            self.radar_scale_slider.setRange(10, 500)  
+            self.radar_scale_slider.setRange(10, 500)  # 1.0 to 50.0 scale
             
         self.radar_scale_slider.setValue(int(self.settings.get('radar_scale', 5.0) * 10))
         self.radar_scale_slider.valueChanged.connect(self.update_radar_scale_label)
@@ -1995,7 +1997,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.trigger_bot_active_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.trigger_bot_active_cb)
 
-        
+        # Weapon Selection Dropdown
         self.lbl_triggerbot_weapon = QtWidgets.QLabel("Weapon Preset:")
         trigger_layout.addWidget(self.lbl_triggerbot_weapon)
         self.triggerbot_weapon_combo = QtWidgets.QComboBox()
@@ -2008,7 +2010,7 @@ class ConfigWindow(QtWidgets.QWidget):
         ]
         self.triggerbot_weapon_combo.addItems(weapon_list)
         
-      
+        # Set current weapon selection
         current_weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
         index = self.triggerbot_weapon_combo.findText(current_weapon)
         if index >= 0:
@@ -2019,10 +2021,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_weapon_combo)
 
-        
+        # Load current weapon settings
         self.load_weapon_triggerbot_settings(current_weapon)
 
-        
+        # Head-Only Mode Checkbox
         self.triggerbot_head_only_cb = QtWidgets.QCheckBox("Head-Only Mode")
         self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
         self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
@@ -2030,7 +2032,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_head_only_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_head_only_cb)
 
-       
+        # Burst Mode Checkbox
         self.triggerbot_burst_mode_cb = QtWidgets.QCheckBox("Burst Mode")
         self.triggerbot_burst_mode_cb.setChecked(self.get_current_triggerbot_weapon_setting('burst_mode') == 1)
         self.triggerbot_burst_mode_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
@@ -2038,7 +2040,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.triggerbot_burst_mode_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         trigger_layout.addWidget(self.triggerbot_burst_mode_cb)
 
-        
+        # Burst Shots Slider
         self.lbl_burst_shots = QtWidgets.QLabel(f"Burst Shots: ({self.get_current_triggerbot_weapon_setting('burst_shots')})")
         trigger_layout.addWidget(self.lbl_burst_shots)
         self.triggerbot_burst_shots_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2050,8 +2052,8 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_burst_shots_slider, "Number of shots fired per burst when burst mode is enabled.")
         trigger_layout.addWidget(self.triggerbot_burst_shots_slider)
 
-        
-        self.lbl_first_shot_delay = QtWidgets.QLabel(f"First Shot Delay (ms): ({self.get_current_triggerbot_weapon_setting('first_shot_delay')})")
+        # First Shot Delay Slider
+        self.lbl_first_shot_delay = QtWidgets.QLabel(f"Triggerbot - First Shot Delay (ms): ({self.get_current_triggerbot_weapon_setting('first_shot_delay')})")
         trigger_layout.addWidget(self.lbl_first_shot_delay)
         self.triggerbot_first_shot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         
@@ -2068,7 +2070,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_first_shot_delay_slider, "Delay before the first shot when trigger key is pressed. Higher values add reaction time delay.")
         trigger_layout.addWidget(self.triggerbot_first_shot_delay_slider)
 
-        
+        # Between Shots Delay Slider
         self.lbl_delay = QtWidgets.QLabel(f"Between Shots Delay (ms): ({self.get_current_triggerbot_weapon_setting('between_shots_delay')})")
         trigger_layout.addWidget(self.lbl_delay)
         self.triggerbot_delay_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2080,7 +2082,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.triggerbot_delay_slider, "Delay in milliseconds between each shot to control fire rate. Higher values = slower shooting.")
         trigger_layout.addWidget(self.triggerbot_delay_slider)
 
-       
+        # Trigger Key Button
         self.trigger_key_btn = QtWidgets.QPushButton(f"TriggerKey: {self.settings.get('TriggerKey', 'X')}")
         self.trigger_key_btn.setObjectName("keybind_button")
         self.trigger_key_btn.clicked.connect(lambda: self.record_key('TriggerKey', self.trigger_key_btn))
@@ -2113,7 +2115,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.recoil_control_enabled_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         recoil_layout.addWidget(self.recoil_control_enabled_cb)
 
-       
+        # Weapon Selection Dropdown
         self.recoil_weapon_label = QtWidgets.QLabel("Weapon Preset:")
         recoil_layout.addWidget(self.recoil_weapon_label)
         self.recoil_weapon_combo = QtWidgets.QComboBox()
@@ -2127,7 +2129,7 @@ class ConfigWindow(QtWidgets.QWidget):
         ]
         self.recoil_weapon_combo.addItems(weapon_list)
         
-        
+        # Set current weapon selection
         current_weapon = self.settings.get('recoil_selected_weapon', 'Default')
         index = self.recoil_weapon_combo.findText(current_weapon)
         if index >= 0:
@@ -2138,10 +2140,10 @@ class ConfigWindow(QtWidgets.QWidget):
         self.recoil_weapon_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         recoil_layout.addWidget(self.recoil_weapon_combo)
 
-       
+        # Load current weapon settings
         self.load_weapon_recoil_settings(current_weapon)
 
-        
+        # Recoil Strength Slider
         self.lbl_recoil_strength = QtWidgets.QLabel(f"Recoil Strength: ({self.get_current_weapon_setting('strength')})")
         recoil_layout.addWidget(self.lbl_recoil_strength)
         self.recoil_strength_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2158,7 +2160,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.set_tooltip_if_enabled(self.recoil_strength_slider, "How much the mouse moves down per recoil adjustment. Higher values = more downward movement. (1-100)")
         recoil_layout.addWidget(self.recoil_strength_slider)
 
-        
+        # Recoil Smoothness Slider
         self.lbl_recoil_smoothness = QtWidgets.QLabel(f"Recoil Smoothness: ({self.get_current_weapon_setting('smoothness')})")
         recoil_layout.addWidget(self.lbl_recoil_smoothness)
         self.recoil_smoothness_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -2188,10 +2190,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon in weapon_settings:
             value = weapon_settings[selected_weapon].get(setting_type, 5 if setting_type == 'strength' else 3)
         else:
-            
+            # Fallback to default values
             value = 5 if setting_type == 'strength' else 3
         
-        
+        # Enforce legit mode restrictions
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             if setting_type == 'strength' and value > 20:
                 value = 20
@@ -2204,7 +2206,7 @@ class ConfigWindow(QtWidgets.QWidget):
         """Load recoil settings for the specified weapon"""
         weapon_settings = self.settings.get('recoil_weapons', {})
         
-       
+        # Ensure weapon exists in settings
         if weapon_name not in weapon_settings:
             weapon_settings[weapon_name] = {"strength": 5, "smoothness": 3}
             self.settings['recoil_weapons'] = weapon_settings
@@ -2217,10 +2219,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon not in weapon_settings:
             weapon_settings[selected_weapon] = {}
         
-       
+        # Save current slider values with legit mode enforcement
         if hasattr(self, 'recoil_strength_slider'):
             strength_value = self.recoil_strength_slider.value()
-         
+            # Enforce legit mode maximum for recoil strength
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and strength_value > 20:
                 strength_value = 20
                 self.recoil_strength_slider.setValue(20)
@@ -2228,7 +2230,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         if hasattr(self, 'recoil_smoothness_slider'):
             smoothness_value = self.recoil_smoothness_slider.value()
-           
+            # Enforce legit mode minimum for recoil smoothness
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and smoothness_value < 20:
                 smoothness_value = 20
                 self.recoil_smoothness_slider.setValue(20)
@@ -2244,24 +2246,24 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_recoil_weapon_changed(self):
         """Handle weapon selection change"""
-    
+        # Save current weapon settings before switching
         if hasattr(self, 'recoil_strength_slider'):
             self.save_current_weapon_settings()
         
-     
+        # Update selected weapon
         selected_weapon = self.recoil_weapon_combo.currentText()
         self.settings['recoil_selected_weapon'] = selected_weapon
         
-       
+        # Load new weapon settings
         self.load_weapon_recoil_settings(selected_weapon)
         
-        
+        # Temporarily disconnect signals to prevent triggering saves during value updates
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.valueChanged.disconnect()
         if hasattr(self, 'recoil_smoothness_slider'):
             self.recoil_smoothness_slider.valueChanged.disconnect()
         
-       
+        # Update sliders with new weapon settings
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.setValue(self.get_current_weapon_setting('strength'))
             self.update_recoil_strength_label()
@@ -2270,7 +2272,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_smoothness_slider.setValue(self.get_current_weapon_setting('smoothness'))
             self.update_recoil_smoothness_label()
         
-       
+        # Reconnect signals
         if hasattr(self, 'recoil_strength_slider'):
             self.recoil_strength_slider.valueChanged.connect(self.update_recoil_strength_label)
             self.recoil_strength_slider.valueChanged.connect(self.on_recoil_slider_changed)
@@ -2278,11 +2280,11 @@ class ConfigWindow(QtWidgets.QWidget):
             self.recoil_smoothness_slider.valueChanged.connect(self.update_recoil_smoothness_label)
             self.recoil_smoothness_slider.valueChanged.connect(self.on_recoil_slider_changed)
         
-        
+        # Update main recoil control settings to match current weapon
         self.settings["recoil_control_strength"] = self.get_current_weapon_setting('strength')
         self.settings["recoil_control_smoothness"] = self.get_current_weapon_setting('smoothness')
         
-    
+        # Save settings
         self.save_settings()
 
     def get_current_triggerbot_weapon_setting(self, setting_type):
@@ -2293,10 +2295,10 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon in weapon_settings:
             value = weapon_settings[selected_weapon].get(setting_type, self.get_triggerbot_default_value(setting_type))
         else:
-           
+            # Fallback to default values
             value = self.get_triggerbot_default_value(setting_type)
         
-     
+        # Enforce legit mode restrictions
         if SELECTED_MODE and SELECTED_MODE.lower() == 'legit':
             if setting_type == 'first_shot_delay' and value < 150:
                 value = 150
@@ -2330,7 +2332,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if selected_weapon not in weapon_settings:
             weapon_settings[selected_weapon] = {}
         
-     
+        # Save current settings with legit mode enforcement
         if hasattr(self, 'triggerbot_head_only_cb'):
             weapon_settings[selected_weapon]['head_only'] = 1 if self.triggerbot_head_only_cb.isChecked() else 0
             
@@ -2342,7 +2344,7 @@ class ConfigWindow(QtWidgets.QWidget):
             
         if hasattr(self, 'triggerbot_first_shot_delay_slider'):
             first_shot_value = self.triggerbot_first_shot_delay_slider.value()
-           
+            # Enforce legit mode minimum for first shot delay
             if SELECTED_MODE and SELECTED_MODE.lower() == 'legit' and first_shot_value < 150:
                 first_shot_value = 150
                 self.triggerbot_first_shot_delay_slider.setValue(150)
@@ -2361,18 +2363,18 @@ class ConfigWindow(QtWidgets.QWidget):
 
     def on_triggerbot_weapon_changed(self):
         """Handle triggerbot weapon selection change"""
-    
+        # Save current weapon settings before switching
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.save_current_triggerbot_weapon_settings()
         
-      
+        # Update selected weapon
         selected_weapon = self.triggerbot_weapon_combo.currentText()
         self.settings['triggerbot_selected_weapon'] = selected_weapon
         
-      
+        # Load new weapon settings
         self.load_weapon_triggerbot_settings(selected_weapon)
         
-       
+        # Temporarily disconnect signals to prevent triggering saves during value updates
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.stateChanged.disconnect()
         if hasattr(self, 'triggerbot_burst_mode_cb'):
@@ -2384,7 +2386,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if hasattr(self, 'triggerbot_delay_slider'):
             self.triggerbot_delay_slider.valueChanged.disconnect()
         
-      
+        # Update controls with new weapon settings
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.setChecked(self.get_current_triggerbot_weapon_setting('head_only') == 1)
         
@@ -2403,7 +2405,7 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_delay_slider.setValue(self.get_current_triggerbot_weapon_setting('between_shots_delay'))
             self.update_triggerbot_delay_label()
         
-       
+        # Reconnect signals
         if hasattr(self, 'triggerbot_head_only_cb'):
             self.triggerbot_head_only_cb.stateChanged.connect(self.on_triggerbot_setting_changed)
         if hasattr(self, 'triggerbot_burst_mode_cb'):
@@ -2418,14 +2420,14 @@ class ConfigWindow(QtWidgets.QWidget):
             self.triggerbot_delay_slider.valueChanged.connect(self.update_triggerbot_delay_label)
             self.triggerbot_delay_slider.valueChanged.connect(self.on_triggerbot_setting_changed)
         
-        
+        # Update main triggerbot control settings to match current weapon
         self.settings["triggerbot_head_only"] = self.get_current_triggerbot_weapon_setting('head_only')
         self.settings["triggerbot_burst_mode"] = self.get_current_triggerbot_weapon_setting('burst_mode')
         self.settings["triggerbot_burst_shots"] = self.get_current_triggerbot_weapon_setting('burst_shots')
         self.settings["triggerbot_first_shot_delay"] = self.get_current_triggerbot_weapon_setting('first_shot_delay')
         self.settings["triggerbot_between_shots_delay"] = self.get_current_triggerbot_weapon_setting('between_shots_delay')
         
-      
+        # Save settings
         self.save_settings()
 
     def create_aim_container(self):
@@ -2757,30 +2759,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.targeting_type_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         misc_layout.addWidget(self.targeting_type_cb)
 
-        # 2. FPS limit
-        self.lbl_fps_limit = QtWidgets.QLabel(f"FPS Limit: ({self.settings.get('fps_limit', 60)})")
-        self.lbl_fps_limit.setMinimumHeight(16)
-        misc_layout.addWidget(self.lbl_fps_limit)
-        
-        self.fps_limit_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.fps_limit_slider.setMinimum(20)
-        self.fps_limit_slider.setMaximum(100)
-        self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
-        self.fps_limit_slider.valueChanged.connect(self.update_fps_limit_label)
-        self.set_tooltip_if_enabled(self.fps_limit_slider, "Maximum frames per second for ESP rendering. Lower values reduce CPU usage but may make animations less smooth.")
-        self.fps_limit_slider.setMinimumHeight(18)
-        self.fps_limit_slider.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.fps_limit_slider)
-
-        # 3. Low CPU mode
-        self.low_cpu_cb = QtWidgets.QCheckBox("Low CPU Mode (Performance Mode)")
-        self.low_cpu_cb.setChecked(self.settings.get('low_cpu', 0) == 1)
-        self.low_cpu_cb.stateChanged.connect(self.on_low_cpu_changed)
-        self.set_tooltip_if_enabled(self.low_cpu_cb, "Reduces CPU usage by limiting frame rate and reducing update frequency for better performance on lower-end systems.")
-        self.low_cpu_cb.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        misc_layout.addWidget(self.low_cpu_cb)
-
-        # 4. Draw center dot
+        # 2. Draw center dot
         self.center_dot_cb = QtWidgets.QCheckBox("Draw Center Dot")
         self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
         self.center_dot_cb.stateChanged.connect(self.save_settings)
@@ -2867,7 +2846,7 @@ class ConfigWindow(QtWidgets.QWidget):
         self.offsets_update_label = QtWidgets.QLabel(f"Last Updated: {last_update}")
         self.offsets_update_label.setAlignment(QtCore.Qt.AlignCenter)
         self.offsets_update_label.setMinimumHeight(16)
-        self.offsets_update_label.setStyleSheet("font-family: 'MS PGothic'; color: #CCCCCC; font-size: 12px;")
+        self.offsets_update_label.setStyleSheet("font-family: 'MS PGothic'; color: #ffffff; font-size: 12px;")
         self.set_tooltip_if_enabled(self.offsets_update_label, "Shows when the offsets repository was last updated with new game memory offsets.")
         misc_layout.addWidget(self.offsets_update_label)
 
@@ -3137,6 +3116,113 @@ class ConfigWindow(QtWidgets.QWidget):
         config_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
         return config_container
 
+    def create_performance_container(self):
+        performance_container = QtWidgets.QWidget()
+        performance_layout = QtWidgets.QVBoxLayout()
+        performance_layout.setSpacing(6)
+        performance_layout.setContentsMargins(6, 6, 6, 6)
+        performance_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        performance_label = QtWidgets.QLabel("FPS 📊")
+        performance_label.setAlignment(QtCore.Qt.AlignCenter)
+        performance_label.setMinimumHeight(18)
+        performance_layout.addWidget(performance_label)
+
+        # Add a separator line
+        separator_line = QtWidgets.QFrame()
+        separator_line.setFrameShape(QtWidgets.QFrame.HLine)
+        separator_line.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separator_line.setStyleSheet("color: #444444;")
+        performance_layout.addWidget(separator_line)
+
+        # ESP Overlay Refresh Rate
+        self.lbl_overlay_timer = QtWidgets.QLabel(f"ESP Overlay Refresh Rate: ({self.settings.get('overlay_timer_interval', 33)}ms)")
+        self.lbl_overlay_timer.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_overlay_timer)
+        
+        self.overlay_timer_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.overlay_timer_slider.setMinimum(10)
+        self.overlay_timer_slider.setMaximum(100)
+        self.overlay_timer_slider.setValue(self.settings.get('overlay_timer_interval', 33))
+        self.overlay_timer_slider.valueChanged.connect(self.update_overlay_timer_label)
+        self.set_tooltip_if_enabled(self.overlay_timer_slider, "ESP overlay refresh rate in milliseconds. Lower values = higher FPS but more CPU usage.")
+        self.overlay_timer_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.overlay_timer_slider)
+
+        # Aimbot Refresh Rate
+        self.lbl_aimbot_active = QtWidgets.QLabel(f"Aimbot Refresh Rate: ({self.settings.get('aimbot_active_interval', 2)}ms)")
+        self.lbl_aimbot_active.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_aimbot_active)
+        
+        self.aimbot_active_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.aimbot_active_slider.setMinimum(1)
+        self.aimbot_active_slider.setMaximum(20)
+        self.aimbot_active_slider.setValue(self.settings.get('aimbot_active_interval', 2))
+        self.aimbot_active_slider.valueChanged.connect(self.update_aimbot_active_label)
+        self.set_tooltip_if_enabled(self.aimbot_active_slider, "Aimbot refresh rate in milliseconds. Lower = more responsive but higher CPU usage.")
+        self.aimbot_active_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.aimbot_active_slider)
+
+        # Triggerbot Refresh Rate
+        self.lbl_triggerbot = QtWidgets.QLabel(f"Triggerbot Refresh Rate: ({self.settings.get('triggerbot_interval', 1)}ms)")
+        self.lbl_triggerbot.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_triggerbot)
+        
+        self.triggerbot_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.triggerbot_slider.setMinimum(1)
+        self.triggerbot_slider.setMaximum(10)
+        self.triggerbot_slider.setValue(self.settings.get('triggerbot_interval', 1))
+        self.triggerbot_slider.valueChanged.connect(self.update_triggerbot_interval_label)
+        self.set_tooltip_if_enabled(self.triggerbot_slider, "Triggerbot refresh rate. Lower = more responsive shooting but higher CPU usage.")
+        self.triggerbot_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.triggerbot_slider)
+
+        # Recoil Control Refresh Rate
+        self.lbl_recoil_control = QtWidgets.QLabel(f"Recoil Control Refresh Rate: ({self.settings.get('recoil_control_interval', 10)}ms)")
+        self.lbl_recoil_control.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_recoil_control)
+        
+        self.recoil_control_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.recoil_control_slider.setMinimum(5)
+        self.recoil_control_slider.setMaximum(50)
+        self.recoil_control_slider.setValue(self.settings.get('recoil_control_interval', 10))
+        self.recoil_control_slider.valueChanged.connect(self.update_recoil_control_interval_label)
+        self.set_tooltip_if_enabled(self.recoil_control_slider, "Recoil compensation refresh rate. Lower = smoother control but higher CPU usage.")
+        self.recoil_control_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.recoil_control_slider)
+
+        # Auto Crosshair Placement Refresh Rate
+        self.lbl_auto_crosshair = QtWidgets.QLabel(f"Auto Crosshair Placement Refresh Rate: ({self.settings.get('auto_crosshair_interval', 10)}ms)")
+        self.lbl_auto_crosshair.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_auto_crosshair)
+        
+        self.auto_crosshair_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.auto_crosshair_slider.setMinimum(5)
+        self.auto_crosshair_slider.setMaximum(100)
+        self.auto_crosshair_slider.setValue(self.settings.get('auto_crosshair_interval', 10))
+        self.auto_crosshair_slider.valueChanged.connect(self.update_auto_crosshair_interval_label)
+        self.set_tooltip_if_enabled(self.auto_crosshair_slider, "Auto crosshair placement refresh rate. Lower = smoother movement but higher CPU usage.")
+        self.auto_crosshair_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.auto_crosshair_slider)
+
+        # Camera FOV Refresh Rate
+        self.lbl_fov_timer = QtWidgets.QLabel(f"Camera FOV Refresh Rate: ({self.settings.get('fov_timer_interval', 200)}ms)")
+        self.lbl_fov_timer.setMinimumHeight(16)
+        performance_layout.addWidget(self.lbl_fov_timer)
+        
+        self.fov_timer_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.fov_timer_slider.setMinimum(50)
+        self.fov_timer_slider.setMaximum(1000)
+        self.fov_timer_slider.setValue(self.settings.get('fov_timer_interval', 200))
+        self.fov_timer_slider.valueChanged.connect(self.update_fov_timer_label)
+        self.set_tooltip_if_enabled(self.fov_timer_slider, "FOV application refresh rate. Lower = more responsive FOV changes but higher CPU usage.")
+        self.fov_timer_slider.setMinimumHeight(18)
+        performance_layout.addWidget(self.fov_timer_slider)
+
+        performance_container.setLayout(performance_layout)
+        performance_container.setStyleSheet("background-color: #020203; border-radius: 10px;")
+        return performance_container
+
     def on_export_config_clicked(self):
         """Export current configuration to chosen location"""
         try:
@@ -3302,7 +3388,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 self.lbl_radar_scale.setText(f"Radar Scale: ({self.settings['radar_scale']:.1f})")
                 
         except Exception as e:
-            print(f"Error enforcing legit mode restrictions: {e}")
+            log(f"[ERROR] Error enforcing legit mode restrictions: {e}")
 
     def reload_all_ui_from_settings(self):
         """Reload all UI elements from current settings"""
@@ -3342,7 +3428,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 
 
                 self.auto_accept_cb, self.low_cpu_cb, self.center_dot_cb, self.bhop_cb,
-                self.anti_flash_cb, self.fps_limit_slider, self.center_dot_size_slider
+                self.anti_flash_cb, self.center_dot_size_slider
             ]
             
 
@@ -3532,8 +3618,6 @@ class ConfigWindow(QtWidgets.QWidget):
             self.center_dot_cb.setChecked(self.settings.get("center_dot", 0) == 1)
             self.bhop_cb.setChecked(self.settings.get("bhop_enabled", 0) == 1)
             self.anti_flash_cb.setChecked(self.settings.get("anti_flash_enabled", 0) == 1)
-            self.fps_limit_slider.setValue(self.settings.get("fps_limit", 60))
-
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                 self.game_fov_slider.setValue(self.settings.get("game_fov", 90))
             self.center_dot_size_slider.setValue(self.settings.get("center_dot_size", 3))
@@ -3571,7 +3655,13 @@ class ConfigWindow(QtWidgets.QWidget):
             self.update_smooth_label()
             self.update_radar_size_label()
             self.update_radar_scale_label()
-            self.update_fps_limit_label()
+            # Initialize new loop interval slider labels
+            self.update_overlay_timer_label()
+            self.update_aimbot_active_label()
+            self.update_triggerbot_interval_label()
+            self.update_recoil_control_interval_label()
+            self.update_auto_crosshair_interval_label()
+            self.update_fov_timer_label()
             self.update_game_fov_label_only()
             if hasattr(self, 'auto_crosshair_placement_smoothness_slider') and self.auto_crosshair_placement_smoothness_slider:
                 self.update_auto_crosshair_placement_smoothness_label()
@@ -3590,8 +3680,6 @@ class ConfigWindow(QtWidgets.QWidget):
             
             self.update_bone_esp_state()
             
-
-            self.initialize_fps_slider_state()
             
 
             topmost_enabled = self.settings.get('topmost', 1) == 1
@@ -3667,95 +3755,16 @@ class ConfigWindow(QtWidgets.QWidget):
                                                                        
             QtWidgets.QPushButton.mousePressEvent(btn, event)
 
-    def on_low_cpu_changed(self):
-        """Handle low CPU mode toggle and adjust FPS limit accordingly"""
+    def on_disable_aa_changed(self):
+        """Handle disable anti-aliasing toggle"""
         try:
             low_cpu_enabled = self.low_cpu_cb.isChecked()
             self.settings["low_cpu"] = 1 if low_cpu_enabled else 0
-            
-            if low_cpu_enabled:
-                # Keep FPS slider enabled and use its value for timer intervals
-                self.fps_limit_slider.setEnabled(True)
-                
-                # Calculate timer intervals based on FPS limit
-                fps_limit = max(20, self.settings.get('fps_limit', 60))
-                timer_interval = int(1000 / fps_limit)  # Convert FPS to milliseconds
-                
-                # Apply calculated timer intervals
-                if hasattr(self, '_fov_timer') and self._fov_timer:
-                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use timer_interval
-                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else timer_interval
-                    self._fov_timer.setInterval(fov_interval)
-                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(timer_interval)
-                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(timer_interval)
-                
-                # Update label to show current FPS limit
-                self.lbl_fps_limit.setText(f"FPS Limit: ({fps_limit})")
-            else:
-                # Normal mode - use fast timer intervals
-                self.fps_limit_slider.setMinimum(20)                           
-                current_fps = max(20, self.settings.get('fps_limit', 60))
-                self.fps_limit_slider.setValue(current_fps)
-                self.fps_limit_slider.setEnabled(True)
-                self.settings["fps_limit"] = current_fps
-                self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
-                
-                # Apply fast timer intervals for normal mode
-                if hasattr(self, '_fov_timer') and self._fov_timer:
-                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use 20ms for active enforcement
-                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else 20
-                    self._fov_timer.setInterval(fov_interval)
-                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
-                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(10)  # 10ms for ultra-responsive hiding
-            
-            self.update_box_mode_dropdown_state()
+            self.save_settings()
+        except Exception as e:
+            log(f"[ERROR] Error updating anti-aliasing setting: {e}")
             
             save_settings(self.settings)
-        except Exception:
-            pass
-
-    def initialize_fps_slider_state(self):
-        """Initialize FPS slider state based on current low CPU mode setting"""
-        try:
-            low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
-            
-            if low_cpu_enabled:
-                # Low CPU mode - keep slider enabled and use FPS limit for timer intervals
-                self.fps_limit_slider.setEnabled(True)
-                fps_limit = max(20, self.settings.get('fps_limit', 60))
-                timer_interval = int(1000 / fps_limit)  # Convert FPS to milliseconds
-                
-                # Apply calculated timer intervals
-                if hasattr(self, '_fov_timer') and self._fov_timer:
-                    self._fov_timer.setInterval(timer_interval)
-                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(timer_interval)
-                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(timer_interval)
-                
-                self.lbl_fps_limit.setText(f"FPS Limit: ({fps_limit})")
-            else:
-                # Normal mode - use fast timer intervals
-                self.fps_limit_slider.setMinimum(20)                                      
-                current_fps = max(20, self.settings.get('fps_limit', 60))                        
-                self.fps_limit_slider.setValue(current_fps)
-                self.fps_limit_slider.setEnabled(True)
-                self.settings["fps_limit"] = current_fps
-                self.lbl_fps_limit.setText(f"FPS Limit: ({current_fps})")
-                
-                # Apply fast timer intervals for normal mode on startup
-                if hasattr(self, '_fov_timer') and self._fov_timer:
-                    # Use 200ms if FOV hasn't been manually interacted with, otherwise use 20ms for active enforcement
-                    fov_interval = 200 if not getattr(self, '_fov_manually_interacted', False) else 20
-                    self._fov_timer.setInterval(fov_interval)
-                if hasattr(self, '_anti_flash_timer') and self._anti_flash_timer:
-                    self._anti_flash_timer.setInterval(10)  # 10ms for responsive anti-flash
-                if hasattr(self, '_window_monitor_timer') and self._window_monitor_timer:
-                    self._window_monitor_timer.setInterval(10)  # 10ms for ultra-responsive hiding
         except Exception:
             pass
 
@@ -3837,24 +3846,23 @@ class ConfigWindow(QtWidgets.QWidget):
                 pass
             
             try:
-
-                if is_debug_mode() and not is_low_cpu_mode():
-                    print("[DEBUG] Application terminating - check debug_log.txt for full output")
-                
-
+                if hasattr(sys.stdout, 'close'):
+                    sys.stdout.close()
                 import os
                 os._exit(0)
             except Exception:
                 pass
         except Exception:
-
-            import os
-            os._exit(0)
+            try:
+                import os
+                os._exit(0)
+            except Exception:
+                pass
         finally:
             self.resume_rainbow_timer()
 
     def update_box_mode_dropdown_state(self):
-        """Update box mode dropdown state based on low CPU mode setting"""
+        """Update box mode dropdown state based on anti-aliasing setting"""
         try:
             low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
             
@@ -3864,7 +3872,7 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.box_mode_combo.setCurrentText('2D')
                     self.box_mode_combo.setEnabled(False)
                     if hasattr(self, 'box_mode_label'):
-                        self.box_mode_label.setToolTip('Box mode is locked to 2D when Low CPU Mode is enabled for better performance')
+                        self.box_mode_label.setToolTip('Box mode is locked to 2D when Anti-Aliasing is disabled for better performance')
                 else:
 
                     self.box_mode_combo.setEnabled(True)
@@ -3874,18 +3882,18 @@ class ConfigWindow(QtWidgets.QWidget):
             pass
 
     def update_bone_esp_state(self):
-        """Update bone ESP checkbox state based on low CPU mode setting"""
+        """Update bone ESP checkbox state based on anti-aliasing setting"""
         try:
             low_cpu_enabled = self.settings.get('low_cpu', 0) == 1
             
             if hasattr(self, 'Bones_cb'):
                 if low_cpu_enabled:
-                    # Disable and uncheck bone ESP when low CPU mode is enabled
+                    # Disable and uncheck bone ESP when anti-aliasing is disabled
                     self.Bones_cb.setChecked(False)
                     self.Bones_cb.setEnabled(False)
-                    self.set_tooltip_if_enabled(self.Bones_cb, "Bone ESP is disabled when Low CPU Mode is enabled for better performance")
+                    self.set_tooltip_if_enabled(self.Bones_cb, "Bone ESP is disabled when Anti-Aliasing is disabled for better performance")
                 else:
-                    # Re-enable bone ESP when low CPU mode is disabled
+                    # Re-enable bone ESP when anti-aliasing is enabled
                     self.Bones_cb.setEnabled(True)
                     self.set_tooltip_if_enabled(self.Bones_cb, "Draw skeletal structure connecting all major bones of each player for detailed body positioning.")
         except Exception:
@@ -3914,6 +3922,8 @@ class ConfigWindow(QtWidgets.QWidget):
             self.settings = DEFAULT_SETTINGS.copy()
             save_settings(self.settings)
             
+            log("[CONFIG] Reset all config values to default.")
+            
 
 
             
@@ -3923,10 +3933,28 @@ class ConfigWindow(QtWidgets.QWidget):
                 widget_names = [
                     'esp_rendering_cb', 'line_rendering_cb', 'hp_bar_rendering_cb',
                     'head_hitbox_rendering_cb', 'box_rendering_cb', 'Bones_cb', 'nickname_cb', 
-                    'show_visibility_cb', 'bomb_esp_cb', 'radar_cb', 'center_dot_cb',
-                    'trigger_bot_active_cb', 'aim_active_cb', 'aim_circle_visible_cb',
-                    'auto_accept_cb', 'bhop_cb', 'topmost_cb', 'low_cpu_cb',
-                    'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb'
+                    'show_visibility_cb', 'hide_spotted_cb', 'bomb_esp_cb', 'radar_cb', 'center_dot_cb',
+                    'trigger_bot_active_cb', 'triggerbot_head_only_cb', 'triggerbot_burst_mode_cb',
+                    'aim_active_cb', 'require_aimkey_cb', 'aim_circle_visible_cb', 'aim_visibility_cb', 'lock_target_cb',
+                    'auto_accept_cb', 'bhop_cb', 'low_cpu_cb', 'disable_crosshair_cb',
+                    'recoil_control_enabled_cb', 'auto_crosshair_placement_cb',
+                    'auto_crosshair_placement_draw_range_lines_cb', 'auto_crosshair_placement_use_radius_cb', 
+                    'auto_crosshair_placement_draw_radius_cb', 'auto_crosshair_placement_spotted_check_cb',
+                    'auto_crosshair_placement_always_show_deadzone_lines_cb',
+                    'rainbow_fov_cb', 'rainbow_center_dot_cb', 'rainbow_menu_theme_cb',
+                    # Add sliders
+                    'radius_slider', 'opacity_slider', 'thickness_slider', 'smooth_slider',
+                    'center_dot_size_slider', 'radar_size_slider', 'radar_scale_slider', 'game_fov_slider',
+                    'overlay_timer_slider', 'aimbot_active_slider', 'triggerbot_slider', 'recoil_control_slider',
+                    'auto_crosshair_slider', 'fov_timer_slider', 'triggerbot_first_shot_delay_slider',
+                    'triggerbot_delay_slider', 'triggerbot_burst_shots_slider', 'recoil_strength_slider',
+                    'recoil_smoothness_slider', 'auto_crosshair_placement_smoothness_slider',
+                    'auto_crosshair_placement_tolerance_slider', 'auto_crosshair_placement_line_width_slider',
+                    'auto_crosshair_placement_line_transparency_slider', 'auto_crosshair_placement_radius_slider',
+                    # Add dropdowns
+                    'lines_position_combo', 'radar_position_combo', 'box_mode_combo', 'targeting_type_cb',
+                    'aim_mode_cb', 'aim_mode_distance_cb', 'triggerbot_weapon_combo', 'recoil_weapon_combo',
+                    'auto_crosshair_placement_target_combo'
                 ]
                 
                 widgets = [getattr(self, name, None) for name in widget_names if hasattr(self, name)]
@@ -3982,6 +4010,38 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'rainbow_menu_theme_cb'):
                     self.rainbow_menu_theme_cb.setChecked(self.settings.get('rainbow_menu_theme', 0) == 1)
                 
+                # Additional missing checkboxes
+                if hasattr(self, 'triggerbot_head_only_cb'):
+                    self.triggerbot_head_only_cb.setChecked(self.settings.get('triggerbot_head_only', 0) == 1)
+                if hasattr(self, 'triggerbot_burst_mode_cb'):
+                    self.triggerbot_burst_mode_cb.setChecked(self.settings.get('triggerbot_burst_mode', 0) == 1)
+                if hasattr(self, 'recoil_control_enabled_cb'):
+                    self.recoil_control_enabled_cb.setChecked(self.settings.get('recoil_control_enabled', 0) == 1)
+                if hasattr(self, 'require_aimkey_cb'):
+                    self.require_aimkey_cb.setChecked(self.settings.get('require_aimkey', 1) == 1)
+                if hasattr(self, 'aim_visibility_cb'):
+                    self.aim_visibility_cb.setChecked(self.settings.get('aim_visibility_check', 0) == 1)
+                if hasattr(self, 'lock_target_cb'):
+                    self.lock_target_cb.setChecked(self.settings.get('aim_lock_target', 0) == 1)
+                if hasattr(self, 'auto_crosshair_placement_cb'):
+                    self.auto_crosshair_placement_cb.setChecked(self.settings.get('auto_crosshair_placement_enabled', 0) == 1)
+                if hasattr(self, 'auto_crosshair_placement_draw_range_lines_cb'):
+                    self.auto_crosshair_placement_draw_range_lines_cb.setChecked(self.settings.get('auto_crosshair_placement_draw_range_lines', 1) == 1)
+                if hasattr(self, 'auto_crosshair_placement_use_radius_cb'):
+                    self.auto_crosshair_placement_use_radius_cb.setChecked(self.settings.get('auto_crosshair_placement_use_radius', 0) == 1)
+                if hasattr(self, 'auto_crosshair_placement_draw_radius_cb'):
+                    self.auto_crosshair_placement_draw_radius_cb.setChecked(self.settings.get('auto_crosshair_placement_draw_radius', 0) == 1)
+                if hasattr(self, 'auto_crosshair_placement_spotted_check_cb'):
+                    self.auto_crosshair_placement_spotted_check_cb.setChecked(self.settings.get('auto_crosshair_placement_spotted_check', 0) == 1)
+                
+                # Missing checkbox from user's list
+                if hasattr(self, 'disable_crosshair_cb'):
+                    self.disable_crosshair_cb.setChecked(self.settings.get('aim_disable_when_crosshair_on_enemy', 0) == 1)
+                
+                # Additional missing auto crosshair checkbox
+                if hasattr(self, 'auto_crosshair_placement_always_show_deadzone_lines_cb'):
+                    self.auto_crosshair_placement_always_show_deadzone_lines_cb.setChecked(self.settings.get('auto_crosshair_placement_always_show_deadzone_lines', 0) == 1)
+                
 
                 if hasattr(self, 'radius_slider'):
                     self.radius_slider.setValue(self.settings.get('radius', 50))
@@ -3993,8 +4053,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.smooth_slider.setValue(self.settings.get('aim_smoothness', 0))
                 if hasattr(self, 'center_dot_size_slider'):
                     self.center_dot_size_slider.setValue(self.settings.get('center_dot_size', 3))
-                if hasattr(self, 'fps_limit_slider'):
-                    self.fps_limit_slider.setValue(self.settings.get('fps_limit', 60))
                 if hasattr(self, 'radar_size_slider'):
                     self.radar_size_slider.setValue(self.settings.get('radar_size', 200))
                 if hasattr(self, 'radar_scale_slider'):
@@ -4002,6 +4060,44 @@ class ConfigWindow(QtWidgets.QWidget):
                 
                 if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                     self.game_fov_slider.setValue(self.settings.get('game_fov', 90))
+                
+                # Update refresh rate sliders
+                if hasattr(self, 'overlay_timer_slider'):
+                    self.overlay_timer_slider.setValue(self.settings.get('overlay_timer_interval', 33))
+                if hasattr(self, 'aimbot_active_slider'):
+                    self.aimbot_active_slider.setValue(self.settings.get('aimbot_active_interval', 2))
+                if hasattr(self, 'triggerbot_slider'):
+                    self.triggerbot_slider.setValue(self.settings.get('triggerbot_interval', 1))
+                if hasattr(self, 'recoil_control_slider'):
+                    self.recoil_control_slider.setValue(self.settings.get('recoil_control_interval', 10))
+                if hasattr(self, 'auto_crosshair_slider'):
+                    self.auto_crosshair_slider.setValue(self.settings.get('auto_crosshair_interval', 10))
+                if hasattr(self, 'fov_timer_slider'):
+                    self.fov_timer_slider.setValue(self.settings.get('fov_timer_interval', 200))
+                
+                # Additional missing sliders
+                if hasattr(self, 'triggerbot_first_shot_delay_slider'):
+                    self.triggerbot_first_shot_delay_slider.setValue(self.settings.get('triggerbot_first_shot_delay', 0))
+                if hasattr(self, 'triggerbot_delay_slider'):
+                    self.triggerbot_delay_slider.setValue(self.settings.get('triggerbot_between_shots_delay', 30))
+                if hasattr(self, 'triggerbot_burst_shots_slider'):
+                    self.triggerbot_burst_shots_slider.setValue(self.settings.get('triggerbot_burst_shots', 3))
+                if hasattr(self, 'recoil_strength_slider'):
+                    self.recoil_strength_slider.setValue(self.settings.get('recoil_control_strength', 5))
+                if hasattr(self, 'recoil_smoothness_slider'):
+                    self.recoil_smoothness_slider.setValue(self.settings.get('recoil_control_smoothness', 3))
+                
+                # Auto crosshair placement sliders
+                if hasattr(self, 'auto_crosshair_placement_smoothness_slider'):
+                    self.auto_crosshair_placement_smoothness_slider.setValue(self.settings.get('auto_crosshair_placement_smoothness', 5))
+                if hasattr(self, 'auto_crosshair_placement_tolerance_slider'):
+                    self.auto_crosshair_placement_tolerance_slider.setValue(self.settings.get('auto_crosshair_placement_tolerance', 5))
+                if hasattr(self, 'auto_crosshair_placement_line_width_slider'):
+                    self.auto_crosshair_placement_line_width_slider.setValue(self.settings.get('auto_crosshair_placement_line_width', 2))
+                if hasattr(self, 'auto_crosshair_placement_line_transparency_slider'):
+                    self.auto_crosshair_placement_line_transparency_slider.setValue(self.settings.get('auto_crosshair_placement_line_transparency', 80))
+                if hasattr(self, 'auto_crosshair_placement_radius_slider'):
+                    self.auto_crosshair_placement_radius_slider.setValue(self.settings.get('auto_crosshair_placement_radius', 100))
                 
                 if hasattr(self, 'lines_position_combo'):
                     position = self.settings.get('lines_position', 'Bottom')
@@ -4020,6 +4116,41 @@ class ConfigWindow(QtWidgets.QWidget):
                     index = self.box_mode_combo.findText(box_mode)
                     if index >= 0:
                         self.box_mode_combo.setCurrentIndex(index)
+                
+                # Additional missing dropdowns
+                if hasattr(self, 'triggerbot_weapon_combo'):
+                    weapon = self.settings.get('triggerbot_selected_weapon', 'Default')
+                    index = self.triggerbot_weapon_combo.findText(weapon)
+                    if index >= 0:
+                        self.triggerbot_weapon_combo.setCurrentIndex(index)
+                
+                if hasattr(self, 'recoil_weapon_combo'):
+                    weapon = self.settings.get('recoil_selected_weapon', 'Default')
+                    index = self.recoil_weapon_combo.findText(weapon)
+                    if index >= 0:
+                        self.recoil_weapon_combo.setCurrentIndex(index)
+                
+                # Missing dropdowns from user's list
+                if hasattr(self, 'targeting_type_cb'):
+                    targeting_type = self.settings.get('targeting_type', 0)
+                    self.targeting_type_cb.setCurrentIndex(targeting_type)
+                
+                if hasattr(self, 'aim_mode_cb'):
+                    aim_bone_target = self.settings.get('aim_bone_target', 1)
+                    self.aim_mode_cb.setCurrentIndex(aim_bone_target)
+                
+                if hasattr(self, 'aim_mode_distance_cb'):
+                    aim_mode_distance = self.settings.get('aim_mode_distance', 0)
+                    self.aim_mode_distance_cb.setCurrentIndex(aim_mode_distance)
+                
+                if hasattr(self, 'auto_crosshair_placement_target_combo'):
+                    target = self.settings.get('auto_crosshair_placement_target_bone', 1)
+                    # Convert bone index to combo text
+                    bone_names = ["Head", "Neck", "Chest", "Stomach", "Pelvis"]
+                    if 0 <= target < len(bone_names):
+                        index = self.auto_crosshair_placement_target_combo.findText(bone_names[target])
+                        if index >= 0:
+                            self.auto_crosshair_placement_target_combo.setCurrentIndex(index)
                 
                 if hasattr(self, 'esp_toggle_key_btn'):
                     self.esp_toggle_key_btn.setText(f"ESP Toggle: {self.settings.get('ESPToggleKey', 'NONE')}")
@@ -4080,8 +4211,6 @@ class ConfigWindow(QtWidgets.QWidget):
                     self.update_smooth_label()
                 if hasattr(self, 'update_center_dot_size_label'):
                     self.update_center_dot_size_label()
-                if hasattr(self, 'update_fps_limit_label'):
-                    self.update_fps_limit_label()
                 if hasattr(self, 'update_radar_size_label'):
                     self.update_radar_size_label()
                 if hasattr(self, 'update_radar_scale_label'):
@@ -4089,12 +4218,56 @@ class ConfigWindow(QtWidgets.QWidget):
                 if hasattr(self, 'update_game_fov_label_only'):
                     self.update_game_fov_label_only()
                 
+                # Update refresh rate slider labels
+                if hasattr(self, 'update_overlay_timer_label'):
+                    self.update_overlay_timer_label()
+                if hasattr(self, 'update_aimbot_active_label'):
+                    self.update_aimbot_active_label()
+                if hasattr(self, 'update_triggerbot_interval_label'):
+                    self.update_triggerbot_interval_label()
+                if hasattr(self, 'update_recoil_control_interval_label'):
+                    self.update_recoil_control_interval_label()
+                if hasattr(self, 'update_auto_crosshair_interval_label'):
+                    self.update_auto_crosshair_interval_label()
+                if hasattr(self, 'update_fov_timer_label'):
+                    self.update_fov_timer_label()
+                
+                # Additional missing label updates
+                if hasattr(self, 'update_triggerbot_delay_label'):
+                    self.update_triggerbot_delay_label()
+                if hasattr(self, 'update_triggerbot_first_shot_delay_label'):
+                    self.update_triggerbot_first_shot_delay_label()
+                if hasattr(self, 'update_triggerbot_burst_shots_label'):
+                    self.update_triggerbot_burst_shots_label()
+                if hasattr(self, 'update_recoil_strength_label'):
+                    self.update_recoil_strength_label()
+                if hasattr(self, 'update_recoil_smoothness_label'):
+                    self.update_recoil_smoothness_label()
+                if hasattr(self, 'update_auto_crosshair_placement_smoothness_label'):
+                    self.update_auto_crosshair_placement_smoothness_label()
+                if hasattr(self, 'update_auto_crosshair_placement_tolerance_label'):
+                    self.update_auto_crosshair_placement_tolerance_label()
+                if hasattr(self, 'update_auto_crosshair_placement_line_width_label'):
+                    self.update_auto_crosshair_placement_line_width_label()
+                if hasattr(self, 'update_auto_crosshair_placement_line_transparency_label'):
+                    self.update_auto_crosshair_placement_line_transparency_label()
+                if hasattr(self, 'update_auto_crosshair_placement_radius_label'):
+                    self.update_auto_crosshair_placement_radius_label()
+                
                 if hasattr(self, 'apply_topmost'):
                     self.apply_topmost()
-                if hasattr(self, 'initialize_fps_slider_state'):
-                    self.initialize_fps_slider_state()
                 if hasattr(self, 'update_box_mode_dropdown_state'):
                     self.update_box_mode_dropdown_state()
+                
+                # Trigger weapon-specific UI updates
+                if hasattr(self, 'on_triggerbot_weapon_changed'):
+                    self.on_triggerbot_weapon_changed()
+                if hasattr(self, 'on_recoil_weapon_changed'):
+                    self.on_recoil_weapon_changed()
+                
+                # Refresh config dropdown
+                if hasattr(self, '_update_config_files_dropdown'):
+                    self._update_config_files_dropdown()
                 
                 for w in widgets:
                     if w is not None:
@@ -4222,11 +4395,6 @@ class ConfigWindow(QtWidgets.QWidget):
         if hasattr(self, 'radar_position_combo'):
             self.settings["radar_position"] = self.radar_position_combo.currentText()
         
-                           
-        if hasattr(self, 'fps_limit_slider'):
-            self.settings["fps_limit"] = self.fps_limit_slider.value()
-
-    
 
         
         if getattr(self, "triggerbot_delay_slider", None):
@@ -4418,6 +4586,56 @@ class ConfigWindow(QtWidgets.QWidget):
             
             if self.settings.get("auto_crosshair_placement_radius", 100) > 200:
                 self.settings["auto_crosshair_placement_radius"] = 200
+        
+        # Log the settings changes
+        previous_settings = load_settings()
+        
+        # Only log changes if not initializing the UI
+        if not getattr(self, '_loading_config', False) and not getattr(self, '_is_initializing', False):
+            # Compare old and new settings to log only what changed
+            for key, new_value in self.settings.items():
+                old_value = previous_settings.get(key)
+                if old_value != new_value:
+                    # Format the setting name to be more user-friendly
+                    setting_name = key.replace('_', ' ').title()
+                    if key == "esp_rendering":
+                        setting_name = "ESP Rendering"
+                    elif key == "aim_active":
+                        setting_name = "Aimbot Active"
+                    elif key == "trigger_bot_active":
+                        setting_name = "Triggerbot Active"
+                    elif key == "recoil_control_enabled":
+                        setting_name = "Recoil Control"
+                    elif key == "bhop_enabled":
+                        setting_name = "Bunnyhopping"
+                    elif key == "auto_accept_enabled":
+                        setting_name = "Auto Accept"
+                    elif key == "anti_flash_enabled":
+                        setting_name = "Anti Flash"
+                    elif key == "low_cpu":
+                        setting_name = "Disable Anti-Aliasing"
+                    elif key == "MenuToggleKey":
+                        setting_name = "Menu Toggle Key"
+                    elif key == "ESPToggleKey":
+                        setting_name = "ESP Toggle Key"
+                    elif key == "AimKey":
+                        setting_name = "Aim Key"
+                    elif key == "TriggerKey":
+                        setting_name = "Trigger Key"
+                    elif key == "BhopKey":
+                        setting_name = "Bhop Key"
+                    elif key == "ExitKey":
+                        setting_name = "Exit Key"
+                    
+                    # Format the value to be more readable
+                    formatted_value = str(new_value)
+                    if isinstance(new_value, int):
+                        if new_value == 1:
+                            formatted_value = "Enabled"
+                        elif new_value == 0:
+                            formatted_value = "Disabled"
+                    
+                    log(f"[CONFIG] Updated: {setting_name} to {formatted_value}")
         
         save_settings(self.settings)
 
@@ -5428,15 +5646,6 @@ class ConfigWindow(QtWidgets.QWidget):
         except Exception:
             pass
 
-    def update_fps_limit_label(self):
-        try:
-                                                                 
-            val = self.fps_limit_slider.value()
-            self.lbl_fps_limit.setText(f"FPS Limit: ({val})")
-            self.save_settings()
-        except Exception:
-            pass
-
     def update_game_fov_label(self):
         try:
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider and hasattr(self, 'lbl_game_fov') and self.lbl_game_fov:
@@ -5456,6 +5665,74 @@ class ConfigWindow(QtWidgets.QWidget):
             if hasattr(self, 'game_fov_slider') and self.game_fov_slider and hasattr(self, 'lbl_game_fov') and self.lbl_game_fov:
                 val = self.game_fov_slider.value()
                 self.lbl_game_fov.setText(f"Camera FOV: ({val})")
+        except Exception:
+            pass
+
+    def update_overlay_timer_label(self):
+        try:
+            if hasattr(self, 'overlay_timer_slider') and self.overlay_timer_slider and hasattr(self, 'lbl_overlay_timer') and self.lbl_overlay_timer:
+                val = self.overlay_timer_slider.value()
+                self.lbl_overlay_timer.setText(f"ESP Overlay Refresh Rate: ({val}ms)")
+                self.settings['overlay_timer_interval'] = val
+                self.save_settings()
+                # Update overlay timer if it exists
+                if hasattr(self, 'overlay_window') and self.overlay_window and hasattr(self.overlay_window, 'timer'):
+                    self.overlay_window.timer.stop()
+                    self.overlay_window.timer.start(val)
+        except Exception:
+            pass
+
+    def update_aimbot_active_label(self):
+        try:
+            if hasattr(self, 'aimbot_active_slider') and self.aimbot_active_slider and hasattr(self, 'lbl_aimbot_active') and self.lbl_aimbot_active:
+                val = self.aimbot_active_slider.value()
+                self.lbl_aimbot_active.setText(f"Aimbot Refresh Rate: ({val}ms)")
+                self.settings['aimbot_active_interval'] = val
+                self.save_settings()
+        except Exception:
+            pass
+
+    def update_triggerbot_interval_label(self):
+        try:
+            if hasattr(self, 'triggerbot_slider') and self.triggerbot_slider and hasattr(self, 'lbl_triggerbot') and self.lbl_triggerbot:
+                val = self.triggerbot_slider.value()
+                self.lbl_triggerbot.setText(f"Triggerbot Refresh Rate: ({val}ms)")
+                self.settings['triggerbot_interval'] = val
+                self.save_settings()
+        except Exception:
+            pass
+
+    def update_recoil_control_interval_label(self):
+        try:
+            if hasattr(self, 'recoil_control_slider') and self.recoil_control_slider and hasattr(self, 'lbl_recoil_control') and self.lbl_recoil_control:
+                val = self.recoil_control_slider.value()
+                self.lbl_recoil_control.setText(f"Recoil Control Refresh Rate: ({val}ms)")
+                self.settings['recoil_control_interval'] = val
+                self.save_settings()
+        except Exception:
+            pass
+
+    def update_auto_crosshair_interval_label(self):
+        try:
+            if hasattr(self, 'auto_crosshair_slider') and self.auto_crosshair_slider and hasattr(self, 'lbl_auto_crosshair') and self.lbl_auto_crosshair:
+                val = self.auto_crosshair_slider.value()
+                self.lbl_auto_crosshair.setText(f"Auto Crosshair Placement Refresh Rate: ({val}ms)")
+                self.settings['auto_crosshair_interval'] = val
+                self.save_settings()
+        except Exception:
+            pass
+
+    def update_fov_timer_label(self):
+        try:
+            if hasattr(self, 'fov_timer_slider') and self.fov_timer_slider and hasattr(self, 'lbl_fov_timer') and self.lbl_fov_timer:
+                val = self.fov_timer_slider.value()
+                self.lbl_fov_timer.setText(f"Camera FOV Refresh Rate: ({val}ms)")
+                self.settings['fov_timer_interval'] = val
+                self.save_settings()
+                # Update FOV timer if it exists
+                if hasattr(self, '_fov_timer') and self._fov_timer:
+                    self._fov_timer.stop()
+                    self._fov_timer.start(val)
         except Exception:
             pass
 
@@ -5514,7 +5791,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 
         except Exception as e:
             if is_debug_mode() and not is_low_cpu_mode():
-                print(f"[DEBUG] Exception in on_fov_slider_released: {e}")
+                log(f"[ERROR] An error occurred: Exception in FOV slider release: {e}")
             pass
 
 
@@ -5558,7 +5835,7 @@ class ConfigWindow(QtWidgets.QWidget):
         if not force and not self._fov_changed_during_runtime:
             return
             
-        print("[DEBUG] Attempting FOV reset to 90...")
+
         try:
             import pymem
             
@@ -5569,11 +5846,7 @@ class ConfigWindow(QtWidgets.QWidget):
                 client = pymem.process.module_from_name(pm.process_handle, "client.dll").lpBaseOfDll
                 
                 if pm and client:
-                    print(f"[DEBUG] Using dwLocalPlayerPawn offset: {dwLocalPlayerPawn}")
-                    print(f"[DEBUG] Using dwLocalPlayerController offset: {dwLocalPlayerController}")
-                    print(f"[DEBUG] Using m_iFOV offset: {m_iFOV}")
-                    print(f"[DEBUG] Using m_iDesiredFOV offset: {m_iDesiredFOV}")
-                    print(f"[DEBUG] Using m_pCameraServices offset: {m_pCameraServices}")
+
                     
                     # Reset both FOV values
                     local_player_pawn = pm.read_longlong(client + dwLocalPlayerPawn)
@@ -5581,10 +5854,7 @@ class ConfigWindow(QtWidgets.QWidget):
                         # Reset m_iFOV (Camera Services)
                         camera_services = pm.read_longlong(local_player_pawn + m_pCameraServices)
                         if camera_services:
-                            print(f"[DEBUG] Camera services found at: 0x{camera_services:X}")
-                            
                             current_camera_fov = pm.read_int(camera_services + m_iFOV)
-                            print(f"[DEBUG] Current m_iFOV before reset: {current_camera_fov}")
                             
                             camera_reset_success = False
                             
@@ -5592,52 +5862,40 @@ class ConfigWindow(QtWidgets.QWidget):
                                 pm.write_int(camera_services + m_iFOV, 90)
                                 time.sleep(0.02)
                                 verify_camera_fov = pm.read_int(camera_services + m_iFOV)
-                                print(f"[DEBUG] m_iFOV reset attempt {attempt + 1}: FOV now shows {verify_camera_fov}")
                                 if verify_camera_fov == 90:
                                     camera_reset_success = True
                                     break
                             
                             if not camera_reset_success:
-                                print("[DEBUG] Trying alternative reset method for m_iFOV...")
                                 pm.write_int(camera_services + m_iFOV, 0)
                                 time.sleep(0.05)
                                 pm.write_int(camera_services + m_iFOV, 90)
                                 time.sleep(0.05)
                                 verify_camera_fov = pm.read_int(camera_services + m_iFOV)
-                                print(f"[DEBUG] Alternative method result for m_iFOV: FOV now shows {verify_camera_fov}")
                                 if verify_camera_fov == 90:
                                     camera_reset_success = True
-                        else:
-                            print("[DEBUG] Could not get camera services for m_iFOV reset")
                         
                         # Reset m_iDesiredFOV (Player Controller)
                         controller_reset_success = False
                         try:
                             local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
                             if local_player_controller:
-                                print(f"[DEBUG] Player controller found at: 0x{local_player_controller:X}")
-                                
                                 current_desired_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                                print(f"[DEBUG] Current m_iDesiredFOV before reset: {current_desired_fov}")
                                 
                                 for attempt in range(3):
                                     pm.write_int(local_player_controller + m_iDesiredFOV, 90)
                                     time.sleep(0.02)
                                     verify_desired_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                                    print(f"[DEBUG] m_iDesiredFOV reset attempt {attempt + 1}: FOV now shows {verify_desired_fov}")
                                     if verify_desired_fov == 90:
                                         controller_reset_success = True
                                         break
-                            else:
-                                print("[DEBUG] Could not get local player controller for m_iDesiredFOV reset")
-                        except Exception as e:
-                            print(f"[DEBUG] Error resetting m_iDesiredFOV: {e}")
+                        except Exception:
+                            pass
                         
                         # Check overall success
                         reset_success = camera_reset_success or controller_reset_success
                         
                         if not reset_success:
-                            print("[DEBUG] Trying UI slider sync method...")
                             self.settings['game_fov'] = 90
                             if hasattr(self, 'game_fov_slider') and self.game_fov_slider:
                                 self.game_fov_slider.setValue(90)
@@ -5649,7 +5907,6 @@ class ConfigWindow(QtWidgets.QWidget):
                                 pm.write_int(camera_services + m_iFOV, 90)
                                 time.sleep(0.1)
                                 verify_camera_fov = pm.read_int(camera_services + m_iFOV)
-                                print(f"[DEBUG] UI sync method result for m_iFOV: FOV now shows {verify_camera_fov}")
                                 if verify_camera_fov == 90:
                                     camera_reset_success = True
                             
@@ -5659,47 +5916,28 @@ class ConfigWindow(QtWidgets.QWidget):
                                     pm.write_int(local_player_controller + m_iDesiredFOV, 90)
                                     time.sleep(0.1)
                                     verify_desired_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                                    print(f"[DEBUG] UI sync method result for m_iDesiredFOV: FOV now shows {verify_desired_fov}")
                                     if verify_desired_fov == 90:
                                         controller_reset_success = True
-                            except Exception as e:
-                                print(f"[DEBUG] Error in UI sync for m_iDesiredFOV: {e}")
+                            except Exception:
+                                pass
                             
                             reset_success = camera_reset_success or controller_reset_success
                         
-                        # Final verification
-                        if camera_services:
-                            final_camera_fov = pm.read_int(camera_services + m_iFOV)
-                            print(f"[DEBUG] Final m_iFOV check: {final_camera_fov}")
-                        
-                        try:
-                            local_player_controller = pm.read_longlong(client + dwLocalPlayerController)
-                            if local_player_controller:
-                                final_desired_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
-                                print(f"[DEBUG] Final m_iDesiredFOV check: {final_desired_fov}")
-                        except Exception:
-                            pass
-                        
                         if reset_success:
-                            print("[DEBUG] FOV successfully reset to 90")
+                            log("[CONFIG] FOV successfully reset to 90")
                             self.settings['auto_apply_fov'] = 0
                             self.save_settings()
-                            print("[DEBUG] Auto-apply FOV disabled")
+                            log("[CONFIG] Auto-apply FOV disabled")
                         else:
-                            print(f"[DEBUG] FOV reset failed - CS2 may be preventing FOV changes")
-                            print("[DEBUG] Note: You may need to manually reset FOV in-game or restart CS2")
+                            log("[ERROR] FOV reset failed - CS2 may be preventing FOV changes")
                     else:
-                        print("[DEBUG] Could not get local player pawn for FOV reset")
+                        log("[ERROR] Could not get local player pawn for FOV reset")
                 else:
-                    print("[DEBUG] Failed to connect to CS2 process")
+                    log("[ERROR] Failed to connect to CS2 process")
             except Exception as e:
-                print(f"[DEBUG] Exception in FOV reset: {e}")
-                import traceback
-                print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+                log(f"[ERROR] Exception in FOV reset: {e}")
         except Exception as e:
-            print(f"[DEBUG] Outer exception in FOV reset: {e}")
-            import traceback
-            print(f"[DEBUG] Outer traceback: {traceback.format_exc()}")
+            log(f"[ERROR] Outer exception in FOV reset: {e}")
     
     def _apply_continuous_fov(self):
         """Continuously apply FOV setting when not scoped"""
@@ -5752,7 +5990,6 @@ class ConfigWindow(QtWidgets.QWidget):
                         current_camera_fov = pm.read_int(camera_services + m_iFOV)
                         if current_camera_fov != current_fov:
                             pm.write_int(camera_services + m_iFOV, int(current_fov))
-                            print(f"[DEBUG] Continuous FOV: Applied {current_fov} to m_iFOV (was {current_camera_fov})")
                             fov_applied = True
                     
                     # Apply to m_iDesiredFOV (Player Controller)
@@ -5762,7 +5999,6 @@ class ConfigWindow(QtWidgets.QWidget):
                             current_desired_fov = pm.read_int(local_player_controller + m_iDesiredFOV)
                             if current_desired_fov != current_fov:
                                 pm.write_int(local_player_controller + m_iDesiredFOV, int(current_fov))
-                                print(f"[DEBUG] Continuous FOV: Applied {current_fov} to m_iDesiredFOV (was {current_desired_fov})")
                                 fov_applied = True
                     except Exception:
                         # If we can't access player controller, continue with camera services only
@@ -5880,7 +6116,6 @@ class ConfigWindow(QtWidgets.QWidget):
         try:
             new_fov_enabled = "fov" in load_commands()
             if hasattr(self, 'fov_enabled') and new_fov_enabled != self.fov_enabled:
-                print(f"[DEBUG] FOV command availability changed: {self.fov_enabled} -> {new_fov_enabled}")
                 self.fov_enabled = new_fov_enabled
         except Exception:
             pass
@@ -5958,12 +6193,12 @@ def configurator():
         os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
         os.environ["QT_SCALE_FACTOR"] = "1"
         
-                              
-        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false"
+        # Suppress Qt DPI awareness warnings
+        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false;qt.qpa.window.warning=false"
         
         app = QtWidgets.QApplication(sys.argv)
         
-                                                
+        # Set DPI awareness attributes before creating windows
         try:
             app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
             app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
@@ -6157,7 +6392,12 @@ class ESPWindow(QtWidgets.QWidget):
             pass
         self.timer.timeout.connect(self.update_scene)
         
-        self.timer.start(33)
+        # Use configurable overlay timer interval from settings
+        overlay_interval = self.settings.get('overlay_timer_interval', 33)
+        self.timer.start(overlay_interval)
+        
+        # Initialize timer interval tracking for live updates
+        self._current_timer_interval = overlay_interval
 
         # Rainbow color monitoring timer - updates rainbow color from dedicated file
         self._rainbow_monitor_timer = QtCore.QTimer(self)
@@ -6167,11 +6407,6 @@ class ESPWindow(QtWidgets.QWidget):
         self.last_time = time.time()
         self.frame_count = 0
         self.fps = 0
-        
-                                                   
-        self.last_frame_time = time.time()
-        self.target_fps = 60
-        self.target_frame_time = 1.0 / 60.0
 
         # Initialize rainbow theme if enabled
         self._initialize_rainbow_theme()
@@ -6269,64 +6504,31 @@ class ESPWindow(QtWidgets.QWidget):
 
 
     def apply_low_cpu_mode(self):
-        """Adjust internal timers/intervals for low CPU mode.
+        """Adjust rendering quality based on anti-aliasing setting.
 
-        Low CPU mode disables high-quality rendering and FPS limiting for maximum performance.
+        When anti-aliasing is disabled, this improves performance by using lower quality rendering.
         """
         try:
             low = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
             
-                                                               
             if low:
-                                                                       
+                # Disable anti-aliasing and high-quality rendering
                 self.view.setRenderHint(QtGui.QPainter.Antialiasing, False)
                 self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, False)
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
                 self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, False)
                 
-                                                                
-                fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
-                timer_interval = int(1000 / max(fps_limit, 1))
-                self.timer.start(timer_interval)
-                
-                # Adjust additional timers for low CPU mode
-                if hasattr(self, '_rainbow_menu_timer'):
-                    self._rainbow_menu_timer.setInterval(200)  # Slow down rainbow menu updates
-                if hasattr(self, '_menu_toggle_timer'):
-                    self._menu_toggle_timer.setInterval(100)  # Slow down menu toggle checks
-                if hasattr(self, '_rainbow_monitor_timer'):
-                    self._rainbow_monitor_timer.setInterval(200)  # Slow down rainbow color file monitoring
-                                                                  
+                # Apply low-quality rendering optimizations
                 self.setUpdatesEnabled(False)
                 self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontAdjustForAntialiasing | 
                                               QtWidgets.QGraphicsView.DontSavePainterState)
                 self.setUpdatesEnabled(True)
             else:
-                                                                     
-                fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
-                
+                # Enable high-quality rendering
                 self.view.setRenderHint(QtGui.QPainter.Antialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
                 self.view.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
                 self.view.setRenderHint(QtGui.QPainter.LosslessImageRendering, True)
-                
-                self.target_fps = fps_limit
-                self.target_frame_time = 1.0 / max(fps_limit, 1)
-                                                                            
-                                                                            
-                if fps_limit < 80:
-                    interval_ms = int(1000 / max(fps_limit, 1))                                          
-                else:
-                    interval_ms = max(int(1000 / max(fps_limit, 1)) - 3, 1)                                                 
-                self.timer.start(interval_ms)
-                
-                # Restore normal timer intervals
-                if hasattr(self, '_rainbow_menu_timer'):
-                    self._rainbow_menu_timer.setInterval(100)  # Normal rainbow menu updates
-                if hasattr(self, '_menu_toggle_timer'):
-                    self._menu_toggle_timer.setInterval(50)   # Normal menu toggle checks
-                if hasattr(self, '_rainbow_monitor_timer'):
-                    self._rainbow_monitor_timer.setInterval(100)  # Normal rainbow color file monitoring
                                                           
                 try:
                     self.view.setOptimizationFlags(QtWidgets.QGraphicsView.DontSavePainterState)
@@ -6343,20 +6545,8 @@ class ESPWindow(QtWidgets.QWidget):
     def check_and_update_window_size(self):
         """Check for CS2 window size and position changes and update overlay accordingly."""
         try:
-                                                                           
-            low_cpu_mode = int(self.settings.get('low_cpu', 0)) if isinstance(self.settings, dict) else 0
-            fps_limit = int(self.settings.get('fps_limit', 60)) if isinstance(self.settings, dict) else 60
-            
-                                                                
-                                                                       
-            if low_cpu_mode:
-                check_interval = 50                                    
-            elif fps_limit >= 100:
-                check_interval = 500                                     
-            elif fps_limit >= 60:
-                check_interval = 300                                   
-            else:
-                check_interval = 150                                   
+            # Use consistent window checking interval
+            check_interval = 20  # Fast checking for responsive overlay
             
             self.window_check_counter += 1
             if self.window_check_counter < check_interval:
@@ -6415,6 +6605,19 @@ class ESPWindow(QtWidgets.QWidget):
         return False
 
     def update_scene(self):
+        # Check for timer interval changes and update if necessary
+        if hasattr(self, 'timer') and self.timer:
+            current_settings = load_settings()
+            new_interval = current_settings.get('overlay_timer_interval', 33)
+            if not hasattr(self, '_current_timer_interval'):
+                self._current_timer_interval = new_interval
+            elif self._current_timer_interval != new_interval:
+                self._current_timer_interval = new_interval
+                self.timer.stop()
+                self.timer.start(new_interval)
+                # Update settings reference for other parts of the code
+                self.settings = current_settings
+        
         if not hasattr(self, 'settings') or not self.settings:
             if not hasattr(self, '_initialization_complete'):
                 self._initialization_complete = True
@@ -6431,17 +6634,8 @@ class ESPWindow(QtWidgets.QWidget):
                 self.scene.clear()
             return
 
-                                                                   
-                                                          
         current_time = time.time()
-        if hasattr(self, 'target_fps') and hasattr(self, 'target_frame_time') and hasattr(self, 'last_frame_time'):
-            if self.target_fps >= 80:                                       
-                elapsed_time = current_time - self.last_frame_time
-                if elapsed_time < self.target_frame_time * 0.85:                              
-                    return
-            self.last_frame_time = current_time
 
-                                                                                      
         size_or_position_changed = self.check_and_update_window_size()
 
         if not self.settings or not isinstance(self.settings, dict) or len(self.settings) == 0:
@@ -7847,7 +8041,18 @@ def esp_main():
             except Exception:
                 pass
         
+        # Suppress Qt DPI awareness warnings
+        os.environ["QT_SCALE_FACTOR"] = "1"
+        os.environ["QT_LOGGING_RULES"] = "qt.qpa.window.debug=false;qt.qpa.window.warning=false"
+        
         app = QtWidgets.QApplication(sys.argv)
+        
+        # Set DPI awareness attributes
+        try:
+            app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+            app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+        except Exception:
+            pass
         
         
         window_width = None
@@ -8179,7 +8384,14 @@ def triggerbot():
             
             if os.path.exists(TERMINATE_SIGNAL_FILE):
                 break
-            time.sleep(0.001)
+            
+            # Read fresh triggerbot interval from settings file for immediate response to slider changes
+            try:
+                fresh_settings = load_settings()
+                triggerbot_interval = fresh_settings.get('triggerbot_interval', 1)
+            except Exception:
+                triggerbot_interval = 1
+            time.sleep(triggerbot_interval / 1000.0)  # Use configurable triggerbot interval
 
     def start_main_thread(settings):
         while True:
@@ -8629,9 +8841,15 @@ def camera_lock_thread(settings):
                                             win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, move_y, 0, 0)
                     except Exception:
                         pass
-                    time.sleep(0.010)  # 100 FPS for responsive crosshair placement
+                    # Read fresh auto crosshair interval from settings file for immediate response to slider changes
+                    try:
+                        fresh_settings = load_settings()
+                        auto_crosshair_interval = fresh_settings.get('auto_crosshair_interval', 10)
+                    except Exception:
+                        auto_crosshair_interval = 10
+                    time.sleep(auto_crosshair_interval / 1000.0)  # Use configurable auto crosshair interval
                 else:
-                    time.sleep(0.100)  # 20 FPS when CS2 is not active
+                    time.sleep(0.100)  # 10 FPS when CS2 is not active
             else:
                 time.sleep(0.100)  # 10 FPS when disabled to save CPU
                 
@@ -9306,13 +9524,22 @@ def aim():
                     aimbot(target_list, settings['radius'], settings['aim_mode_distance'], smoothness, pm, client, offsets, client_dll)
                 
                 # Interval based on whether aimbot key is being held
-                if pressed:
-                    time.sleep(0.002)  # High frequency when aimbot key is held
-                else:
-                    time.sleep(0.1)    # Low frequency when aimbot key is not held
+                # Read fresh interval values from settings file for immediate response to slider changes
+                try:
+                    fresh_settings = load_settings()
+                    aimbot_interval = fresh_settings.get('aimbot_active_interval', 2)
+                except Exception:
+                    aimbot_interval = 2
+                    
+                time.sleep(aimbot_interval / 1000.0)  # Convert ms to seconds
             else:
-                # Aimbot disabled - run at much lower frequency to save CPU
-                time.sleep(0.100)  # 10 FPS when aimbot is disabled
+                # Aimbot disabled - use same interval as when enabled for consistency
+                try:
+                    fresh_settings = load_settings()
+                    aimbot_interval = fresh_settings.get('aimbot_active_interval', 2)
+                except Exception:
+                    aimbot_interval = 2
+                time.sleep(aimbot_interval / 1000.0)
 
     def start_main_thread(settings):
         while True:
@@ -9459,13 +9686,11 @@ def recoil_control():
             return ammo
             
         except Exception as e:
-            print(f"[RECOIL] Error getting ammo: {e}")
+
             return -1
     
     def main(settings):
         """Main recoil control loop"""
-        print("[RECOIL] Recoil control system started")
-        
         is_shooting = False
         shots_fired = 0
         last_ammo_count = -1
@@ -9477,7 +9702,6 @@ def recoil_control():
             try:
                 # Check for termination signal
                 if os.path.exists(TERMINATE_SIGNAL_FILE):
-                    print("[RECOIL] Termination signal received")
                     break
                 
                 # Reload settings every 100ms
@@ -9497,7 +9721,7 @@ def recoil_control():
                         is_shooting = False
                         shots_fired = 0
                         last_ammo_count = -1
-                        print("[RECOIL] Recoil control disabled - stopped shooting")
+
                     time.sleep(0.01)
                     continue
                 
@@ -9505,7 +9729,7 @@ def recoil_control():
                 if not hasattr(main, '_last_enabled_state'):
                     main._last_enabled_state = False
                 if enabled == 1 and not main._last_enabled_state:
-                    print("[RECOIL] Recoil control is now ENABLED")
+
                     main._last_enabled_state = True
                 elif enabled == 0 and main._last_enabled_state:
                     main._last_enabled_state = False
@@ -9523,8 +9747,12 @@ def recoil_control():
                     strength = settings.get('recoil_control_strength', 5)
                     smoothness = settings.get('recoil_control_smoothness', 3)
                 
-                # Use maximum response speed (hardcoded for optimal performance)
-                polling_interval = 0.001
+                # Use configurable polling interval from settings (read fresh for immediate response)
+                try:
+                    fresh_settings = load_settings()
+                    polling_interval = fresh_settings.get('recoil_control_interval', 10) / 1000.0
+                except Exception:
+                    polling_interval = 0.01  # 10ms fallback
                 
                 # Check current ammo continuously
                 current_ammo = get_current_ammo()
@@ -9536,7 +9764,7 @@ def recoil_control():
                         is_shooting = False
                         shots_fired = 0
                         last_ammo_count = -1
-                        print("[RECOIL] Stopped shooting - No ammo")
+
                     time.sleep(polling_interval)
                     continue
                 
@@ -9549,7 +9777,7 @@ def recoil_control():
                             shots_fired = 0
                             ammo_info = f" (Ammo: {current_ammo})" if current_ammo > 0 else " (Ammo: Unknown)"
                             weapon_info = f" (Weapon: {selected_weapon})" if selected_weapon != "Default" else ""
-                            print(f"[RECOIL] Started shooting - Strength: {strength}, Smoothness: {smoothness}{ammo_info}{weapon_info}")
+
                         
                         shots_fired += 1
                         last_ammo_check_time = current_time
@@ -9578,13 +9806,13 @@ def recoil_control():
                         if shots_fired > 30:
                             shots_fired = 30
                         
-                        print(f"[RECOIL] Shot detected - Shots fired: {shots_fired}, Compensation: {base_recoil:.1f}, Ammo: {current_ammo}")
+
                     
                     # Check if we should stop considering the player as "shooting"
                     elif is_shooting and current_time - last_ammo_check_time > shooting_timeout:
                         is_shooting = False
                         shots_fired = 0
-                        print("[RECOIL] Stopped shooting - No shots detected recently")
+
                     
                     # Update last ammo count
                     last_ammo_count = current_ammo
@@ -9594,12 +9822,12 @@ def recoil_control():
                         is_shooting = False
                         shots_fired = 0
                         last_ammo_count = -1
-                        print("[RECOIL] Stopped shooting - Ammo unknown")
+
                 
                 time.sleep(polling_interval)  # Adjust sleep based on response speed setting
                 
             except Exception as e:
-                print(f"[RECOIL] Error in recoil control: {e}")
+                log(f"[ERROR] An error occurred: Recoil control error - {e}")
                 time.sleep(0.1)
     
     def start_main_thread(settings):
@@ -9624,7 +9852,7 @@ def recoil_control():
     try:
         main_program()
     except Exception as e:
-        print(f"[RECOIL] Error in recoil control program: {e}")
+        log(f"[ERROR] An error occurred: Recoil control program error - {e}")
 
 def auto_accept_main():
     """Main auto accept loop"""
@@ -9669,8 +9897,9 @@ if __name__ == "__main__":
         except Exception:
             pass
         sys.exit(1)
-    if is_debug_mode() and not is_low_cpu_mode():
-        print(f"[DEBUG] Running in {SELECTED_MODE.upper()} mode")
+    
+    log(f"[STARTUP] Script launching in {SELECTED_MODE.upper()} mode")
+    
     try:
         multiprocessing.freeze_support()
     except Exception:
@@ -9751,39 +9980,31 @@ if __name__ == "__main__":
     
     def cleanup_and_exit(reason=""):
         """Clean shutdown of all processes and resources"""
-        print(f"[DEBUG] Cleanup initiated: {reason}")
-        
         cleanup_all_temporary_files(final_cleanup=True)  # Final cleanup - delete commands.txt
         
         if 'procs' in locals() or 'procs' in globals():
             for i, p in enumerate(procs):
                 try:
                     if p.is_alive():
-                        print(f"[DEBUG] Legacy terminating process: {process_names[i]}")
                         p.terminate()
                         p.join(2)
                         if p.is_alive():
-                            print(f"[DEBUG] Legacy force killing process: {process_names[i]}")
                             p.kill()
                             p.join(1)
                 except Exception as e:
-                    print(f"[DEBUG] Error terminating {process_names[i]}: {e}")
+                    pass
         
         remove_lock_file()
         
-    if is_debug_mode() and not is_low_cpu_mode():
-        print("[DEBUG] Starting all processes...")
-    
     # Start processes with staggered delays to prevent race conditions
     for i, p in enumerate(procs):
         try:
-            if is_debug_mode() and not is_low_cpu_mode():
-                print(f"[DEBUG] Starting process: {process_names[i]}")
+            log(f"[STARTUP] {process_names[i]} started")
             p.start()
             # Add small delay between process starts to prevent initialization conflicts
             time.sleep(0.1)
         except Exception as e:
-            print(f"[DEBUG] Error starting {process_names[i]}: {e}")
+            log(f"[ERROR] An error occurred: Failed to start {process_names[i]} - {e}")
             continue
 
     # Verify all processes started successfully
@@ -9793,19 +10014,19 @@ if __name__ == "__main__":
         if not p.is_alive():
             failed_processes.append(process_names[i])
     
-    if failed_processes and is_debug_mode():
-        print(f"[DEBUG] Warning: Failed to start processes: {', '.join(failed_processes)}")
+    if failed_processes:
+        log(f"[ERROR] An error occurred: Failed to start processes: {', '.join(failed_processes)}")
 
     # Signal to loader that script is fully loaded and processes started
     try:
         loaded_signal_path = os.path.join(TEMP_DIR, 'script_loaded.signal')
         with open(loaded_signal_path, 'w') as f:
             f.write('loaded')
+        log("[STARTUP] Script fully loaded.")
     except Exception:
         pass
 
     try:
-        print("[DEBUG] Entering main monitoring loop...")
         process_check_interval = 0
         
         while True:
@@ -9813,12 +10034,11 @@ if __name__ == "__main__":
             process_check_interval += 1
             
             if os.path.exists(TERMINATE_SIGNAL_FILE):
-                print("[DEBUG] Terminate signal detected")
+                log("[EXIT] Terminate signal detected, closing script.")
                 break
             
             panic_file = os.path.join(TEMP_DIR, 'panic_shutdown.signal')
             if os.path.exists(panic_file):
-                print("[DEBUG] Panic shutdown signal detected")
                 try:
                     os.remove(panic_file)
                 except Exception:
@@ -9826,7 +10046,6 @@ if __name__ == "__main__":
                 break
                                                                                          
             if not is_cs2_running():
-                print("[DEBUG] CS2 no longer running")
                 break
             
             if process_check_interval >= 5:
@@ -9838,8 +10057,6 @@ if __name__ == "__main__":
                         dead_processes.append(process_names[i])
                 
                 if dead_processes:
-                    print(f"[DEBUG] Dead processes detected: {', '.join(dead_processes)}")
-                    
                     app_title = get_app_title()
                     error_msg = f"The following process(es) have stopped unexpectedly:\\n{', '.join(dead_processes)}\\n\\nAll processes will be terminated for safety."
                     try:
@@ -9872,6 +10089,5 @@ if __name__ == "__main__":
         cleanup_and_exit(f"Main loop error: {str(e)}")
         sys.exit(1)
     finally:
-        print("[DEBUG] Main loop exited, cleaning up...")
         cleanup_and_exit("Normal shutdown")
         sys.exit(0)
