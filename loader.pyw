@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "1.1.2"
+LOADER_VERSION = "1.1.3"
 
 # Try to import requests, fallback if not available
 try:
@@ -382,7 +382,15 @@ class LoaderGUI:
         else:
             self.config_files = []
         
-        self.root.configure(bg=bg_color)
+        self.root.configure(bg="#ffffff")  # White background for border
+        
+        # Create main container with white border
+        border_frame = tk.Frame(self.root, bg="#ffffff", bd=2, relief="solid")
+        border_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        
+        # Create inner frame with the original background
+        inner_frame = tk.Frame(border_frame, bg=bg_color)
+        inner_frame.pack(fill="both", expand=True)
         
         # Configure ttk styles for modern look
         style.configure('TProgressbar', 
@@ -395,7 +403,7 @@ class LoaderGUI:
         
         # Title label
         self.title_label = tk.Label(
-            self.root,
+            inner_frame,
             text="Loading...",
             font=title_font,
             bg=bg_color,
@@ -404,7 +412,7 @@ class LoaderGUI:
         self.title_label.pack(pady=(25, 10))
         
         # Combined version and status label (split for color)
-        version_status_frame = tk.Frame(self.root, bg=bg_color)
+        version_status_frame = tk.Frame(inner_frame, bg=bg_color)
         version_status_frame.pack(pady=(0, 0))
         self.version_label = tk.Label(
             version_status_frame,
@@ -424,11 +432,11 @@ class LoaderGUI:
         self.status_label_color.pack(side="left")
 
         # White horizontal separator line
-        separator = tk.Frame(self.root, bg="#ffffff", height=2)
+        separator = tk.Frame(inner_frame, bg="#ffffff", height=2)
         separator.pack(fill="x", padx=70, pady=(18, 18))
 
         # Main frame
-        main_frame = tk.Frame(self.root, bg=bg_color)
+        main_frame = tk.Frame(inner_frame, bg=bg_color)
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
         # Mode selection frame
@@ -476,7 +484,7 @@ class LoaderGUI:
         # Features frame
         features_frame = tk.LabelFrame(
             main_frame,
-            text="Commands",
+            text="Additional Features",
             font=section_font,
             bg=frame_bg_color,
             fg=fg_color,
@@ -488,7 +496,6 @@ class LoaderGUI:
         features_frame.pack(fill="x", pady=(0, 20))
         
         # Feature checkboxes
-        self.debuglog_var = tk.BooleanVar()
         self.tooltips_var = tk.BooleanVar()
         
         style.configure('Modern.TCheckbutton', font=default_font, background=frame_bg_color, foreground=fg_color, borderwidth=0, focuscolor=frame_bg_color)
@@ -507,13 +514,6 @@ class LoaderGUI:
             selectbackground=[('readonly', frame_bg_color)],
             selectforeground=[('readonly', fg_color)]
         )
-        debuglog_check = ttk.Checkbutton(
-            features_frame,
-            text="Debug Logging 📝",
-            variable=self.debuglog_var,
-            style='Modern.TCheckbutton'
-        )
-        debuglog_check.pack(anchor="w", padx=15, pady=6)
 
         tooltips_check = ttk.Checkbutton(
             features_frame,
@@ -538,6 +538,8 @@ class LoaderGUI:
         debug_frame.pack(fill="x", pady=(0, 20))
         
         self.debug_var = tk.BooleanVar()
+        self.debuglog_var = tk.BooleanVar()
+        
         debug_check = ttk.Checkbutton(
             debug_frame,
             text="Show Console Window 💻",
@@ -545,6 +547,14 @@ class LoaderGUI:
             style='Modern.TCheckbutton'
         )
         debug_check.pack(anchor="w", padx=15, pady=6)
+
+        debuglog_check = ttk.Checkbutton(
+            debug_frame,
+            text="Debug Logging 📝",
+            variable=self.debuglog_var,
+            style='Modern.TCheckbutton'
+        )
+        debuglog_check.pack(anchor="w", padx=15, pady=6)
 
         self.run_local_var = tk.BooleanVar()
         
