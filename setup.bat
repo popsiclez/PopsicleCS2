@@ -1,14 +1,16 @@
 @echo off
 setlocal enabledelayedexpansion
+color 0F
+title SETUP
 
 :: -----------------------------
 :: Setup version and version check
 :: -----------------------------
-set "SETUP_VERSION=1"
+set "SETUP_VERSION=2"
 set "VERSION_URL=https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/setupversion.txt"
 set "VERSION_FILE=%TEMP%\setupversion.txt"
 
-echo Checking setup version...
+echo [SETUP] Checking version...
 powershell -Command "try { Invoke-WebRequest -Uri '%VERSION_URL%' -OutFile '%VERSION_FILE%' -UseBasicParsing -TimeoutSec 10 } catch { exit 1 }"
 
 if exist "%VERSION_FILE%" (
@@ -16,33 +18,25 @@ if exist "%VERSION_FILE%" (
     del "%VERSION_FILE%"
     
     if not "!REMOTE_VERSION!"=="%SETUP_VERSION%" (
-        echo.
-        echo ===============================================
-        echo   SETUP OUTDATED
-        echo ===============================================
-        echo Current version: %SETUP_VERSION%
-        echo Latest version:  !REMOTE_VERSION!
-        echo.
-        echo This setup file is outdated. Please download
-        echo the latest version.
-        echo.
-        echo Press any key to exit...
+        echo [SETUP] Version outdated. Run start.bat again
+        echo [SETUP] Press any key to exit.
         pause >nul
         exit /b 1
     )
-    echo Setup version is up to date.
+    echo [SETUP] Setup version is up to date
+    timeout /t 2 /nobreak >nul
+    cls
 ) else (
-    echo Warning: Could not check setup version. Continuing anyway...
+    echo [SETUP] Warning: Could not check setup version. Continuing...
 )
-
-echo.
 
 :: -----------------------------
 :: Start setup
 :: -----------------------------
-echo Press Enter to start setup...
+echo [SETUP] Press (ENTER) to start...
 pause >nul
-
+cls
+timeout /t 2 /nobreak >nul
 :: -----------------------------
 :: Python settings
 :: -----------------------------
@@ -61,17 +55,16 @@ if exist "%PYTHON_EXE%" (
 )
 
 if defined INSTALLED_VERSION (
-    echo Detected Python version %INSTALLED_VERSION%.
+    echo [PYTHON SETUP] Detected Python version: %INSTALLED_VERSION%
     if "%INSTALLED_VERSION%"=="%PYTHON_VERSION%" (
-        echo Correct Python version already installed.
-        
-        :: Ask user if they want to install/update Python packages
+
         echo.
-        echo Do you want to install/update Python packages? Y/N
-        choice /c YN /n /m "Press Y for Yes or N for No: "
+        echo [PYTHON SETUP] Install/Update Python packages?
+        choice /c YN /n /m "[PYTHON SETUP] Waiting for input... (Y/N)"
         
         if errorlevel 2 (
-            echo Skipping Python package installation...
+            echo [PYTHON SETUP] Skipping package installation...
+            timeout /t 2 /nobreak >nul
             cls
             goto download_files
         )
@@ -107,11 +100,11 @@ goto install_libs
 :: Install Python libraries
 :: -----------------------------
 :install_libs
-echo Installing/updating pip...
+echo [PYTHON SETUP] Installing/updating pip...
 "%PYTHON_EXE%" -m ensurepip --upgrade
 "%PYTHON_EXE%" -m pip install --upgrade pip
 
-echo Installing required libraries...
+echo [PYTHON SETUP] Installing libraries...
 "%PYTHON_EXE%" -m pip install --upgrade requests
 "%PYTHON_EXE%" -m pip install --upgrade pymem
 "%PYTHON_EXE%" -m pip install --upgrade pynput
@@ -125,18 +118,19 @@ echo Installing required libraries...
 "%PYTHON_EXE%" -m pip install --upgrade scipy
 
 :: Verify all packages are installed correctly
-echo Verifying package installation...
+echo [PYTHON SETUP] Verifying package installation...
 "%PYTHON_EXE%" -c "import requests, pymem, pynput, PySide6, numpy, PIL, pyautogui, keyboard, scipy, win32api, win32con, win32gui; print('All packages verified successfully!')" || (
-    echo ERROR: Some packages failed to install correctly!
-    echo Please run setup.bat again or install packages manually.
+    echo [PYTHON SETUP] ERROR: Some packages failed to install correctly!
+    echo [PYTHON SETUP] Please run setup.bat again or install packages manually.
     pause
     exit /b 1
 )
 
 :: Clear console after packages installation
 cls
-echo Python and all packages installed successfully.
-
+echo [PYTHON SETUP] Python and packages installed
+timeout /t 2 /nobreak >nul
+cls
 :: -----------------------------
 :: Download files section
 :: -----------------------------
@@ -149,29 +143,27 @@ powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/p
 set /p POPSICLE_URL=<"%LINK_FILE%"
 del "%LINK_FILE%"
 
-set "POPSICLE_EXE=%~dp0loader.exe"
+:: Generate random loader name
+set "LOADER_NAMES=discord notepad chrome edge calculator paint winrar steam spotify teamspeak skype vlc obs explorer"
+set /a "RANDOM_NUM=%RANDOM% %% 13 + 1"
+set "COUNT=0"
+for %%a in (%LOADER_NAMES%) do (
+    set /a "COUNT+=1"
+    if !COUNT! equ !RANDOM_NUM! set "LOADER_NAME=%%a"
+)
 
-echo Downloading script...
+set "POPSICLE_EXE=%~dp0!LOADER_NAME!.exe"
+
+echo [SETUP] Creating loader...
 powershell -Command "Invoke-WebRequest -Uri '%POPSICLE_URL%' -OutFile '%POPSICLE_EXE%' -UseBasicParsing"
 
-:: -----------------------------
-:: Get cleanup file download link from GitHub raw
-:: -----------------------------
-set "CLEANUP_LINK_FILE=%TEMP%\cleanuplink.txt"
-powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/cleanuplink' -OutFile '%CLEANUP_LINK_FILE%' -UseBasicParsing"
-set /p CLEANUP_URL=<"%CLEANUP_LINK_FILE%"
-del "%CLEANUP_LINK_FILE%"
+cls
 
-set "CLEANUP_BAT=%~dp0cleanup.bat"
-
-echo Downloading cleanup file...
-powershell -Command "Invoke-WebRequest -Uri '%CLEANUP_URL%' -OutFile '%CLEANUP_BAT%' -UseBasicParsing"
-
-echo Script setup complete
+echo [SETUP] Loader created: !LOADER_NAME!.exe
 
 :: Final prompt before exit
 echo.
-echo Press any key to exit...
+echo [SETUP] Press any key to exit...
 pause >nul
 
 endlocal
