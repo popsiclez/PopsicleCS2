@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "1.1.3"
+LOADER_VERSION = "1.1.4"
 
 # Try to import requests, fallback if not available
 try:
@@ -481,23 +481,10 @@ class LoaderGUI:
         )
         full_radio.pack(anchor="w", padx=15, pady=8)
         
-        # Features frame
-        features_frame = tk.LabelFrame(
-            main_frame,
-            text="Additional Features",
-            font=section_font,
-            bg=frame_bg_color,
-            fg=fg_color,
-            bd=0,
-            relief="flat",
-            highlightthickness=0,
-            labelanchor="n"
-        )
-        features_frame.pack(fill="x", pady=(0, 20))
-        
-        # Feature checkboxes
+        # Feature checkboxes variable
         self.tooltips_var = tk.BooleanVar()
         
+        # Configure styles for checkboxes and combobox
         style.configure('Modern.TCheckbutton', font=default_font, background=frame_bg_color, foreground=fg_color, borderwidth=0, focuscolor=frame_bg_color)
         style.map('Modern.TCheckbutton',
             focuscolor=[('active', frame_bg_color), ('!active', frame_bg_color)],
@@ -514,19 +501,11 @@ class LoaderGUI:
             selectbackground=[('readonly', frame_bg_color)],
             selectforeground=[('readonly', fg_color)]
         )
-
-        tooltips_check = ttk.Checkbutton(
-            features_frame,
-            text="Tooltips 💡",
-            variable=self.tooltips_var,
-            style='Modern.TCheckbutton'
-        )
-        tooltips_check.pack(anchor="w", padx=15, pady=6)
         
-        # Debug mode frame
+        # Additional Features frame (previously Debug frame)
         debug_frame = tk.LabelFrame(
             main_frame,
-            text="Debug",
+            text="Additional Features",
             font=section_font,
             bg=frame_bg_color,
             fg=fg_color,
@@ -556,7 +535,16 @@ class LoaderGUI:
         )
         debuglog_check.pack(anchor="w", padx=15, pady=6)
 
+        tooltips_check = ttk.Checkbutton(
+            debug_frame,
+            text="Tooltips 💡",
+            variable=self.tooltips_var,
+            style='Modern.TCheckbutton'
+        )
+        tooltips_check.pack(anchor="w", padx=15, pady=6)
+
         self.run_local_var = tk.BooleanVar()
+        self.use_local_offsets_var = tk.BooleanVar()
         
         # Get the actual directory where the executable/script is located
         if getattr(sys, 'frozen', False):
@@ -574,6 +562,36 @@ class LoaderGUI:
             style='Modern.TCheckbutton'
         )
         run_local_check.pack(anchor="w", padx=15, pady=6)
+        
+        use_local_offsets_check = ttk.Checkbutton(
+            debug_frame,
+            text=f"Use Local Offsets ({folder_name}\\temp\\offsets\\output) 📁",
+            variable=self.use_local_offsets_var,
+            style='Modern.TCheckbutton',
+            command=self.toggle_offsets_button
+        )
+        use_local_offsets_check.pack(anchor="w", padx=15, pady=6)
+        
+        # Create Offsets button (initially hidden)
+        self.create_offsets_button = tk.Button(
+            debug_frame,
+            text="Create Offsets",
+            font=default_font,
+            bg=accent_color,
+            fg="black",
+            activebackground="#cccccc",
+            activeforeground="black",
+            bd=0,
+            cursor="hand2",
+            relief="flat",
+            command=self.create_offsets
+        )
+        
+        # Initially hide button if toggle is off
+        if not self.use_local_offsets_var.get():
+            self.create_offsets_button.pack_forget()
+        else:
+            self.create_offsets_button.pack(anchor="w", padx=15, pady=(6, 6))
         
         # Config frame
         config_frame = tk.LabelFrame(
@@ -685,7 +703,7 @@ class LoaderGUI:
         exit_button = tk.Button(
             button_frame,
             text="Exit",
-            command=self.root.quit,
+            command=self.cleanup_and_exit,
             **button_style
         )
 
@@ -749,6 +767,155 @@ class LoaderGUI:
         current_y = self.root.winfo_y()
         self.root.geometry(f"480x{required_height}+{current_x}+{current_y}")
     
+    def toggle_offsets_button(self):
+        """Show/hide create offsets button based on use local offsets checkbox state"""
+        if self.use_local_offsets_var.get():
+            # Show create offsets button
+            self.create_offsets_button.pack(anchor="w", padx=15, pady=(6, 6))
+        else:
+            # Hide create offsets button
+            self.create_offsets_button.pack_forget()
+        
+        # Resize window to fit content while keeping current position
+        self.root.update_idletasks()
+        required_height = self.root.winfo_reqheight()
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        self.root.geometry(f"480x{required_height}+{current_x}+{current_y}")
+    
+    def create_offsets(self):
+        """Create offsets by downloading and running offsets.exe"""
+        # Check if CS2 is running first
+        if not is_cs2_running():
+            # Show error through button text change
+            self.create_offsets_button.config(state="disabled", text="Open CS2.exe first!")
+            self.root.after(3000, lambda: self.create_offsets_button.config(state="normal", text="Create Offsets"))
+            return
+        
+        # Disable button during creation
+        self.create_offsets_button.config(state="disabled", text="Creating...")
+        
+        def create_offsets_thread():
+            try:
+                # Create offsets directory
+                offsets_dir = os.path.join(TEMP_DIR, 'offsets')
+                os.makedirs(offsets_dir, exist_ok=True)
+                
+                # Get offsets.exe download link
+                offsetslink_url = "https://raw.githubusercontent.com/popsiclez/PopsicleCS2/refs/heads/main/offsetslink"
+                offsets_exe_url = None
+                
+                if HAS_REQUESTS:
+                    try:
+                        resp = requests.get(offsetslink_url, timeout=10)
+                        resp.raise_for_status()
+                        offsets_exe_url = resp.text.strip()
+                    except Exception:
+                        pass
+                
+                if offsets_exe_url is None:
+                    # Fallback to urllib
+                    try:
+                        if sys.version_info[0] == 3:
+                            from urllib.request import urlopen
+                        else:
+                            from urllib2 import urlopen
+                        response = urlopen(offsetslink_url, timeout=10)
+                        offsets_exe_url = response.read().decode('utf-8').strip()
+                    except Exception:
+                        self.root.after(0, lambda: self.reset_offsets_button("Failed to get download link"))
+                        return
+                
+                # Download offsets.exe
+                offsets_exe_path = os.path.join(offsets_dir, 'offsets.exe')
+                
+                if HAS_REQUESTS:
+                    try:
+                        resp = requests.get(offsets_exe_url, timeout=30)
+                        resp.raise_for_status()
+                        with open(offsets_exe_path, 'wb') as f:
+                            f.write(resp.content)
+                    except Exception:
+                        self.root.after(0, lambda: self.reset_offsets_button("Failed to download offsets.exe"))
+                        return
+                else:
+                    # Fallback to urllib for binary download
+                    try:
+                        if sys.version_info[0] == 3:
+                            from urllib.request import urlopen
+                        else:
+                            from urllib2 import urlopen
+                        response = urlopen(offsets_exe_url, timeout=30)
+                        with open(offsets_exe_path, 'wb') as f:
+                            f.write(response.read())
+                    except Exception:
+                        self.root.after(0, lambda: self.reset_offsets_button("Failed to download offsets.exe"))
+                        return
+                
+                # Run offsets.exe
+                try:
+                    subprocess.run([offsets_exe_path], cwd=offsets_dir, check=True, 
+                                 creationflags=subprocess.CREATE_NO_WINDOW)
+                except subprocess.CalledProcessError:
+                    self.root.after(0, lambda: self.reset_offsets_button("offsets.exe execution failed"))
+                    return
+                except Exception:
+                    self.root.after(0, lambda: self.reset_offsets_button("Failed to run offsets.exe"))
+                    return
+                
+                # Wait for output folder to be created
+                output_dir = os.path.join(offsets_dir, 'output')
+                timeout = 60  # 60 second timeout
+                start_time = time.time()
+                
+                while not os.path.exists(output_dir):
+                    if time.time() - start_time > timeout:
+                        self.root.after(0, lambda: self.reset_offsets_button("Timeout waiting for output"))
+                        return
+                    time.sleep(1)
+                
+                # Check for and delete cs2-dumper.log if it exists
+                log_file = os.path.join(offsets_dir, 'cs2-dumper.log')
+                if os.path.exists(log_file):
+                    try:
+                        os.remove(log_file)
+                    except Exception:
+                        pass  # Ignore if we can't delete it
+                
+                # Delete offsets.exe after successful completion
+                try:
+                    if os.path.exists(offsets_exe_path):
+                        os.remove(offsets_exe_path)
+                except Exception:
+                    pass  # Ignore if we can't delete it
+                
+                # Success
+                self.root.after(0, lambda: self.reset_offsets_button("Offsets created!", success=True))
+                
+            except Exception as e:
+                self.root.after(0, lambda: self.reset_offsets_button(f"Error: {str(e)}"))
+        
+        # Run in background thread
+        thread = threading.Thread(target=create_offsets_thread, daemon=True)
+        thread.start()
+    
+    def reset_offsets_button(self, message=None, success=False):
+        """Reset the create offsets button state"""
+        if message:
+            if success:
+                # Show success message through button text
+                self.create_offsets_button.config(state="disabled", text=message)
+                # Reset to normal after 3 seconds
+                self.root.after(3000, lambda: self.create_offsets_button.config(state="normal", text="Create Offsets"))
+            else:
+                # Show error message through button text
+                self.create_offsets_button.config(state="disabled", text=message)
+                # Reset to normal after 3 seconds
+                self.root.after(3000, lambda: self.create_offsets_button.config(state="normal", text="Create Offsets"))
+        else:
+            # Just reset normally
+            self.create_offsets_button.config(state="normal", text="Create Offsets")
+    
     def center_window(self):
         """Center the window on the screen"""
         self.root.update_idletasks()
@@ -809,8 +976,36 @@ class LoaderGUI:
         
     def on_closing(self):
         """Handle window close event"""
-        self.root.quit()
-        self.root.destroy()
+        self.cleanup_and_exit()
+        
+    def cleanup_and_exit(self):
+        """Clean up directories and exit the application"""
+        try:
+            # Clean up offsets directory and its contents
+            offsets_dir = os.path.join(TEMP_DIR, 'offsets')
+            if os.path.exists(offsets_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(offsets_dir)
+                    print(f"[LOADER CLEANUP] Removed offsets directory: {offsets_dir}")
+                except Exception as e:
+                    print(f"[LOADER CLEANUP] Error removing offsets directory: {e}")
+            
+            # Clean up temp directory and all its contents
+            if os.path.exists(TEMP_DIR):
+                try:
+                    import shutil
+                    shutil.rmtree(TEMP_DIR)
+                    print(f"[LOADER CLEANUP] Removed temp directory: {TEMP_DIR}")
+                except Exception as e:
+                    print(f"[LOADER CLEANUP] Error removing temp directory: {e}")
+                    
+        except Exception as e:
+            print(f"[LOADER CLEANUP] Error during cleanup: {e}")
+        finally:
+            # Always exit regardless of cleanup success/failure
+            self.root.quit()
+            self.root.destroy()
         
     def update_status(self, text):
         """Update status text"""
@@ -942,6 +1137,8 @@ class LoaderGUI:
             self.selected_commands.append("debuglog")
         if self.tooltips_var.get():
             self.selected_commands.append("tooltips")
+        if self.use_local_offsets_var.get():
+            self.selected_commands.append("manualoffsets")
         
         # Launch in background thread
         thread = threading.Thread(target=self.launch_script_background, daemon=True)
@@ -989,6 +1186,39 @@ class LoaderGUI:
                 self.root.after(0, lambda: self.update_progress(0))
                 self.root.after(0, lambda: self.reset_launch_button())
                 return
+            
+            # Check for cancellation
+            if self.is_cancelled:
+                return
+            
+            # Check for local offsets if enabled
+            if self.use_local_offsets_var.get():
+                self.root.after(0, lambda: self.update_status("Checking local offsets..."))
+                self.root.after(0, lambda: self.update_progress(15))
+                time.sleep(0.5)  # Brief pause to show the checking stage
+                
+                offsets_dir = os.path.join(TEMP_DIR, 'offsets')
+                if not os.path.exists(offsets_dir):
+                    self.root.after(0, lambda: self.update_status("Local offsets not found"))
+                    self.root.after(0, lambda: self.update_progress(0))
+                    self.root.after(0, lambda: self.reset_launch_button())
+                    return
+                
+                # Check if required offset files exist
+                output_dir = os.path.join(offsets_dir, 'output')
+                offsets_json = os.path.join(output_dir, 'offsets.json')
+                client_dll_json = os.path.join(output_dir, 'client_dll.json')
+                
+                if not os.path.exists(offsets_json) or not os.path.exists(client_dll_json):
+                    self.root.after(0, lambda: self.update_status("Required offset files missing"))
+                    self.root.after(0, lambda: self.update_progress(0))
+                    self.root.after(0, lambda: self.reset_launch_button())
+                    return
+                
+                # Success - local offsets found
+                self.root.after(0, lambda: self.update_status("Local offsets verified!"))
+                self.root.after(0, lambda: self.update_progress(20))
+                time.sleep(0.5)  # Brief pause to show success
             
             # Check for cancellation
             if self.is_cancelled:
