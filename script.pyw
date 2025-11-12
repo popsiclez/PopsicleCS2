@@ -1,4 +1,4 @@
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 STARTUP_ENABLED = True
 
 import threading
@@ -131,6 +131,20 @@ def cleanup_all_temporary_files(final_cleanup=False):
     except Exception as e:
         pass
     
+    # Remove offsets directory and its contents (including output subfolder)
+    try:
+        offsets_dir = os.path.join(TEMP_DIR, 'offsets')
+        if os.path.exists(offsets_dir):
+            import shutil
+            shutil.rmtree(offsets_dir)
+            files_cleaned += 1
+            if debug_mode:
+                log(f"[CLEANUP] Removed offsets directory: {offsets_dir}")
+    except Exception as e:
+        if debug_mode:
+            log(f"[CLEANUP] Error removing offsets directory: {e}")
+        pass
+    
     # Remove temp directory if it exists and is empty
     try:
         if os.path.exists(TEMP_DIR):
@@ -153,8 +167,42 @@ original_stdout = None
 original_stderr = None
 
 
+class TeeStream:
+    """A stream that writes to both console and debug log file"""
+    def __init__(self, original_stream, log_file_path):
+        self.original_stream = original_stream
+        self.log_file_path = log_file_path
+        
+    def write(self, data):
+        # Write to original stream (console)
+        try:
+            if self.original_stream:
+                self.original_stream.write(data)
+                self.original_stream.flush()
+        except:
+            pass
+            
+        # Also write to debug log file (without ANSI colors)
+        try:
+            if self.log_file_path and data:  # Log all data including empty lines
+                # Remove ANSI color codes for file logging
+                import re
+                clean_data = re.sub(r'\033\[[0-9;]*m', '', data)
+                with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(clean_data)
+                    f.flush()
+        except:
+            pass
+            
+    def flush(self):
+        try:
+            if self.original_stream:
+                self.original_stream.flush()
+        except:
+            pass
+
 def setup_logging():
-    """Setup logging to redirect all print statements to debug_log.txt"""
+    """Setup logging to capture all output to debug_log.txt"""
     global original_stdout, original_stderr, LOG_FILE
     
 
@@ -172,78 +220,119 @@ def setup_logging():
     
 
     try:
-        with open(LOG_FILE, 'w', encoding='utf-8') as f:
-            app_title = get_app_title()
-            f.write(f"=== {app_title} Debug Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
-            f.write("All console output will be logged here\n\n")
+        # Create the initial log file with header
+        app_title = get_app_title()
+        process_name = multiprocessing.current_process().name
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(f"=== {app_title} Debug Log - Process: {process_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
     except:
         pass
     
-
-    global _debug_log_file
-    try:
-        _debug_log_file = open(LOG_FILE, 'w', encoding='utf-8')
-        sys.stdout = _debug_log_file
-        sys.stderr = _debug_log_file
-    except Exception:
-        LOG_FILE = None
-        _debug_log_file = None
+    # Set up tee streams to write to both console and file
+    sys.stdout = TeeStream(original_stdout, LOG_FILE)
+    sys.stderr = TeeStream(original_stderr, LOG_FILE)
 
 def cleanup_logging():
-    """Restore original stdout/stderr"""
+    """Restore original stdout/stderr and close debug log"""
     global original_stdout, original_stderr, LOG_FILE
     try:
         if LOG_FILE:
+            # Write session end to log file
+            process_name = multiprocessing.current_process().name
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"\n=== Session ended - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
-    except:
+                f.write(f"\n=== Process {process_name} ended - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n\n")
+    except Exception as e:
         try:
-            if sys.stdout and sys.stdout is _debug_log_file:
-                sys.stdout.flush()
-            if sys.stderr and sys.stderr is _debug_log_file:
-                sys.stderr.flush()
-        except Exception:
+            # If we can't write to file, at least print to console
+            print(f"[ERROR] Failed to write session end to debug log: {e}")
+        except:
             pass
+    
+    # Restore original streams if they were saved
+    try:
         if original_stdout:
             sys.stdout = original_stdout
         if original_stderr:
             sys.stderr = original_stderr
-        if '_debug_log_file' in globals() and _debug_log_file:
-            try:
-                _debug_log_file.close()
-            except Exception:
-                pass
-        LOG_FILE = None
-        _debug_log_file = None
-    
-    # Remove all code referencing 'final_cleanup' from this function, as it is not defined here. This function should only restore stdout/stderr and close the log file.
-    # ...existing code...
-    # (No reference to final_cleanup here)
-    # ...existing code...
+    except Exception:
+        pass
+        
+    # Reset global variables
+    LOG_FILE = None
+    original_stdout = None 
+    original_stderr = None
+
+# ANSI color codes for console output
+class Colors:
+    RESET = '\033[0m'
+    # Bright colors for better visibility
+    COMMANDS = '\033[96m'      # Bright cyan
+    OFFSETS = '\033[92m'       # Bright green  
+    STARTUP = '\033[93m'       # Bright yellow
+    ERROR = '\033[91m'         # Bright red
+    DEBUG = '\033[95m'         # Bright magenta
+    INFO = '\033[97m'          # Bright white
+
+def get_message_color(message):
+    """Get appropriate color for message based on its prefix"""
+    if '[COMMANDS' in message:
+        return Colors.COMMANDS
+    elif '[OFFSETS' in message:
+        return Colors.OFFSETS
+    elif '[STARTUP' in message:
+        return Colors.STARTUP
+    elif '[ERROR' in message:
+        return Colors.ERROR
+    elif '[DEBUG' in message:
+        return Colors.DEBUG
+    else:
+        return Colors.INFO
 
 def log(message):
     """Log message to console and debug_log.txt file when debug mode is enabled"""
     try:
-        # Check if we have a console window available (either from loader or script)
-        has_console = False
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        formatted_message = f"{timestamp} | {message}"
+        
+        # Always try to print to console - use original stdout if it was redirected
         try:
-            console_hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-            has_console = console_hwnd != 0
+            # If stdout was redirected by setup_logging, use original_stdout
+            if 'original_stdout' in globals() and original_stdout is not None:
+                output_stream = original_stdout
+            else:
+                output_stream = sys.stdout
+            
+            # Try to enable ANSI color support and use colors
+            try:
+                import ctypes.wintypes
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+                
+                # Get color for this message type
+                color = get_message_color(message)
+                output_stream.write(f"{Colors.INFO}{timestamp}{Colors.RESET} | {color}{message}{Colors.RESET}\n")
+                output_stream.flush()
+            except:
+                # Fallback to plain text without colors
+                output_stream.write(f"{formatted_message}\n")
+                output_stream.flush()
         except:
-            has_console = False
+            # Last resort fallback to regular print
+            try:
+                print(formatted_message)
+            except:
+                pass
         
-        # Only print to console if we have one available
-        if has_console:
-            print(f"{datetime.now().strftime('%H:%M:%S')} | {message}")
-        
-        # Also write to debug_log.txt if debug logging is enabled
+        # Also write to debug_log.txt if debug logging is enabled (without colors)
         if is_debug_mode():
             try:
                 debug_log_file = os.path.join(os.getcwd(), 'debug_log.txt')
                 with open(debug_log_file, 'a', encoding='utf-8') as f:
-                    f.write(f"{datetime.now().strftime('%H:%M:%S')} | {message}\n")
+                    f.write(f"{formatted_message}\n")
+                    f.flush()  # Force write to disk immediately
             except Exception:
                 pass  # If file logging fails, continue with console only
+                
     except Exception:
         pass  # If all logging fails, fail silently
 
@@ -297,7 +386,8 @@ def load_commands():
                 if content.startswith('\ufeff'):
                     content = content[1:]
                 if content:
-                    commands = [cmd.strip().lower() for cmd in content.split(',') if cmd.strip()]
+                    # Commands are written one per line by the loader
+                    commands = [cmd.strip().lower() for cmd in content.split('\n') if cmd.strip()]
     except Exception:
         pass
     return commands
@@ -319,6 +409,11 @@ def apply_commands():
     """Apply commands from commands.txt file"""
     global CONSOLE_CREATED
     commands = load_commands()
+    process_name = multiprocessing.current_process().name
+    
+    # Show commands with process name
+    for command in commands:
+        log(f"[COMMANDS-{process_name}] Read command: {command}")
     
     if "debuglog" in commands:
         setup_logging()
@@ -330,6 +425,62 @@ def apply_commands():
                 log(f"[STARTUP] Commands processed: {commands}")
         except:
             pass
+
+def load_offsets_and_client_dll():
+    """Load offsets and client_dll - either from local files or GitHub based on commands"""
+    try:
+        commands = load_commands()
+        process_name = multiprocessing.current_process().name
+        
+        if "manualoffsets" in commands:
+            log(f"[OFFSETS-{process_name}] Using local offsets")
+            return load_local_offsets()
+        else:
+            log(f"[OFFSETS-{process_name}] Using GitHub offsets")
+            return load_github_offsets()
+    except Exception as e:
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] Error loading offsets: {e}")
+        return load_github_offsets()
+
+def load_local_offsets():
+    """Load offsets from local files in temp/offsets/output directory"""
+    try:
+        process_name = multiprocessing.current_process().name
+        offsets_dir = os.path.join(TEMP_DIR, 'offsets', 'output')
+        
+        # Load offsets.json
+        offsets_path = os.path.join(offsets_dir, 'offsets.json')
+        with open(offsets_path, 'r', encoding='utf-8') as f:
+            offsets_data = json.load(f)
+        
+        # Load client_dll.json
+        client_dll_path = os.path.join(offsets_dir, 'client_dll.json')
+        with open(client_dll_path, 'r', encoding='utf-8') as f:
+            client_dll_data = json.load(f)
+        
+        log(f"[OFFSETS-{process_name}] Local offsets loaded successfully")
+        
+        return offsets_data, client_dll_data
+        
+    except Exception as e:
+        log(f"[OFFSETS] Local offsets failed: {e}")
+        log("[OFFSETS] Falling back to GitHub offsets")
+        return load_github_offsets()
+
+def load_github_offsets():
+    """Load offsets from GitHub (original method)"""
+    try:
+        log("[OFFSETS] Downloading from GitHub...")
+        offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
+        client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
+        
+        log("[OFFSETS] GitHub offsets loaded successfully")
+        return offsets, client_dll
+        
+    except Exception as e:
+        log(f"[OFFSETS] GitHub download failed: {e}")
+        return {}, {}
 
 def get_app_title():
     """Fetch application title from GitHub"""
@@ -360,8 +511,15 @@ def check_version():
     return True
 
 def get_offsets_last_update():
-    """Get the last update date for the offsets repository output directory"""
+    """Get the last update date for the offsets repository output directory, or local offsets info if using local files"""
     try:
+        commands = load_commands()
+        if "manualoffsets" in commands:
+            # Using local offsets - return local directory info
+            offsets_dir = os.path.join(TEMP_DIR, 'offsets', 'output')
+            return f"Using local offsets: {offsets_dir}"
+        
+        # Using GitHub offsets - get last update date
         # GitHub API endpoint for commits affecting the /output directory
         api_url = "https://api.github.com/repos/popsiclez/offsets/commits?path=output&per_page=1"
         response = requests.get(api_url, timeout=10)
@@ -419,53 +577,11 @@ def version_check_worker():
             pass
             time.sleep(30)
                                      
-offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
-client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
+# Offsets will be loaded after commands are applied
         
-dwEntityList = offsets['client.dll']['dwEntityList']
-dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
-dwLocalPlayerController = offsets['client.dll']['dwLocalPlayerController']
-dwViewMatrix = offsets['client.dll']['dwViewMatrix']
-dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
-dwViewAngles = offsets['client.dll']['dwViewAngles']
-dwSensitivity = offsets['client.dll']['dwSensitivity']
-dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']                         
-m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
-m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
-m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
-m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
-m_fFlags = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_fFlags']
-m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']                      
-m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
-m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']       
-m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
-m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
-m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
-m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
-m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
-m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']               
-m_pCameraServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pCameraServices']
-m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']           
-m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
-m_vecOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecOrigin']
-m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']      
-m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
-m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
-m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
-m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
-m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
-m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']     
-m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
-m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
-m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
-m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']                
-m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
-m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
-m_iFOV = client_dll['client.dll']['classes']['CCSPlayerBase_CameraServices']['fields']['m_iFOV']
-m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']     
-m_bIsScoped = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_bIsScoped']
-m_flFlashMaxAlpha = client_dll["client.dll"]["classes"]["C_CSPlayerPawnBase"]["fields"]["m_flFlashMaxAlpha"]
-
+dwEntityList = None  # Will be set after offsets are loaded
+# All offset variables will be initialized after commands are applied
+                                     
 bone_ids = {
     "head": 6,
     "neck": 5,
@@ -593,6 +709,54 @@ SELECTED_MODE = load_selected_mode()
 
 # Apply commands after mode is loaded
 apply_commands()
+
+# Load offsets after commands are applied
+offsets, client_dll = load_offsets_and_client_dll()
+dwEntityList = offsets['client.dll']['dwEntityList']
+
+# Initialize all offset variables
+dwLocalPlayerPawn = offsets['client.dll']['dwLocalPlayerPawn']
+dwLocalPlayerController = offsets['client.dll']['dwLocalPlayerController']
+dwViewMatrix = offsets['client.dll']['dwViewMatrix']
+dwPlantedC4 = offsets['client.dll']['dwPlantedC4']
+dwViewAngles = offsets['client.dll']['dwViewAngles']
+dwSensitivity = offsets['client.dll']['dwSensitivity']
+dwSensitivity_sensitivity = offsets['client.dll']['dwSensitivity_sensitivity']
+m_iTeamNum = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iTeamNum']
+m_lifeState = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_lifeState']
+m_pGameSceneNode = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_pGameSceneNode']
+m_iHealth = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_iHealth']
+m_fFlags = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_fFlags']
+m_vecVelocity = client_dll['client.dll']['classes']['C_BaseEntity']['fields']['m_vecVelocity']
+m_hPlayerPawn = client_dll['client.dll']['classes']['CCSPlayerController']['fields']['m_hPlayerPawn']
+m_iszPlayerName = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iszPlayerName']
+m_iIDEntIndex = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iIDEntIndex']
+m_ArmorValue = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_ArmorValue']
+m_entitySpottedState = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_entitySpottedState']
+m_angEyeAngles = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_angEyeAngles']
+m_aimPunchAngle = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_aimPunchAngle']
+m_iShotsFired = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_iShotsFired']
+m_pCameraServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pCameraServices']
+m_vOldOrigin = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_vOldOrigin']
+m_vecAbsOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecAbsOrigin']
+m_vecOrigin = client_dll['client.dll']['classes']['CGameSceneNode']['fields']['m_vecOrigin']
+m_modelState = client_dll['client.dll']['classes']['CSkeletonInstance']['fields']['m_modelState']
+m_AttributeManager = client_dll['client.dll']['classes']['C_EconEntity']['fields']['m_AttributeManager']
+m_Item = client_dll['client.dll']['classes']['C_AttributeContainer']['fields']['m_Item']
+m_iItemDefinitionIndex = client_dll['client.dll']['classes']['C_EconItemView']['fields']['m_iItemDefinitionIndex']
+m_pWeaponServices = client_dll['client.dll']['classes']['C_BasePlayerPawn']['fields']['m_pWeaponServices']
+m_hActiveWeapon = client_dll['client.dll']['classes']['CPlayer_WeaponServices']['fields']['m_hActiveWeapon']
+m_iClip1 = client_dll['client.dll']['classes']['C_BasePlayerWeapon']['fields']['m_iClip1']
+m_flTimerLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flTimerLength']
+m_flDefuseLength = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_flDefuseLength']
+m_bBeingDefused = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_bBeingDefused']
+m_nBombSite = client_dll['client.dll']['classes']['C_PlantedC4']['fields']['m_nBombSite']
+m_bSpotted = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpotted']
+m_bSpottedByMask = client_dll['client.dll']['classes']['EntitySpottedState_t']['fields']['m_bSpottedByMask']
+m_iFOV = client_dll['client.dll']['classes']['CCSPlayerBase_CameraServices']['fields']['m_iFOV']
+m_iDesiredFOV = client_dll['client.dll']['classes']['CBasePlayerController']['fields']['m_iDesiredFOV']
+m_bIsScoped = client_dll['client.dll']['classes']['C_CSPlayerPawn']['fields']['m_bIsScoped']
+m_flFlashMaxAlpha = client_dll["client.dll"]["classes"]["C_CSPlayerPawnBase"]["fields"]["m_flFlashMaxAlpha"]
                        
 RAINBOW_HUE = 0.0
 TARGET_POSITIONS = {}                                                                      
@@ -1077,20 +1241,14 @@ def is_cs2_running():
         return False
 
 def get_offsets_and_client_dll():
-    """Fetch offsets and client_dll JSON from the remote repo.
+    """Fetch offsets and client_dll JSON - either from local files or remote repo based on commands.
     
     Returns a tuple (offsets, client_dll). On failure returns ({}, {}).
     """
-    try:
-        offsets = requests.get(
-            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json'
-        ).json()
-        client_dll = requests.get(
-            'https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json'
-        ).json()
-        return offsets, client_dll
-    except Exception:
-        return {}, {}
+    # Use the new load_offsets_and_client_dll function for consistency
+    return load_offsets_and_client_dll()
+
+
 
 def w2s(view_matrix, x, y, z, width, height):
     """Minimal world-to-screen projection that tolerates different view_matrix shapes.
@@ -1279,7 +1437,9 @@ class ConfigWindow(QtWidgets.QWidget):
         self.setWindowTitle(f"{app_title} Config")
         
 
-        self.tooltips_enabled = "tooltips" in load_commands()
+        # Check for tooltips command directly to avoid timing issues
+        commands = load_commands()
+        self.tooltips_enabled = "tooltips" in commands
         
         header_text = app_title
         
@@ -1574,6 +1734,9 @@ class ConfigWindow(QtWidgets.QWidget):
         """Set tooltip only if tooltips are enabled via commands.txt"""
         if hasattr(self, 'tooltips_enabled') and self.tooltips_enabled:
             widget.setToolTip(tooltip_text)
+        else:
+            # Remove any existing tooltip when tooltips are disabled
+            widget.setToolTip("")
 
     def disable_ui_focus(self):
         """Disable focus for all interactive UI elements to prevent keyboard shortcuts"""
@@ -2841,13 +3004,23 @@ class ConfigWindow(QtWidgets.QWidget):
         offsets_info_label.setStyleSheet("font-family: 'MS PGothic'; font-weight: bold; color: #FFFFFF; font-size: 14px;")
         misc_layout.addWidget(offsets_info_label)
 
-        # Get and display the last update date
-        last_update = get_offsets_last_update()
-        self.offsets_update_label = QtWidgets.QLabel(f"Last Updated: {last_update}")
+        # Get and display the last update date or local offsets info
+        offsets_info = get_offsets_last_update()
+        commands = load_commands()
+        
+        if "manualoffsets" in commands:
+            # Using local offsets - show the info as-is and update tooltip
+            self.offsets_update_label = QtWidgets.QLabel(offsets_info)
+            tooltip_text = "Currently using local offset files from the specified directory instead of downloading from GitHub."
+        else:
+            # Using GitHub offsets - format with "Last Updated:" prefix
+            self.offsets_update_label = QtWidgets.QLabel(f"Last Updated: {offsets_info}")
+            tooltip_text = "Shows when the offsets repository was last updated with new game memory offsets."
+            
         self.offsets_update_label.setAlignment(QtCore.Qt.AlignCenter)
         self.offsets_update_label.setMinimumHeight(16)
         self.offsets_update_label.setStyleSheet("font-family: 'MS PGothic'; color: #ffffff; font-size: 12px;")
-        self.set_tooltip_if_enabled(self.offsets_update_label, "Shows when the offsets repository was last updated with new game memory offsets.")
+        self.set_tooltip_if_enabled(self.offsets_update_label, tooltip_text)
         misc_layout.addWidget(self.offsets_update_label)
 
         misc_container.setLayout(misc_layout)
@@ -9960,19 +10133,19 @@ if __name__ == "__main__":
     time.sleep(0.5)
     
     procs = [
-        multiprocessing.Process(target=configurator),
-        multiprocessing.Process(target=esp_main),
-        multiprocessing.Process(target=triggerbot),
-        multiprocessing.Process(target=recoil_control),
-        multiprocessing.Process(target=bhop),
-        multiprocessing.Process(target=misc_features),
-        multiprocessing.Process(target=auto_accept_main),
+        multiprocessing.Process(target=configurator, name="configurator"),
+        multiprocessing.Process(target=esp_main, name="esp_main"),
+        multiprocessing.Process(target=triggerbot, name="triggerbot"),
+        multiprocessing.Process(target=recoil_control, name="recoil_control"),
+        multiprocessing.Process(target=bhop, name="bhop"),
+        multiprocessing.Process(target=misc_features, name="misc_features"),
+        multiprocessing.Process(target=auto_accept_main, name="auto_accept_main"),
     ]
     
     process_names = ["configurator", "esp_main", "triggerbot", "recoil_control", "bhop", "misc_features", "auto_accept_main"]
     
     if SELECTED_MODE and SELECTED_MODE.lower() == 'full':
-        procs.append(multiprocessing.Process(target=aim))
+        procs.append(multiprocessing.Process(target=aim, name="aim"))
         process_names.append("aim")
     
     for proc in procs:
