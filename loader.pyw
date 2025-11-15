@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-LOADER_VERSION = "1.1.4"
+LOADER_VERSION = "1.1.5"
 
 # Try to import requests, fallback if not available
 try:
@@ -1198,25 +1198,83 @@ class LoaderGUI:
                 time.sleep(0.5)  # Brief pause to show the checking stage
                 
                 offsets_dir = os.path.join(TEMP_DIR, 'offsets')
+                output_dir = os.path.join(offsets_dir, 'output')
+                offsets_json = os.path.join(output_dir, 'offsets.json')
+                client_dll_json = os.path.join(output_dir, 'client_dll.json')
+                
+                # Check if offsets directory exists
                 if not os.path.exists(offsets_dir):
-                    self.root.after(0, lambda: self.update_status("Local offsets not found"))
+                    error_msg = "Local offsets not found. Use 'Create Offsets' button."
+                    try:
+                        import tkinter.messagebox as msgbox
+                        self.root.after(0, lambda: msgbox.showerror(
+                            f"{self.app_title} - Missing Offsets",
+                            "Local offsets directory not found.\n\n"
+                            "To use manual offsets:\n"
+                            "1. Make sure CS2 is running\n"
+                            "2. Click the 'Create Offsets' button\n"
+                            "3. Wait for offsets to be generated\n"
+                            "4. Launch the script"
+                        ))
+                    except Exception:
+                        pass
+                    self.root.after(0, lambda: self.update_status(error_msg))
+                    self.root.after(0, lambda: self.update_progress(0))
+                    self.root.after(0, lambda: self.reset_launch_button())
+                    return
+                
+                # Check if output directory exists
+                if not os.path.exists(output_dir):
+                    error_msg = "Offset output folder missing. Create offsets first."
+                    try:
+                        import tkinter.messagebox as msgbox
+                        self.root.after(0, lambda: msgbox.showerror(
+                            f"{self.app_title} - Missing Output",
+                            "Offsets output directory not found.\n\n"
+                            "The offsets may not have been created properly.\n\n"
+                            "To fix this:\n"
+                            "1. Make sure CS2 is running\n"
+                            "2. Click 'Create Offsets' again\n"
+                            "3. Wait for completion\n"
+                            "4. Launch the script"
+                        ))
+                    except Exception:
+                        pass
+                    self.root.after(0, lambda: self.update_status(error_msg))
                     self.root.after(0, lambda: self.update_progress(0))
                     self.root.after(0, lambda: self.reset_launch_button())
                     return
                 
                 # Check if required offset files exist
-                output_dir = os.path.join(offsets_dir, 'output')
-                offsets_json = os.path.join(output_dir, 'offsets.json')
-                client_dll_json = os.path.join(output_dir, 'client_dll.json')
+                missing_files = []
+                if not os.path.exists(offsets_json):
+                    missing_files.append("offsets.json")
+                if not os.path.exists(client_dll_json):
+                    missing_files.append("client_dll.json")
                 
-                if not os.path.exists(offsets_json) or not os.path.exists(client_dll_json):
-                    self.root.after(0, lambda: self.update_status("Required offset files missing"))
+                if missing_files:
+                    error_msg = f"Missing: {', '.join(missing_files)}"
+                    try:
+                        import tkinter.messagebox as msgbox
+                        self.root.after(0, lambda: msgbox.showerror(
+                            f"{self.app_title} - Incomplete Offsets",
+                            f"Required offset files are missing:\n{chr(10).join(missing_files)}\n\n"
+                            "The offset files may be incomplete or corrupted.\n\n"
+                            "To fix this:\n"
+                            "1. Make sure CS2 is running\n"
+                            "2. Click 'Create Offsets' to regenerate\n"
+                            "3. Wait for completion\n"
+                            "4. Launch the script"
+                        ))
+                    except Exception:
+                        pass
+                    self.root.after(0, lambda: self.update_status(error_msg))
                     self.root.after(0, lambda: self.update_progress(0))
                     self.root.after(0, lambda: self.reset_launch_button())
                     return
                 
-                # Success - local offsets found
-                self.root.after(0, lambda: self.update_status("Local offsets verified!"))
+                # Success - local offsets found and verified
+                self.root.after(0, lambda: self.update_status("✓ Local offsets verified!"))
                 self.root.after(0, lambda: self.update_progress(20))
                 time.sleep(0.5)  # Brief pause to show success
             
