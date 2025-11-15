@@ -345,7 +345,7 @@ def register_cleanup_handlers():
     
     try:
         # Register final cleanup for normal exit
-        atexit.register(lambda: cleanup_all_temporary_files(final_cleanup=True))
+        atexit.register(lambda: cleanup_all_temporary_files(final_cleanup=False))
         
         def signal_handler(signum, frame):
             log(f"[EXIT] Signal {signum} received, cleaning up...")
@@ -451,35 +451,55 @@ def load_local_offsets():
         
         # Load offsets.json
         offsets_path = os.path.join(offsets_dir, 'offsets.json')
+        if not os.path.exists(offsets_path):
+            raise FileNotFoundError(f"Local offsets file not found: {offsets_path}")
+            
         with open(offsets_path, 'r', encoding='utf-8') as f:
             offsets_data = json.load(f)
         
         # Load client_dll.json
         client_dll_path = os.path.join(offsets_dir, 'client_dll.json')
+        if not os.path.exists(client_dll_path):
+            raise FileNotFoundError(f"Local client_dll file not found: {client_dll_path}")
+            
         with open(client_dll_path, 'r', encoding='utf-8') as f:
             client_dll_data = json.load(f)
         
-        log(f"[OFFSETS-{process_name}] Local offsets loaded successfully")
+        log(f"[OFFSETS-{process_name}] Local offsets loaded successfully from {offsets_dir}")
         
         return offsets_data, client_dll_data
         
+    except FileNotFoundError as e:
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] ERROR: {e}")
+        log(f"[OFFSETS-{process_name}] Falling back to GitHub offsets")
+        return load_github_offsets()
+    except json.JSONDecodeError as e:
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] ERROR: Invalid JSON in local offset files: {e}")
+        log(f"[OFFSETS-{process_name}] Falling back to GitHub offsets")
+        return load_github_offsets()
     except Exception as e:
-        log(f"[OFFSETS] Local offsets failed: {e}")
-        log("[OFFSETS] Falling back to GitHub offsets")
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] ERROR: Failed to load local offsets: {e}")
+        log(f"[OFFSETS-{process_name}] Falling back to GitHub offsets")
         return load_github_offsets()
 
 def load_github_offsets():
     """Load offsets from GitHub (original method)"""
     try:
-        log("[OFFSETS] Downloading from GitHub...")
-        offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json').json()
-        client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json').json()
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] Downloading from GitHub...")
+        offsets = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/offsets.json', timeout=10).json()
+        client_dll = requests.get('https://raw.githubusercontent.com/popsiclez/offsets/refs/heads/main/output/client_dll.json', timeout=10).json()
         
-        log("[OFFSETS] GitHub offsets loaded successfully")
+        log(f"[OFFSETS-{process_name}] GitHub offsets loaded successfully")
         return offsets, client_dll
         
     except Exception as e:
-        log(f"[OFFSETS] GitHub download failed: {e}")
+        process_name = multiprocessing.current_process().name
+        log(f"[OFFSETS-{process_name}] ERROR: GitHub download failed: {e}")
+        log(f"[OFFSETS-{process_name}] WARNING: Returning empty offset data - script may not work correctly")
         return {}, {}
 
 def get_app_title():
@@ -10153,7 +10173,7 @@ if __name__ == "__main__":
     
     def cleanup_and_exit(reason=""):
         """Clean shutdown of all processes and resources"""
-        cleanup_all_temporary_files(final_cleanup=True)  # Final cleanup - delete commands.txt
+        cleanup_all_temporary_files(final_cleanup=False)  # Don't delete commands.txt
         
         if 'procs' in locals() or 'procs' in globals():
             for i, p in enumerate(procs):
